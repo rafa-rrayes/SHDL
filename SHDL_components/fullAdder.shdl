@@ -1,0 +1,19 @@
+use stdgates::{XOR, AND, OR};
+
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+
+    x1: XOR; a1: AND;
+    x2: XOR; a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A; B -> x1.B;
+        A -> a1.A; B -> a1.B;
+
+        x1.O -> x2.A; Cin -> x2.B;
+        x1.O -> a2.A; Cin -> a2.B;
+        a1.O -> o1.A; a2.O -> o1.B;
+
+        x2.O -> Sum; o1.O -> Cout;
+    }
+}

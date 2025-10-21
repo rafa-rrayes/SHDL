@@ -1,0 +1,11 @@
+use stdgates::{NOT};
+
+component LBI(In[8])->(Out[8]){
+    n1: NOT;
+
+    connect{
+        In[8]-> n1.A;
+        In[:7] -> Out[:7];
+        n1.O -> Out[8];
+    }
+}
