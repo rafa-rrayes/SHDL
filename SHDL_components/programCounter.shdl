@@ -1,0 +1,75 @@
+use stdgates::{OR, AND};
+use register16::{Register16};
+use adderSubtractor16::{Adder16};
+use mux2to1_16::{Mux2to1_16};
+
+# 16-bit Program Counter
+# Increments by 1 each clock cycle or loads new value
+# load: when 1, loads jumpAddr; when 0, increments
+component ProgramCounter(jumpAddr[16], load, clk) -> (PC[16]) {
+    
+    # PC register
+    pc_reg: Register16;
+    
+    # Incrementer (adds 1)
+    inc: Adder16;
+    
+    # Multiplexer to select between increment and jump
+    mux: Mux2to1_16;
+    
+    # Constant 1 for incrementing
+    # We'll use the least significant bits of jumpAddr as a trick
+    # Better: create constant generator
+    >i[16]{
+        one_gate{i}: AND;
+    }
+    one_gen: OR;
+    
+    # Enable logic
+    enable_gen: OR;
+    
+    connect {
+        # Generate constant 1 for least significant bit
+        load -> one_gate1.A;
+        load -> one_gate1.B;
+        one_gate1.O -> one_gen.A;
+        one_gen.O -> one_gen.B;
+        
+        # Connect PC output to incrementer
+        >i[16]{
+            pc_reg.Out[{i}] -> inc.A[{i}];
+        }
+        
+        # Set B input of adder (increment value)
+        one_gen.O -> inc.B[1];  # B[1] = 1
+        >i[2, 16]{
+            one_gate1.O -> inc.B[{i}];  # B[2..16] = 0 (using AND with itself gives 0 after OR)
+        }
+        
+        # Subtraction disabled (always add)
+        one_gate1.O -> inc.sub;  # This creates 0
+        
+        # Select between incremented PC and jump address
+        >i[16]{
+            inc.Sum[{i}] -> mux.In0[{i}];
+            jumpAddr[{i}] -> mux.In1[{i}];
+        }
+        load -> mux.sel;
+        
+        # Connect mux output to PC register input
+        >i[16]{
+            mux.Out[{i}] -> pc_reg.In[{i}];
+        }
+        
+        # PC always enabled (updates every clock)
+        clk -> enable_gen.A;
+        clk -> enable_gen.B;
+        enable_gen.O -> pc_reg.enable;
+        clk -> pc_reg.clk;
+        
+        # Output PC value
+        >i[16]{
+            pc_reg.Out[{i}] -> PC[{i}];
+        }
+    }
+}

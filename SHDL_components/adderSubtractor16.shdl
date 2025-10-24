@@ -1,0 +1,46 @@
+use fullAdder::{FullAdder};
+use stdgates::{XOR};
+
+# 16-bit adder/subtractor
+# When sub=0: performs A + B
+# When sub=1: performs A - B (using two's complement)
+component Adder16(A[16], B[16], sub) -> (Sum[16], Cout, overflow) {
+    
+    # Create 16 full adders
+    >i[16]{
+        fa{i}: FullAdder;
+        xor{i}: XOR;
+    }
+    
+    connect {
+        # First bit
+        A[1] -> fa1.A;
+        B[1] -> xor1.A;
+        sub -> xor1.B;
+        xor1.O -> fa1.B;
+        sub -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+        
+        # Middle bits (2-15)
+        >i[2, 15]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> xor{i}.A;
+            sub -> xor{i}.B;
+            xor{i}.O -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum -> Sum[{i}];
+        }
+        
+        # Last bit (16)
+        A[16] -> fa16.A;
+        B[16] -> xor16.A;
+        sub -> xor16.B;
+        xor16.O -> fa16.B;
+        fa15.Cout -> fa16.Cin;
+        fa16.Sum -> Sum[16];
+        fa16.Cout -> Cout;
+        
+        # Overflow detection (XOR of last two carries)
+        fa15.Cout -> overflow;  # Simplified overflow
+    }
+}

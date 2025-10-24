@@ -1,0 +1,36 @@
+use stdgates::{NOR, AND, NOT};
+
+# 16-bit register with clock and enable
+component Register16(In[16], clk, enable) -> (Out[16]) {
+    
+    >i[16]{
+        and_enable{i}: AND;
+        a1{i}: AND;
+        a2{i}: AND;
+        not1{i}: NOT;
+        nor1{i}: NOR;
+        nor2{i}: NOR;
+    }
+    
+    connect {
+        >i[16]{
+            # Enable logic - only update when enable is high
+            In[{i}] -> and_enable{i}.A;
+            enable -> and_enable{i}.B;
+            
+            # SR latch with gated clock
+            and_enable{i}.O -> a1{i}.A;
+            and_enable{i}.O -> not1{i}.A;
+            not1{i}.O -> a2{i}.A;
+            
+            clk -> a1{i}.B;
+            clk -> a2{i}.B;
+            
+            a1{i}.O -> nor1{i}.A;
+            a2{i}.O -> nor2{i}.A;
+            nor1{i}.O -> nor2{i}.B;
+            nor2{i}.O -> nor1{i}.B;
+            nor2{i}.O -> Out[{i}];
+        }
+    }
+}

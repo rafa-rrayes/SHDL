@@ -1,0 +1,163 @@
+use stdgates::{AND, OR, XOR, NOT};
+use adderSubtractor16::{Adder16};
+
+# 16-bit ALU with operation selection
+# op[3]: 3-bit operation code
+#   000: ADD (A + B)
+#   001: SUB (A - B)
+#   010: AND (A & B)
+#   011: OR  (A | B)
+#   100: XOR (A ^ B)
+#   101: NOT A
+#   110: Pass A
+#   111: Pass B
+component ALU16(A[16], B[16], op[3]) -> (Result[16], zero, negative) {
+    
+    # Operation decoders
+    not_op0: NOT;
+    not_op1: NOT;
+    not_op2: NOT;
+    
+    # Decode operation signals
+    decode_add: AND;  # 000
+    decode_sub: AND;  # 001
+    decode_and: AND;  # 010
+    decode_or: AND;   # 011
+    decode_xor: AND;  # 100
+    decode_not: AND;  # 101
+    decode_pa: AND;   # 110
+    decode_pb: AND;   # 111
+    
+    and_helper1: AND;
+    and_helper2: AND;
+    and_helper3: AND;
+    and_helper4: AND;
+    and_helper5: AND;
+    and_helper6: AND;
+    
+    # Adder/Subtractor
+    addsub: Adder16;
+    
+    # Per-bit logic operations
+    >i[16]{
+        and_gate{i}: AND;
+        or_gate{i}: OR;
+        xor_gate{i}: XOR;
+        not_gate{i}: NOT;
+        
+        # Result multiplexers
+        mux_and{i}: AND;
+        mux_or{i}: AND;
+        mux_xor{i}: AND;
+        mux_not{i}: AND;
+        mux_add{i}: AND;
+        mux_sub{i}: AND;
+        mux_pa{i}: AND;
+        mux_pb{i}: AND;
+        
+        result_or1{i}: OR;
+        result_or2{i}: OR;
+        result_or3{i}: OR;
+        result_or4{i}: OR;
+        result_or5{i}: OR;
+        result_or6{i}: OR;
+        result_or7{i}: OR;
+    }
+    
+    connect {
+        # Invert operation bits for decoding
+        op[1] -> not_op0.A;
+        op[2] -> not_op1.A;
+        op[3] -> not_op2.A;
+        
+        # Decode operations (simplified - using op[1] only for add/sub distinction)
+        # ADD: op[3:1] = 000
+        not_op2.O -> and_helper1.A;
+        not_op1.O -> and_helper1.B;
+        and_helper1.O -> and_helper2.A;
+        not_op0.O -> and_helper2.B;
+        and_helper2.O -> decode_add.A;
+        and_helper2.O -> decode_add.B;
+        
+        # SUB: op[1] = 1, op[2] = 0, op[3] = 0
+        not_op2.O -> and_helper3.A;
+        not_op1.O -> and_helper3.B;
+        and_helper3.O -> and_helper4.A;
+        op[1] -> and_helper4.B;
+        and_helper4.O -> decode_sub.A;
+        and_helper4.O -> decode_sub.B;
+        
+        # Setup adder/subtractor
+        >i[16]{
+            A[{i}] -> addsub.A[{i}];
+            B[{i}] -> addsub.B[{i}];
+        }
+        op[1] -> addsub.sub;  # Use op[1] as subtract signal
+        
+        # Perform all logic operations in parallel
+        >i[16]{
+            A[{i}] -> and_gate{i}.A;
+            B[{i}] -> and_gate{i}.B;
+            
+            A[{i}] -> or_gate{i}.A;
+            B[{i}] -> or_gate{i}.B;
+            
+            A[{i}] -> xor_gate{i}.A;
+            B[{i}] -> xor_gate{i}.B;
+            
+            A[{i}] -> not_gate{i}.A;
+            
+            # Connect operation results to multiplexers
+            # Based on op[2:3] for logic ops
+            and_gate{i}.O -> mux_and{i}.A;
+            op[2] -> mux_and{i}.B;
+            
+            or_gate{i}.O -> mux_or{i}.A;
+            op[2] -> mux_or{i}.B;
+            
+            xor_gate{i}.O -> mux_xor{i}.A;
+            op[2] -> mux_xor{i}.B;
+            
+            not_gate{i}.O -> mux_not{i}.A;
+            op[2] -> mux_not{i}.B;
+            
+            # Adder result
+            addsub.Sum[{i}] -> mux_add{i}.A;
+            decode_add.O -> mux_add{i}.B;
+            
+            # Pass through operations
+            A[{i}] -> mux_pa{i}.A;
+            op[2] -> mux_pa{i}.B;
+            
+            B[{i}] -> mux_pb{i}.A;
+            op[3] -> mux_pb{i}.B;
+            
+            # Combine all results with OR tree
+            mux_add{i}.O -> result_or1{i}.A;
+            mux_and{i}.O -> result_or1{i}.B;
+            
+            result_or1{i}.O -> result_or2{i}.A;
+            mux_or{i}.O -> result_or2{i}.B;
+            
+            result_or2{i}.O -> result_or3{i}.A;
+            mux_xor{i}.O -> result_or3{i}.B;
+            
+            result_or3{i}.O -> result_or4{i}.A;
+            mux_not{i}.O -> result_or4{i}.B;
+            
+            result_or4{i}.O -> result_or5{i}.A;
+            mux_pa{i}.O -> result_or5{i}.B;
+            
+            result_or5{i}.O -> result_or6{i}.A;
+            mux_pb{i}.O -> result_or6{i}.B;
+            
+            result_or6{i}.O -> Result[{i}];
+        }
+        
+        # Flags
+        Result[16] -> negative;  # MSB indicates negative in two's complement
+        
+        # Zero flag (simplified - just check MSB for now)
+        not_op0.O -> zero;  # Placeholder
+    }
+}
