@@ -1,10 +1,11 @@
 use stdgates::{NOR, AND, NOT};
 
-# 16-bit register with clock and enable
-component Register16(In[16], clk, enable) -> (Out[16]) {
+# clk must be high for two cycles to store a value
+
+# 16-bit register
+component Register16(In[16], clk) -> (Out[16]) {
     
     >i[16]{
-        and_enable{i}: AND;
         a1{i}: AND;
         a2{i}: AND;
         not1{i}: NOT;
@@ -14,13 +15,9 @@ component Register16(In[16], clk, enable) -> (Out[16]) {
     
     connect {
         >i[16]{
-            # Enable logic - only update when enable is high
-            In[{i}] -> and_enable{i}.A;
-            enable -> and_enable{i}.B;
-            
-            # SR latch with gated clock
-            and_enable{i}.O -> a1{i}.A;
-            and_enable{i}.O -> not1{i}.A;
+            # Capture on clk
+            In[{i}] -> a1{i}.A;
+            In[{i}] -> not1{i}.A;
             not1{i}.O -> a2{i}.A;
             
             clk -> a1{i}.B;
