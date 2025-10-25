@@ -1,4 +1,3 @@
-
 - [ ] Compiler checks
 - [ ] Define strict rules for unconnected pins
 - [ ] Add constants
