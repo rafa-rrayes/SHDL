@@ -285,6 +285,7 @@ class SHDLParser:
                 module_file = search_path / f"{module}.shdl"
                 if module_file.exists():
                     imported_comp = self.parse_file(module_file)
+                    print(f"Imported module '{module}' from {module_file}")
                     break
 
     def flatten_component(self, parent: Component) -> Component:
@@ -522,13 +523,12 @@ class SHDLParser:
 
         for _ in range(max_passes):
             before = count_targets(parent)
+            print(f"Flattening pass: {before} non-standard instances remain.")
             if before == 0:
                 break
             self.flatten_component(parent)
             after = count_targets(parent)
-            if after >= before:
-                # No progress; likely cyclic or missing defs — bail out safely.
-                break
+            print(f"After pass: {after} non-standard instances remain.")
         return parent
 
 

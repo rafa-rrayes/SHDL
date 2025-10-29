@@ -4,7 +4,7 @@ use stdgates::{XOR};
 # 16-bit adder/subtractor
 # When sub=0: performs A + B
 # When sub=1: performs A - B (using two's complement)
-component Adder16(A[16], B[16], sub) -> (Sum[16], Cout, overflow) {
+component AdderSub16(A[16], B[16], sub) -> (Sum[16], Cout, overflow) {
     
     # Create 16 full adders
     >i[16]{

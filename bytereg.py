@@ -1,7 +1,7 @@
 import ctypes
 
 # Load library
-lib = ctypes.CDLL("SHDL_components/bytereg.so")
+lib = ctypes.CDLL("SHDL_components/adderSubtractor16.so")
 
 # Setup function signatures
 lib.reset.restype = None
@@ -11,11 +11,9 @@ lib.peek.argtypes = [ctypes.c_char_p]
 
 # Use it!
 lib.reset()
-lib.poke(b"In", 44)
-lib.poke(b"clk", 1)
-lib.step(2)
-lib.poke(b"clk", 0)
-lib.poke(b"In", 67)
-lib.step(2)
-result = lib.peek(b"Out")
+lib.poke(b"A", 1037)
+lib.poke(b"B", 1038)
+lib.poke(b"sub", 1)
+lib.step(100)
+result = lib.peek(b"Sum")
 print(f"Result: {result}")
