@@ -1,3 +1,6 @@
 - [ ] Compiler checks
 - [ ] Define strict rules for unconnected pins
 - [ ] Add constants
+- [ ] Better API for interacting with the simulation
+- [ ] GDB-like debugging tool for circuit simulation
+- [ ] Tool for mapping circuit pins to real-world hardware (e.g., GPIO on Raspberry Pi)

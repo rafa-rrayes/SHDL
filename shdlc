@@ -146,16 +146,14 @@ def main():
                 print("Compiling C code to binary...")
             
             import subprocess
-            
+            # gcc -shared -fPIC -O3 your_design.c -o your_design.so
             gcc_cmd = [
                 'gcc',
+                '-shared',
+                '-fPIC',
                 f'-O{args.optimize}',
-                '-march=native',
-                '-flto',
-                '-fomit-frame-pointer',
-                '-pipe',
                 str(output_c),
-                '-o', str(output_bin)
+                '-o', str(output_bin)+".so"
             ]
             
             if args.verbose:

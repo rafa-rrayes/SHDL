@@ -6,7 +6,7 @@ A compiler for the Simple Hardware Description Language (SHDL).
 This library provides:
 - SHDLParser: Parse SHDL files into a component representation
 - Component flattening: Inline hierarchical components down to primitive gates
-- C code generation: Generate bit-packed, registered C simulators
+- C code generation: Generate bit-packed, registered C simulator libraries
 
 Usage:
     from pathlib import Path
@@ -20,7 +20,7 @@ Usage:
     # Flatten to primitive gates
     component = parser.flatten_all_levels(component)
     
-    # Generate C code
+    # Generate C library code
     c_code = generate_c_bitpacked(component)
     with open("adder16.c", "w") as f:
         f.write(c_code)
@@ -534,19 +534,15 @@ class SHDLParser:
 
 def generate_c_bitpacked(component: Component) -> str:
     """
-    Generate a fast, bit-packed, registered C simulator for the given netlist.
+    Generate a fast, bit-packed, registered C simulator library for the given netlist.
 
-    Assumptions:
-      - component.inputs / outputs: list of Ports (name:str, width:int, is_input:bool)
-      - component.instances: list of Instances (name:str, component_type:str, inputs:dict unused)
-      - component.connections: list of (src:str, dst:str), where src/dst are tokens like:
-          * 'A[3]' or scalar 'clk' for top inputs
-          * 'Out[7]' for top outputs (only as dest)
-          * 'instName.pin' for instance pins; pin names are 'A','B' (binary ops) or 'A' (unary NOT)
-          * 'instName.O' is the output pin (used only as source)
-    Timing:
-      - Every instance output 'inst.O' is a 1-cycle registered state.
-      - tick() computes next state n.* from snapshot (previous state + current inputs), then commit.
+    Generates a library API with:
+      - void reset(): Reset all state to zero
+      - void poke(const char *signal_name, uint64_t value): Set an input
+      - uint64_t peek(const char *signal_name): Read an input or output
+      - void eval(): Compute outputs combinationally (no state commit)
+      - void step(int cycles): Advance simulation by N cycles
+      - void dump_vcd(const char *filename): Placeholder for VCD generation
     
     Args:
         component: Flattened component with only standard gates
@@ -697,10 +693,19 @@ def generate_c_bitpacked(component: Component) -> str:
 
     W('#include <stdint.h>')
     W('#include <stdio.h>')
+    W('#include <string.h>')
     W('')
     W(f'// Auto-generated bit-packed registered simulator for {component.name}')
     W('// Each gate family packs up to 64 instances into a 64-bit lane vector.')
     W('// Next state is computed from previous state and current inputs (2-phase update).')
+    W('//')
+    W('// Library API:')
+    W('//   void reset(void);')
+    W('//   void poke(const char *signal_name, uint64_t value);')
+    W('//   uint64_t peek(const char *signal_name);')
+    W('//   void eval(void);')
+    W('//   void step(int cycles);')
+    W('//   void dump_vcd(const char *filename);')
     W('')
 
     # State struct: one or more 64-bit vectors per gate type (chunks)
@@ -763,81 +768,251 @@ def generate_c_bitpacked(component: Component) -> str:
     W('}')
     W('')
 
-    # main: scanf-driven demo (fast enough for interactivity; for benchmarks, drive from arrays)
-    W('int main(void) {')
-    W('    State s = {0};')
-    for p in component.inputs:
-        W(f'    unsigned long long {c_ident(p.name)} = 0ull;')
-    # Read/print loop
-    W('    while (1) {')
-    # Prompt
-    W('        printf("Enter inputs: ' + ' '.join([p.name for p in component.inputs]) + '\\n");')
-    fmt = ' '.join(['%llu' for _ in component.inputs])
-    args = ', '.join(['&' + c_ident(p.name) for p in component.inputs])
-    W(f'        if (scanf("{fmt}", {args}) != {len(component.inputs)}) break;')
-    # Tick
-    tick_args = ', '.join(['s'] + [c_ident(p.name) for p in component.inputs])
-    W(f'        s = tick({tick_args});')
-    W('')
-    # Build and print outputs from current state s
+    # Generate helper functions to extract outputs from state
     for p in component.outputs:
+        func_name = f'extract_{c_ident(p.name).lower()}'
+        W(f'static inline uint64_t {func_name}(const State *s) {{')
+        
         if p.width == 1:
-            # Output bit source
+            # Single-bit output
             key = f'{p.name}[1]'
             if key not in out_src and p.name in out_src:
-                key = p.name  # rare scalar name
+                key = p.name
             src = out_src.get(key)
             if src is None:
                 raise ValueError(f'No driver for output {p.name}')
-            # compute bit
+            
             if is_bit(src):
                 base, idx = parse_bit(src)
                 if base not in inputs:
                     raise ValueError(f'Output {p.name} reads unknown bit source {src}')
-                bexpr = f'(({c_ident(base)} >> {idx-1}) & 1u)'
-                W(f'        unsigned long long {c_ident(p.name)}_val = {bexpr};')
+                W(f'    // Output connected to input bit, not state-dependent')
+                W(f'    return 0ull;  // Will be computed from inputs in peek()')
             elif is_inst_pin(src):
                 iname, pin = split_inst_pin(src)
                 if pin != 'O':
                     raise ValueError(f'Output {p.name} cannot read non-output pin {src}')
                 t, chunk_idx, lane_in_chunk = inst_lane[iname]
-                W(f'        unsigned long long {c_ident(p.name)}_val = (unsigned long long)((s.{c_ident(t)}_O_{chunk_idx} >> {lane_in_chunk}) & 1u);')
+                W(f'    return (s->{c_ident(t)}_O_{chunk_idx} >> {lane_in_chunk}) & 1ull;')
             else:
                 # scalar input
                 if src in inputs and inputs[src].width == 1:
-                    W(f'        unsigned long long {c_ident(p.name)}_val = (unsigned long long)({c_ident(src)} & 1u);')
+                    W(f'    // Output connected to input, not state-dependent')
+                    W(f'    return 0ull;  // Will be computed from inputs in peek()')
                 else:
                     raise ValueError(f'Output {p.name} has unsupported driver {src}')
         else:
-            # multi-bit: reconstruct integer from bit drivers
+            # Multi-bit output: reconstruct from bit drivers
             terms = []
             for i in range(1, p.width + 1):
                 key = f'{p.name}[{i}]'
                 src = out_src.get(key)
                 if src is None:
                     raise ValueError(f'No driver for output {key}')
+                
                 if is_bit(src):
-                    base, idx = parse_bit(src)
-                    if base not in inputs:
-                        raise ValueError(f'Output {key} reads unknown bit source {src}')
-                    term = f'((( {c_ident(base)} >> {idx-1}) & 1ull) << {i-1})'
+                    # Will be handled in peek() since it's input-dependent
+                    terms.append('0ull')
                 elif is_inst_pin(src):
                     iname, pin = split_inst_pin(src)
                     if pin != 'O':
                         raise ValueError(f'Output {key} cannot read non-output pin {src}')
                     t, chunk_idx, lane_in_chunk = inst_lane[iname]
-                    term = f'(( (s.{c_ident(t)}_O_{chunk_idx} >> {lane_in_chunk}) & 1ull) << {i-1})'
+                    terms.append(f'(((s->{c_ident(t)}_O_{chunk_idx} >> {lane_in_chunk}) & 1ull) << {i-1})')
                 else:
                     # scalar input routed to a bit
-                    if src in inputs and inputs[src].width == 1:
-                        term = f'((( {c_ident(src)} & 1ull) ) << {i-1})'
-                    else:
-                        raise ValueError(f'Output {key} has unsupported driver {src}')
-                terms.append(term)
-            W(f'        unsigned long long {c_ident(p.name)}_val = ' + ' | '.join(terms) + ';')
-        # print line per output
-        W(f'        printf("{p.name}=%llu\\n", {c_ident(p.name)}_val);')
-    W('    }')
-    W('    return 0;')
+                    terms.append('0ull')
+            
+            W(f'    return {" | ".join(terms)};')
+        
+        W('}')
+        W('')
+
+    # DUT context structure
+    W('typedef struct {')
+    W('    State current;')
+    W('    State pending;')
+    for p in component.inputs:
+        mask = (1 << p.width) - 1 if p.width < 64 else 0xFFFFFFFFFFFFFFFF
+        W(f'    uint64_t input_{c_ident(p.name)};')
+    for p in component.outputs:
+        W(f'    uint64_t {c_ident(p.name).lower()};')
+        if p.width == 1:
+            W(f'    uint8_t {c_ident(p.name).lower()}_bit;')
+    W('    int pending_valid;')
+    W('    int outputs_valid;')
+    W("} DutContext;")
+    W('')
+    W('static DutContext dut = {0};')
+    W('')
+
+    # Helper functions
+    W('static void mark_dirty(void) {')
+    W('    dut.outputs_valid = 0;')
+    W('    dut.pending_valid = 0;')
     W('}')
+    W('')
+
+    W('static void compute_pending(void) {')
+    tick_args = ['dut.current'] + [f'dut.input_{c_ident(p.name)}' for p in component.inputs]
+    W(f'    dut.pending = tick({", ".join(tick_args)});')
+    
+    # Extract outputs from pending state
+    for p in component.outputs:
+        func_name = f'extract_{c_ident(p.name).lower()}'
+        W(f'    dut.{c_ident(p.name).lower()} = {func_name}(&dut.pending);')
+        
+        # Handle input pass-through or additional computation for outputs
+        if p.width == 1:
+            key = f'{p.name}[1]'
+            if key not in out_src and p.name in out_src:
+                key = p.name
+            src = out_src.get(key)
+            
+            if src and is_bit(src):
+                base, idx = parse_bit(src)
+                if base in inputs:
+                    W(f'    dut.{c_ident(p.name).lower()} = ((dut.input_{c_ident(base)} >> {idx-1}) & 1ull);')
+            elif src and src in inputs and inputs[src].width == 1:
+                W(f'    dut.{c_ident(p.name).lower()} = (dut.input_{c_ident(src)} & 1ull);')
+            
+            if p.width == 1:
+                W(f'    dut.{c_ident(p.name).lower()}_bit = (uint8_t)(dut.{c_ident(p.name).lower()} & 1u);')
+        else:
+            # For multi-bit outputs, add any input-dependent bits
+            for i in range(1, p.width + 1):
+                key = f'{p.name}[{i}]'
+                src = out_src.get(key)
+                if src and is_bit(src):
+                    base, idx = parse_bit(src)
+                    if base in inputs:
+                        W(f'    dut.{c_ident(p.name).lower()} |= (((dut.input_{c_ident(base)} >> {idx-1}) & 1ull) << {i-1});')
+                elif src and src in inputs and inputs[src].width == 1:
+                    W(f'    dut.{c_ident(p.name).lower()} |= (((dut.input_{c_ident(src)} & 1ull)) << {i-1});')
+    
+    W('    dut.pending_valid = 1;')
+    W('    dut.outputs_valid = 1;')
+    W('}')
+    W('')
+
+    W('static void ensure_outputs(void) {')
+    W('    if (!dut.outputs_valid) {')
+    W('        compute_pending();')
+    W('    }')
+    W('}')
+    W('')
+
+    # Public API functions
+    W('void reset(void) {')
+    W('    memset(&dut, 0, sizeof(dut));')
+    W('}')
+    W('')
+
+    W('void poke(const char *signal_name, uint64_t value) {')
+    input_idx = 0
+    for p in component.inputs:
+
+        mask = (1 << p.width) - 1 if p.width < 64 else 0xFFFFFFFFFFFFFFFF
+        if input_idx == 0:
+            W(f'    if (strcmp(signal_name, "{p.name}") == 0) {{')
+            W(f'        dut.input_{c_ident(p.name)} = value & 0x{mask:x}ull;')
+        else:
+            W(f'    }}else if (strcmp(signal_name, "{p.name}") == 0) {{')
+            W(f'        dut.input_{c_ident(p.name)} = value & 0x{mask:x}ull;')
+        input_idx += 1
+    W('    }else {')
+    W('        fprintf(stderr, "Unknown signal \'%s\'\\n", signal_name);')
+    W('        return;')
+    W('    }')
+    W('    mark_dirty();')
+    W('}')
+    W('')
+
+    W('uint64_t peek(const char *signal_name) {')
+    # Allow peeking at inputs
+    for p in component.inputs:
+        W(f'    if (strcmp(signal_name, "{p.name}") == 0) {{')
+        W(f'        return dut.input_{c_ident(p.name)};')
+        W(f'    }}')
+    W('')
+    W('    ensure_outputs();')
+    W('')
+    W('    const State *visible_state = dut.pending_valid ? &dut.pending : &dut.current;')
+    W('')
+    # Allow peeking at outputs
+    for p in component.outputs:
+        W(f'    if (strcmp(signal_name, "{p.name}") == 0) {{')
+        W(f'        return dut.{c_ident(p.name).lower()};')
+        W(f'    }}')
+    # Allow peeking at internal state chunks for debugging
+    for t in type_to_insts:
+        num_chunks = type_chunks[t]
+        for chunk_idx in range(num_chunks):
+            signal_name = f'{c_ident(t)}_O_{chunk_idx}'
+            W(f'    if (strcmp(signal_name, "{signal_name}") == 0) {{')
+            W(f'        return visible_state->{signal_name};')
+            W(f'    }}')
+    W('')
+    W('    fprintf(stderr, "Unknown signal \'%s\'\\n", signal_name);')
+    W('    return 0ull;')
+    W('}')
+    W('')
+
+    W('void eval(void) {')
+    W('    compute_pending();')
+    W('}')
+    W('')
+
+    W('void step(int cycles) {')
+    W('    if (cycles <= 0) {')
+    W('        ensure_outputs();')
+    W('        return;')
+    W('    }')
+    W('')
+    W('    for (int i = 0; i < cycles; ++i) {')
+    tick_args = ['dut.current'] + [f'dut.input_{c_ident(p.name)}' for p in component.inputs]
+    W(f'        dut.current = tick({", ".join(tick_args)});')
+    W('    }')
+    W('')
+    W('    dut.pending_valid = 0;')
+    # Extract outputs from current state after stepping
+    for p in component.outputs:
+        func_name = f'extract_{c_ident(p.name).lower()}'
+        W(f'    dut.{c_ident(p.name).lower()} = {func_name}(&dut.current);')
+        
+        # Handle input pass-through
+        if p.width == 1:
+            key = f'{p.name}[1]'
+            if key not in out_src and p.name in out_src:
+                key = p.name
+            src = out_src.get(key)
+            
+            if src and is_bit(src):
+                base, idx = parse_bit(src)
+                if base in inputs:
+                    W(f'    dut.{c_ident(p.name).lower()} = ((dut.input_{c_ident(base)} >> {idx-1}) & 1ull);')
+            elif src and src in inputs and inputs[src].width == 1:
+                W(f'    dut.{c_ident(p.name).lower()} = (dut.input_{c_ident(src)} & 1ull);')
+            
+            W(f'    dut.{c_ident(p.name).lower()}_bit = (uint8_t)(dut.{c_ident(p.name).lower()} & 1u);')
+        else:
+            # For multi-bit outputs, add any input-dependent bits
+            for i in range(1, p.width + 1):
+                key = f'{p.name}[{i}]'
+                src = out_src.get(key)
+                if src and is_bit(src):
+                    base, idx = parse_bit(src)
+                    if base in inputs:
+                        W(f'    dut.{c_ident(p.name).lower()} |= (((dut.input_{c_ident(base)} >> {idx-1}) & 1ull) << {i-1});')
+                elif src and src in inputs and inputs[src].width == 1:
+                    W(f'    dut.{c_ident(p.name).lower()} |= (((dut.input_{c_ident(src)} & 1ull)) << {i-1});')
+    W('    dut.outputs_valid = 1;')
+    W('}')
+    W('')
+
+    W('void dump_vcd(const char *filename) {')
+    W('    (void)filename;')
+    W('    fprintf(stderr, "dump_vcd not implemented for this model\\n");')
+    W('}')
+    
     return '\n'.join(out)
