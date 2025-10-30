@@ -1,6 +1,6 @@
 # SHDL - Simple Hardware Description Language
 
-A lightweight hardware description language and Python driver for digital circuit simulation. SHDL provides an intuitive syntax for defining digital circuits and a clean Python API for interacting with them.
+A lightweight hardware description language and Python driver for digital circuit simulation. SHDL provides an intuitive syntax for defining digital circuits and a clean Python API for interacting with them (PySHDL).
 
 ## Features
 
@@ -13,7 +13,7 @@ A lightweight hardware description language and Python driver for digital circui
 ## Installation
 
 ```bash
-pip install SHDL
+pip install PySHDL
 ```
 
 ## Quick Start
@@ -51,7 +51,7 @@ component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
 ### 2. Use in Python
 
 ```python
-from SHDL import Circuit
+from PySHDL import Circuit
 
 # Load and compile the circuit
 circuit = Circuit("adder.shdl")
@@ -116,26 +116,19 @@ See the `examples/` directory for more complete examples:
 - `SHDL_components/` - Reusable component library
 
 ## Documentation
-
-For more detailed documentation, see [DOCS.md](DOCS.md).
-
-## Todo
-
-- [ ] Compiler checks
-- [ ] Define strict rules for unconnected pins
-- [ ] Add constants
-- [ ] GDB-like debugging tool for circuit simulation
-- [ ] Tool for mapping circuit pins to real-world hardware (e.g., GPIO on Raspberry Pi)
+Github repository: [rafa-rrayes/SHDL](https://github.com/rafa-rrayes/SHDL)
+For more detailed documentation, see [DOCS.md](https://github.com/rafa-rrayes/SHDL/blob/master/DOCS.md)
 
 ## Requirements
 
-- Python >= 3.13
+- Python >= 3.9
 - GCC or compatible C compiler (for circuit compilation)
 
 ## Author
 
 **Rafa Rayes**  
 Email: rafa@rayes.com.br
+GitHub: [rafa-rrayes](https://github.com/rafa-rrayes)
 
 ## Contributing
 

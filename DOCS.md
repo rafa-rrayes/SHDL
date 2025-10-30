@@ -540,7 +540,7 @@ shdlc adder.shdl -O 3
 ## Language Examples
 
 ### Full Adder
-from SHDL import Circuit
+from PySHDL import Circuit
 
 circuit = Circuit("reg16.shdl")
 
@@ -563,7 +563,7 @@ print(f"Stored: {value}")  # Output: Stored: 12345
 ```
 
 ```python
-from SHDL import Circuit
+from PySHDL import Circuit
 
 circuit = Circuit("addSub16.shdl")
 

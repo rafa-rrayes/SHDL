@@ -1,4 +1,4 @@
-from SHDL import Circuit
+from PySHDL import Circuit
 
 def test_register16():
     circuit = Circuit("examples/SHDL_components/reg16.shdl")
