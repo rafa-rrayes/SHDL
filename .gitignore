@@ -1,23 +1,18 @@
+.gitignore
 
+# Python-generated files
 __pycache__/
-*.py[cod]
-*.so
-*.dylib
-*.dll
+*.py[oc]
 build/
 dist/
-*.egg-info/
-.mypy_cache/
-.pytest_cache/
+wheels/
+*.egg-info
 
-.venv/
+# Virtual environments
+.venv
 
-*.o
-*.out
-*.exe
-*.a
-*.dSYM/
 
+*.c
+*.so
+.python-version
 .DS_Store
-
-.vscode/

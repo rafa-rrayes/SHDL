@@ -2,28 +2,17 @@
 
 ## Overview
 
-The SHDL compiler has been modified to generate **C library APIs** instead of standalone executables. This enables integration with testing frameworks, property-based testing, fuzzing, and scripting languages like Python.
+The SHDL compiler generates a **C library APIs** instead of standalone executables. This enables integration with testing frameworks, property-based testing, fuzzing, and scripting languages like Python.
 
-## Key Changes
 
-### Before: Standalone Executable
-The old compiler generated a main() function with scanf-driven input:
-```c
-int main(void) {
-    State s = {0};
-    // scanf loop...
-}
-```
-
-### After: Library API
-The new compiler generates a clean API with these functions:
+### Library API
+The compiler generates a basic API with these functions:
 
 ```c
 void reset(void);
 void poke(const char *signal_name, uint64_t value);
 uint64_t peek(const char *signal_name);
 void step(int cycles);
-void dump_vcd(const char *filename);  // Placeholder
 ```
 
 ## API Functions
@@ -60,18 +49,16 @@ step(1);   // Advance by 1 cycle
 step(10);  // Advance by 10 cycles
 ```
 
-### `void dump_vcd(const char *filename)`
-Placeholder for VCD waveform generation. Currently prints an error message.
-
 ## Two-Phase Update Model
 
 The simulator uses a two-phase update model for correct timing:
 
-1. **Pending State**: Computed from current state + inputs (via `eval()`)
+1. **Pending State**: Computed from current state + inputs.
 2. **Current State**: Committed state after `step()`
 
 This ensures:
-- `peek()` always returns consistent values
+- We can write combinational and sequential logic correctly
+- Using feedback loops we can store state
 - Multiple `poke()` calls can be made before evaluation
 - Clock boundaries are clearly defined
 
@@ -193,16 +180,6 @@ uint64_t and_state = peek("AND_O_0");
 
 This is useful for understanding the internal behavior of complex designs.
 
-## Migration Guide
-
-If you have existing test code using the old standalone executable format:
-
-**Old approach:**
-```bash
-echo "42 17 1" | ./adder16
-```
-
-**New approach:**
 ```c
 reset();
 poke("A", 42);
@@ -216,15 +193,8 @@ printf("Sum=%llu\n", peek("Sum"));
 
 Potential additions to the library API:
 
-- **VCD Generation**: Full waveform dumping for debugging
-- **Save/Restore State**: Checkpoint and restore simulation state
-- **Cycle Counting**: Track total simulation cycles
-- **Performance Stats**: Measure throughput, latency, etc.
-- **Signal Watching**: Register callbacks for signal changes
+- **VCD Generation**: Full waveform dumping for debugging.
+- **GPIO Support**: Simulate your circuit with real pins.
+- **GDB like Debugging**: Would be awesome.
+- **Verilog Support**: Compile to Verilog for synthesis or simulation.
 
-## Notes
-
-- All integer signals use `uint64_t` regardless of actual bit width
-- The simulator internally masks values to the correct width
-- Unconnected inputs default to 0
-- The simulator uses bit-packing for efficiency (up to 64 gates per vector)

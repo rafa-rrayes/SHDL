@@ -4,13 +4,15 @@ SHDL Compiler - Command-line interface
 Usage: shdlc [options] <input.shdl>
 """
 
-import sys
 import argparse
+import subprocess
+import sys
 from pathlib import Path
-from shdl_compiler import SHDLParser, generate_c_bitpacked
+
+from .shdlc import SHDLParser, generate_c_code
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description='SHDL Compiler - Compile SHDL hardware description files to C',
         usage='%(prog)s [options] <input.shdl>'
@@ -132,10 +134,10 @@ def main():
         if args.verbose:
             print("Generating C code...")
         
-        c_code = generate_c_bitpacked(component)
-        
-        with open(output_c, 'w') as f:
-            f.write(c_code)
+        c_code = generate_c_code(component)
+
+        with open(output_c, 'w', encoding='utf-8') as file_handle:
+            file_handle.write(c_code)
         
         if args.verbose:
             print(f"  Generated {output_c} ({len(c_code)} bytes)")
@@ -145,7 +147,6 @@ def main():
             if args.verbose:
                 print("Compiling C code to binary...")
             
-            import subprocess
             # gcc -shared -fPIC -O3 your_design.c -o your_design.so
             gcc_cmd = [
                 'gcc',

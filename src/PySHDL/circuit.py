@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 
-class SHDLCircuit:
+class Circuit:
     """
     Interface for driving SHDL circuits from Python.
     
@@ -94,30 +94,14 @@ class SHDLCircuit:
     def _compile_shdl_to_c(self, output_file: Path):
         """Compile SHDL file to C using shdlc compiler."""
         # Look for shdlc in the same directory as the SHDL file
-        shdlc = self.shdl_file.parent / "shdlc"
-        
-        if not shdlc.exists():
-            # Try looking in current directory
-            shdlc = Path("shdlc")
-            if not shdlc.exists():
-                raise FileNotFoundError(
-                    "shdlc compiler not found. Make sure it exists and is executable."
-                )
-        
-        cmd = [str(shdlc.absolute()), str(self.shdl_file.absolute()), "-o", str(output_file.absolute())]
-        
-        try:
-            result = subprocess.run(
-                cmd, 
-                check=True, 
-                capture_output=True, 
-                text=True
-            )
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(
-                f"SHDL compilation failed:\n{e.stderr}"
-            )
-    
+        from .shdlc import generate_c_code, SHDLParser
+        shdl_parser = SHDLParser(self.search_paths)
+        component = shdl_parser.parse_file(self.shdl_file)
+        component = shdl_parser.flatten_all_levels(component)
+        c_code = generate_c_code(component)
+        with open(output_file, 'w') as f:
+            f.write(c_code)
+            
     def _build_shared_library(self, c_file: Path) -> Path:
         """Build a shared library from C code."""
         so_file = c_file.with_suffix('.so')
@@ -194,24 +178,3 @@ class SHDLCircuit:
         
         # Read back the same signals
         return {signal: self.peek(signal) for signal in inputs.keys()}
-
-
-if __name__ == "__main__":
-    # Example usage
-    print("SHDL Driver - Example Usage")
-    print("=" * 50)
-
-    # Test if adderSubtractor16.shdl exists
-    if Path("SHDL_components/adderSubtractor16.shdl").exists():
-        print("\nTesting 16-bit AdderSubtractor...")
-        circuit = SHDLCircuit("SHDL_components/adderSubtractor16.shdl")
-         
-        circuit.poke("A", 1)
-        circuit.poke("B", 3482)
-        circuit.poke("sub", 1)
-        
-        circuit.step(500)
-
-        result = circuit.peek("Sum")
-
-        print(f"1 + 0 = {result}")

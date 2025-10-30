@@ -1,70 +1,142 @@
 # SHDL - Simple Hardware Description Language
 
-A simple and expressive hardware description language designed for easy digital circuit modeling and simulation. It's purpose is to be extremely minimal while still being able to create complex designs just from the most basic logic gates. SHDL allows users to define combinational and sequential logic circuits using a clean syntax, supporting hierarchical designs and vector operations.
+A lightweight hardware description language and Python driver for digital circuit simulation. SHDL provides an intuitive syntax for defining digital circuits and a clean Python API for interacting with them.
 
 ## Features
 
-- **Simple Syntax** - Clean, minimal syntax for describing digital circuits
-- **Hierarchical Design** - Build complex circuits from reusable components
-- **Vector Support** - Support for multi-bit signals
-- **Generators** - Loop constructs for repetitive circuit patterns
-- **C Code Generation** - Compile SHDL to optimized C simulators
+- 🚀 **Simple Syntax** - Easy-to-learn hardware description language
+- 🐍 **Python Integration** - Seamless Python API for circuit simulation
+- ⚡ **C Backend** - Compiles to optimized C code for fast simulation and portability
+- 🔧 **Command Line Tools** - Built-in compiler and utilities
+- 📦 **Component Reuse** - Import and compose reusable circuit components
 
-## Quick Example
+## Installation
+
+```bash
+pip install SHDL
+```
+
+## Quick Start
+
+### 1. Define a Circuit (SHDL)
+
+Create a file `adder.shdl`:
 
 ```shdl
-# Full Adder Component
-component FullAdder(A, B, Cin) -> (Sum, Cout) {
-    instances {
-        xor1: XOR;
-        xor2: XOR;
-        and1: AND;
-        and2: AND;
-        or1: OR;
+use fullAdder::{FullAdder};
+
+component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
+    >i[16]{
+        fa{i}: FullAdder;
     }
     
     connect {
-        A -> xor1.A;
-        B -> xor1.B;
-        xor1.Y -> xor2.A;
-        Cin -> xor2.B;
-        xor2.Y -> Sum;
-        # ... carry logic
+        A[1] -> fa1.A;
+        B[1] -> fa1.B;
+        Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+        
+        >i[2, 16]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum -> Sum[{i}];
+        }
+        
+        fa16.Cout -> Cout;
     }
 }
 ```
 
-## Getting Started
+### 2. Use in Python
 
-### Prerequisites
+```python
+from SHDL import Circuit
 
-- Python 3.7+
+# Load and compile the circuit
+circuit = Circuit("adder.shdl")
 
-### Usage
+# Set input values
+circuit.poke("A", 42)
+circuit.poke("B", 17)
+circuit.poke("Cin", 1)
 
-1. **Write your circuit** in SHDL (`.shdl` file)
-2. **Compile to C**:
-   ```shell
-   chmod +x shdlc
-   ./shdlc my_circuit.shdl -o my_circuit.c
-   ```
-3. **Compile and run** the generated C code
-    ```shell
-    gcc my_circuit.c -o my_circuit
-    ./my_circuit
-    ```
+# Run simulation
+circuit.step(10)
 
-## Project Structure
+# Read output
+result = circuit.peek("Sum")
+print(f"Result: {result}")  # Output: Result: 60
+```
 
-- `shdl_compiler.py` - Main compiler library
-- `SHDL_components/` - Example component library
-- `LANGUAGE_SPEC.md` - Complete language specification
+### 3. Compile from Command Line
+
+```bash
+# Compile SHDL to C
+shdlc adder.shdl -o adder.c
+
+# Compile and build executable
+shdlc adder.shdl --optimize 3
+```
+
+## CLI Options
+
+```
+shdlc [options] <input.shdl>
+
+Options:
+  -o, --output FILE       Output C file (default: <input>.c)
+  -I, --include DIR       Add directory to component search path
+  -c, --compile-only      Generate C code only, do not compile to binary
+  -O, --optimize LEVEL    GCC optimization level 0-3 (default: 3)
+```
+
+## Python API
+
+### Circuit Class
+
+```python
+Circuit(shdl_file, search_paths=None)
+```
+
+Create a new circuit instance from a SHDL file.
+
+**Methods:**
+
+- `poke(port_name, value)` - Set an input port value
+- `peek(port_name)` - Read an output port value
+- `step(cycles)` - Advance simulation by N cycles
+- `reset()` - Reset circuit to initial state
+
+## Examples
+
+See the `examples/` directory for more complete examples:
+
+- `interacting.py` - Basic circuit interaction
+- `SHDL_components/` - Reusable component library
 
 ## Documentation
 
-See [LANGUAGE_SPEC.md](LANGUAGE_SPEC.md) for the complete language specification.
+For more detailed documentation, see [DOCS.md](DOCS.md).
 
+## Todo
 
-I love the idea of SHDL and I think it would be awesome if someone could implement it in a better way. I have little idea of what I'm doing here.
+- [ ] Compiler checks
+- [ ] Define strict rules for unconnected pins
+- [ ] Add constants
+- [ ] GDB-like debugging tool for circuit simulation
+- [ ] Tool for mapping circuit pins to real-world hardware (e.g., GPIO on Raspberry Pi)
 
-You can customize the way you interact with the binary circuit simulation by altering the main function. The way it's implemented is very basic and just for testing purposes. I want to add something like GDB for the simulation. I also want to make a tool that allows you to map pins on the circuit to real world inputs/outputs like GPIO pins on a Raspberry Pi or an Arduino and then you can actually use the circuits you design in SHDL with real hardware. 
+## Requirements
+
+- Python >= 3.13
+- GCC or compatible C compiler (for circuit compilation)
+
+## Author
+
+**Rafa Rayes**  
+Email: rafa@rayes.com.br
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.

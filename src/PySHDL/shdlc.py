@@ -1,16 +1,16 @@
 """
-SHDL Compiler Library
+SHDL Compiler
 =====================
 A compiler for the Simple Hardware Description Language (SHDL).
 
-This library provides:
+This file provides:
 - SHDLParser: Parse SHDL files into a component representation
 - Component flattening: Inline hierarchical components down to primitive gates
 - C code generation: Generate bit-packed, registered C simulator libraries
 
 Usage:
     from pathlib import Path
-    from shdl_compiler import SHDLParser, generate_c_bitpacked
+    from shdl_compiler import SHDLParser, generate_c_code
     
     # Parse a SHDL file
     search_paths = [Path("SHDL_components")]
@@ -21,7 +21,7 @@ Usage:
     component = parser.flatten_all_levels(component)
     
     # Generate C library code
-    c_code = generate_c_bitpacked(component)
+    c_code = generate_c_code(component)
     with open("adder16.c", "w") as f:
         f.write(c_code)
 """
@@ -73,7 +73,7 @@ class SHDLParser:
         """
         self.search_paths = search_paths
         self.components: Dict[str, Component] = {}
-        self.STDGATES = {"AND", "OR", "NOT", "XOR", "NAND", "NOR", "XNOR"}
+        self.STDGATES = {"AND", "OR", "NOT", "XOR", "NAND", "NOR"}
     
     def parse_file(self, filepath: Path) -> Component:
         """
@@ -532,7 +532,7 @@ class SHDLParser:
         return parent
 
 
-def generate_c_bitpacked(component: Component) -> str:
+def generate_c_code(component: Component) -> str:
     """
     Generate a fast, bit-packed, registered C simulator library for the given netlist.
 
@@ -540,7 +540,6 @@ def generate_c_bitpacked(component: Component) -> str:
       - void reset(): Reset all state to zero
       - void poke(const char *signal_name, uint64_t value): Set an input
       - uint64_t peek(const char *signal_name): Read an input or output
-      - void eval(): Compute outputs combinationally (no state commit)
       - void step(int cycles): Advance simulation by N cycles
       - void dump_vcd(const char *filename): Placeholder for VCD generation
     
@@ -703,7 +702,6 @@ def generate_c_bitpacked(component: Component) -> str:
     W('//   void reset(void);')
     W('//   void poke(const char *signal_name, uint64_t value);')
     W('//   uint64_t peek(const char *signal_name);')
-    W('//   void eval(void);')
     W('//   void step(int cycles);')
     W('//   void dump_vcd(const char *filename);')
     W('')
@@ -955,11 +953,6 @@ def generate_c_bitpacked(component: Component) -> str:
     W('')
     W('    fprintf(stderr, "Unknown signal \'%s\'\\n", signal_name);')
     W('    return 0ull;')
-    W('}')
-    W('')
-
-    W('void eval(void) {')
-    W('    compute_pending();')
     W('}')
     W('')
 

@@ -1,0 +1,17 @@
+[project]
+name = "PySHDL"
+version = "0.1.2"
+description = "SHDL (Simple Hardware Description Language) is a minimal HDL designed for creating digital circuits and easily simulating them. It compiles directly to C for maximum performance and portability."
+readme = "README.md"
+authors = [
+    { name = "rafa-rrayes", email = "rafa@rayes.com.br" }
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+shdlc = "PySHDL.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
