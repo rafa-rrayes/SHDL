@@ -1,6 +1,8 @@
 # SHDL - Simple Hardware Description Language
 
-A lightweight hardware description language and Python driver for digital circuit simulation. SHDL provides an intuitive syntax for defining digital circuits and a clean Python API for interacting with them (PySHDL).
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/pyshdl?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/pyshdl)
+
+A lightweight hardware description language and Python driver for digital circuit simulation using exclusively logic gates! SHDL provides an intuitive syntax for defining digital circuits and a clean Python API for interacting with them (PySHDL).
 
 ## Features
 
