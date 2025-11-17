@@ -124,12 +124,34 @@ For more detailed documentation, see [DOCS.md](https://github.com/rafa-rrayes/SH
 - Python >= 3.9
 - GCC or compatible C compiler (for circuit compilation)
 
+# 📝 Feedback & Contributions Welcome
+
+SHDL is still early-stage, and real-world feedback is incredibly valuable.
+If you try the library—whether for a small experiment, a class assignment, or a personal project—I would love to hear how it went.
+
+Please consider sharing:
+	•	What worked well
+	•	What felt confusing or missing
+	•	Any bugs you hit
+	•	Feature ideas
+	•	Example circuits you built
+
+You can give feedback in any of the following ways:
+	•	Open an Issue:
+👉 https://github.com/rafa-rrayes/SHDL/issues
+	•	Start a Discussion:
+👉 https://github.com/rafa-rrayes/SHDL/discussions
+	•	Submit a Pull Request:
+Improvements, examples, docs, and tests are all welcome.
+	•	Send me a message!
+👉 rafa@rayes.com.br is my email. 
+
+Even a short comment like “Tried it — worked for me” helps guide development.
+Thank you for trying SHDL!
+
+
 ## Author
 
 **Rafa Rayes**  
 Email: rafa@rayes.com.br
 GitHub: [rafa-rrayes](https://github.com/rafa-rrayes)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
