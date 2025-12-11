@@ -312,4 +312,4 @@ If you encounter an issue not covered here:
 1. Check the error message carefully - it often contains the solution
 2. Verify your circuit compiles without the `-g` flag first
 3. Test with a simple circuit (like FullAdder) to isolate the problem
-4. Check the [SHDB specification](/SHDB.md) for implementation details
+4. Check the [SHDB overview](./overview.md) for implementation details
