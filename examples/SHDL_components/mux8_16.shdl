@@ -1,0 +1,14 @@
+use mux8::{Mux8};
+component Mux8_16(d0[16], d1[16], d2[16], d3[16], d4[16], d5[16], d6[16], d7[16], s0, s1, s2) -> (y[16]) {
+    >i[16]{
+        mux{i}: Mux8;
+    }
+    connect {
+        >i[16]{
+            d0[{i}] -> mux{i}.d0;  d1[{i}] -> mux{i}.d1;  d2[{i}] -> mux{i}.d2;  d3[{i}] -> mux{i}.d3;
+            d4[{i}] -> mux{i}.d4;  d5[{i}] -> mux{i}.d5;  d6[{i}] -> mux{i}.d6;  d7[{i}] -> mux{i}.d7;
+            s0 -> mux{i}.s0; s1 -> mux{i}.s1; s2 -> mux{i}.s2;
+            mux{i}.y -> y[{i}];
+        }
+    }
+}

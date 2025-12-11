@@ -1,0 +1,8 @@
+{
+  "label": "SHDB Debugger",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "SHDB (Simple Hardware Debugger) - An interactive GDB-style debugger for SHDL circuits with signal inspection, breakpoints, waveforms, and source-level debugging."
+  }
+}

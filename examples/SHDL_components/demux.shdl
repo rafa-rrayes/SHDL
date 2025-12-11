@@ -1,0 +1,19 @@
+use stdgates::{AND, NOT, OR};
+
+
+component Demux1to2(addr[4]) -> (Out[16]){
+
+    >i[4]{
+        not_addr{i}: NOT;
+    }
+    >i[16]{
+        and_{i}: AND;
+    }
+
+    connect{
+        >i[4]{
+            addr[{i}] -> not_addr{i}.A;
+        }
+        not_addr1.O->and_1.A; 
+    }
+}

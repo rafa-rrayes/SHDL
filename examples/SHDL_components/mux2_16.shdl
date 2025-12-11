@@ -1,0 +1,10 @@
+use mux2::{Mux2};
+
+component Mux2_16(a[16], b[16], sel) -> (y[16]) {
+    >i[16]{
+        m{i}: Mux2;
+    }
+    connect {
+        >i[16]{ a[{i}] -> m{i}.a; b[{i}] -> m{i}.b; sel -> m{i}.sel; m{i}.y -> y[{i}]; }
+    }
+}

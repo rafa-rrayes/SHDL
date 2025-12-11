@@ -1,0 +1,47 @@
+use mux2::{Mux2};
+
+component Shift1(A[16], dir, arith) -> (Y[16], Cout) {
+    # Left:   Y[i+1]=A[i], Y[1]=0,  Cout=A[16]
+    # RightL: Y[i]=A[i+1],  Y[16]=0, Cout=A[1]
+    # RightA: Y[i]=A[i+1],  Y[16]=A[16], Cout=A[1]
+
+    msb_fill_log0: Mux2;      # choose MSB fill between 0 and A[16] (for arithmetic)
+    msb_sel: Mux2;            # choose MSB (left-path 0 vs right-path fill)
+    cout_sel: Mux2;           # choose Cout (left=A[16], right=A[1])
+
+    # Per-bit muxes to pick left- or right-shifted wiring
+    >i[16]{ bitmux{i}: Mux2; }
+
+    ZERO= 0;
+    connect {
+
+        # MSB fill when shifting right: logical 0 vs arithmetic A[16]
+        ZERO -> msb_fill_log0.a; A[16] -> msb_fill_log0.b; arith -> msb_fill_log0.sel;
+
+        # Cout: left shift => A[16], right shift => A[1]
+        A[16] -> cout_sel.a; A[1] -> cout_sel.b; dir -> cout_sel.sel; cout_sel.y -> Cout;
+
+        # LSB position (index 1) for left shift is 0; for right shift it becomes A[2]
+        # We'll wire two candidate networks, then select by dir at each bit.
+
+        # Bit 1 (LSB):
+        # left candidate: A[0] doesn't exist -> 0 ; right candidate: A[2]
+        ZERO -> bitmux1.a; A[2] -> bitmux1.b; dir -> bitmux1.sel; bitmux1.y -> Y[1];
+
+        # Bits 2..15:
+        >i[2,15]{
+            # left candidate: A[i-1]; right candidate: A[i+1]
+            A[{i-1}] -> bitmux{i}.a;
+            A[{i+1}] -> bitmux{i}.b;
+            dir -> bitmux{i}.sel;
+            bitmux{i}.y -> Y[{i}];
+        }
+
+        # Bit 16 (MSB):
+        # left candidate: A[15]; right candidate: (logical 0 or arithmetic A[16])
+        A[15] -> bitmux16.a;
+        msb_fill_log0.y -> bitmux16.b;
+        dir -> bitmux16.sel;
+        bitmux16.y -> Y[16];
+    }
+}

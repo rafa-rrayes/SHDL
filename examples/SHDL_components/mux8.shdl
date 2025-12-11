@@ -1,0 +1,20 @@
+use mux2::{Mux2};
+
+component Mux8(d0, d1, d2, d3, d4, d5, d6, d7, s0, s1, s2) -> (y) {
+    m01: Mux2; m23: Mux2; m45: Mux2; m67: Mux2;
+    m0123: Mux2; m4567: Mux2;
+    mfinal: Mux2;
+
+    connect {
+        d0 -> m01.a; d1 -> m01.b; s0 -> m01.sel;
+        d2 -> m23.a; d3 -> m23.b; s0 -> m23.sel;
+        d4 -> m45.a; d5 -> m45.b; s0 -> m45.sel;
+        d6 -> m67.a; d7 -> m67.b; s0 -> m67.sel;
+
+        m01.y -> m0123.a; m23.y -> m0123.b; s1 -> m0123.sel;
+        m45.y -> m4567.a; m67.y -> m4567.b; s1 -> m4567.sel;
+
+        m0123.y -> mfinal.a; m4567.y -> mfinal.b; s2 -> mfinal.sel;
+        mfinal.y -> y;
+    }
+}

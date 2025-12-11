@@ -1,8 +1,8 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.9"
 
 [[package]]
-name = "PySHDL"
-version = "0.1.0"
+name = "pyshdl"
+version = "0.1.3"
 source = { editable = "." }
