@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from SHDL.debugger import (
+    SHDBCircuit,
     DebugInfo,
     SymbolTable,
     SignalRef,

@@ -20,7 +20,7 @@ Or use the shdb command-line tool:
 # Re-export everything from SHDL.debugger
 from SHDL.debugger import (
     # High-level API (primary interface)
-    Circuit,
+    SHDBCircuit,
     StopResult,
     WaveformSample,
     Breakpoint,
@@ -51,11 +51,11 @@ from SHDL.debugger import (
     BreakpointType,
 )
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = [
     # High-level API (recommended)
-    "Circuit",
+    "SHDBCircuit",
     "StopResult",
     "WaveformSample",
     "Breakpoint",

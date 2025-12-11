@@ -19,7 +19,7 @@ Usage:
 
 # High-level API (primary interface)
 from .circuit import (
-    Circuit,
+    Circuit as SHDBCircuit,
     PortInfo as CircuitPortInfo,
     GateInfo as CircuitGateInfo,
     SourceLocation as CircuitSourceLocation,
@@ -59,7 +59,7 @@ from .controller import (
 
 __all__ = [
     # High-level API (recommended)
-    "Circuit",
+    "SHDBCircuit",
     "StopResult",
     "WaveformSample",
     "Breakpoint",
