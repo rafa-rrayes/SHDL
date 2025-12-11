@@ -53,7 +53,9 @@ def compiled_full_adder(tmp_path_factory) -> tuple[Path, Path]:
     result = subprocess.run(
         [
             "uv", "run", "python", "-m", "SHDL.compiler.cli",
-            "examples/fullAdder.shdl",
+            "tests/circuits/test_half_full_adder.shdl",
+            "--flatten",
+            "--component", "FullAdder",
             "-g", "-c",
             "-o", str(lib_path),
         ],
