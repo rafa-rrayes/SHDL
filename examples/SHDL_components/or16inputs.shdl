@@ -1,0 +1,26 @@
+component Or16Inputs(A[16]) -> (Any1) {
+    # Balanced OR tree (could be linear too)
+    >i[8]{ o1_{i}: OR; }   # 8 ORs
+    >i[4]{ o2_{i}: OR; }   # 4
+    >i[2]{ o3_{i}: OR; }   # 2
+    o4: OR;                # 1
+
+    connect {
+        # level 1: pairs
+        >i[8]{ A[{2*i-1}] -> o1_{i}.A; A[{2*i}] -> o1_{i}.B; }
+
+        # level 2
+        o1_1.O -> o2_1.A; o1_2.O -> o2_1.B;
+        o1_3.O -> o2_2.A; o1_4.O -> o2_2.B;
+        o1_5.O -> o2_3.A; o1_6.O -> o2_3.B;
+        o1_7.O -> o2_4.A; o1_8.O -> o2_4.B;
+
+        # level 3
+        o2_1.O -> o3_1.A; o2_2.O -> o3_1.B;
+        o2_3.O -> o3_2.A; o2_4.O -> o3_2.B;
+
+        # level 4
+        o3_1.O -> o4.A; o3_2.O -> o4.B;
+        o4.O -> Any1;
+    }
+}

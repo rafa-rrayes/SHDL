@@ -1,0 +1,17 @@
+use fullAdder::{FullAdder};
+
+component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
+    >i[16]{ fa{i}: FullAdder; }
+    connect {
+        A[1] -> fa1.A; B[1] -> fa1.B; Cin -> fa1.Cin; fa1.Sum -> Sum[1];
+
+        >i[2,16]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum -> Sum[{i}];
+        }
+
+        fa16.Cout -> Cout;
+    }
+}

@@ -1,0 +1,41 @@
+use stdgates::{AND};
+
+# takes 4 steps to compute the AND of 16 inputs
+
+component And16Inputs(A[16]) -> (Out) {
+    >i[8]{
+        and1_{i}: AND;
+    }
+    >i[4]{
+        and2_{i}: AND;
+    }
+    >i[2]{
+        and3_{i}: AND;
+    }
+    and4: AND;
+
+    connect {
+        # Level 1: 16 -> 8
+        >i[8]{
+            A[{2*i-1}] -> and1_{i}.A;
+            A[{2*i}]   -> and1_{i}.B;
+        }
+
+        # Level 2: 8 -> 4
+        >i[4]{
+            and1_{2*i-1}.O -> and2_{i}.A;
+            and1_{2*i}.O   -> and2_{i}.B;
+        }
+
+        # Level 3: 4 -> 2
+        >i[2]{
+            and2_{2*i-1}.O -> and3_{i}.A;
+            and2_{2*i}.O   -> and3_{i}.B;
+        }
+
+        # Level 4: 2 -> 1
+        and3_1.O -> and4.A;
+        and3_2.O -> and4.B;
+        and4.O   -> Out;
+    }
+}

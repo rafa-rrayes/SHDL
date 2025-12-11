@@ -1,0 +1,19 @@
+use bitwise_not16::{BitwiseNot16};
+use addSub16::{AddSub16};
+
+component Negate16(A[16]) -> (Y[16]) {
+    inv: BitwiseNot16;
+    add: AddSub16;
+
+    ONE = 1;
+    ZERO = 0;
+    
+    connect {
+        ONE -> add.B[1];
+        >i[16]{
+            A[{i}] -> inv.A[{i}];
+            inv.Y[{i}] -> add.A[{i}];
+            add.Result[{i}] -> Y[{i}];
+        }
+    }
+}

@@ -1,0 +1,21 @@
+use stdgates::{AND, NOT, OR};
+
+# Clock component that generates a periodic clock signal
+component Clock(clk)->(out[20]) {
+
+  
+    >i[20]{
+        o{i}: OR;
+    }
+
+    connect {
+        clk -> o1.A;
+        >i[2, 20]{
+            o{i-1}.O -> o{i}.A; 
+            o{i-1}.O -> o{i}.B;
+            o{i-1}.O -> out[{i-1}];
+        }
+        o20.O -> o1.B;
+        o20.O -> out[20];
+    }
+}

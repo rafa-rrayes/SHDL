@@ -1,0 +1,8 @@
+{
+  "label": "Language Reference",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Complete reference for the SHDL language syntax and semantics."
+  }
+}

@@ -1,6 +1,6 @@
 [project]
 name = "PySHDL"
-version = "0.1.3"
+version = "0.2.0"
 description = "SHDL (Simple Hardware Description Language) is a minimal HDL designed for creating digital circuits and easily simulating them. It compiles directly to C for maximum performance and portability. PySHDL is the Python interface for SHDL."
 readme = "README.md"
 authors = [
@@ -15,8 +15,11 @@ Repository = "https://github.com/rafa-rrayes/SHDL"
 Documentation = "https://github.com/rafa-rrayes/SHDL/blob/master/DOCS.md"
 
 [project.scripts]
-shdlc = "PySHDL.cli:main"
+shdlc = "SHDL.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/SHDL", "src/SHDB"]

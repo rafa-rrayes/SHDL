@@ -1,8 +1,16 @@
 from PySHDL import Circuit
 
+def test_comp7():
+    circuit = Circuit("examples/SHDL_components/compare7.shdl")
+
+    for val in range(8):
+        circuit.poke("A", val)
+        circuit.step(10)
+        result = circuit.peek("True")
+        print(f"Compare7 input: {val}, output: {result}")
+
 def test_register16():
     circuit = Circuit("examples/SHDL_components/reg16.shdl")
-
 
     circuit.poke("In", 13)
     circuit.poke("clk", 0)
@@ -22,7 +30,7 @@ if __name__ == "__main__":
     print("SHDL Driver - Example Usage")
     print("=" * 50)
 
-    circuit = Circuit("examples/SHDL_components/addSub16.shdl")
+    circuit = Circuit("/Users/Rafa/Code/Python/SHDL/examples/SHDL_components/adder16.shdl")
     
 
     A = 103
@@ -37,4 +45,3 @@ if __name__ == "__main__":
     result = circuit.peek("Sum")
 
     print(f"{A} + {B} + {Cin} = {result}, expected {A + B + Cin}")
-    test_register16()

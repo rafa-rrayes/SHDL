@@ -1,0 +1,19 @@
+component Mux2(a, b, sel) -> (y) {
+    nsel: NOT;
+    a_and: AND;
+    b_and: AND;
+    or1: OR;
+
+    connect {
+        sel -> b_and.B;
+        b -> b_and.A;
+
+        sel -> nsel.A;
+        nsel.O -> a_and.B;
+        a -> a_and.A;
+
+        a_and.O -> or1.A;
+        b_and.O -> or1.B;
+        or1.O -> y;
+    }
+}

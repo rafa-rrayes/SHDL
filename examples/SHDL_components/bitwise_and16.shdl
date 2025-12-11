@@ -1,0 +1,4 @@
+component BitwiseAnd16(A[16], B[16]) -> (Y[16]) {
+    >i[16]{ g{i}: AND; }
+    connect { >i[16]{ A[{i}] -> g{i}.A; B[{i}] -> g{i}.B; g{i}.O -> Y[{i}]; } }
+}

@@ -1,0 +1,19 @@
+use or16Inputs::{Or16Inputs};
+
+component FlagsZN(Result[16]) -> (Z, N) {
+    ored: Or16Inputs;
+    inv: NOT;
+    o1: OR;
+
+    connect {
+        >i[16]{
+            Result[{i}] -> ored.A[{i}];
+        }
+        ored.Any1 -> inv.A;  # Z = NOT(OR of all bits)
+        inv.O -> Z;
+
+        # Sign/Negative flag = MSB
+        Result[16] -> o1.A;
+        o1.O -> N;
+    }
+}

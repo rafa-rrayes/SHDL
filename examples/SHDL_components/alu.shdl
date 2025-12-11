@@ -1,0 +1,130 @@
+use stdgates::{AND, OR, NOT, XOR};
+use addSub16::{AddSub16};
+use negate16::{Negate16};
+use bitwise_and16::{BitwiseAnd16};
+use bitwise_or16::{BitwiseOr16};
+use bitwise_xor16::{BitwiseXor16};
+use bitwise_not16::{BitwiseNot16};
+use shift1::{Shift1};
+use mux8_16::{Mux8_16};
+use mux2::{Mux2};
+use flagsZN::{FlagsZN};
+
+component ALU16(A[16], B[16], opcode[3], shift_dir, shift_arith) -> (Y[16], Cout, Overflow, Z, N) {
+    # Arithmetic
+    adder: AddSub16;        # performs ADD/SUB depending on its 'sub' input
+    neg:   Negate16;
+
+    # Bitwise
+    band: BitwiseAnd16; bor: BitwiseOr16; bxor: BitwiseXor16; bnot: BitwiseNot16;
+
+    # Shift
+    sh1: Shift1;
+
+    # Output select
+    sel: Mux8_16;
+
+    # Flags
+    flags: FlagsZN;
+
+    # Helpers to zero-out Cout/Overflow for non arith ops
+    cout_mux: Mux2; ovf_mux: Mux2;
+    is_addsub_or_neg: OR;   # true when opcode in {000,001,010}
+    is_addsub: OR;          # true when opcode in {000,001}
+
+    eq_000: AND; n_s0: NOT; n_s1: NOT; n_s2: NOT;
+    eq_001: AND; s0_and: AND;
+    eq_010: AND; s1_and: AND;
+
+    ZERO = 0;
+    connect {
+        # Wire operands to arithmetic/bitwise/shift units
+        >i[16]{
+            A[{i}] -> adder.A[{i}]; B[{i}] -> adder.B[{i}];
+        }
+        opcode[1] -> adder.sub;   # sub = 1 only for SUB (001); we'll gate via selector, see below (explanation)
+
+        >i[16]{
+            A[{i}] -> neg.A[{i}];
+            A[{i}] -> band.A[{i}]; B[{i}] -> band.B[{i}];
+            A[{i}] -> bor.A[{i}];  B[{i}] -> bor.B[{i}];
+            A[{i}] -> bxor.A[{i}]; B[{i}] -> bxor.B[{i}]; 
+            A[{i}] -> bnot.A[{i}];
+            A[{i}] -> sh1.A[{i}];
+        }
+        shift_dir -> sh1.dir; shift_arith -> sh1.arith;
+
+        # --- Build one-hot-ish detects for {000,001,010} to manage flags & adder mode ---
+
+        opcode[1] -> s0_and.A;  opcode[2] -> n_s1.A; opcode[3] -> n_s2.A;
+        # Invert s1,s2 and s0 where needed
+        opcode[1] -> n_s0.A;
+        opcode[2] -> n_s1.A;
+        opcode[3] -> n_s2.A;
+
+        # eq_000: ~s2 & ~s1 & ~s0
+        n_s2.O -> eq_000.A;  n_s1.O -> eq_000.B;  # eq_000 is 2-input; cascade with n_s0 via AND s0_and etc.
+        n_s0.O -> s0_and.B;  eq_000.O -> s0_and.A;   # s0_and now equals eq_000 fully
+        s0_and.O -> /* alias */ ;
+
+        # eq_001: ~s2 & ~s1 &  s0
+        n_s2.O -> eq_001.A;  n_s1.O -> eq_001.B;   # then AND with opcode[1]
+        opcode[1] -> s0_and.A;  eq_001.O -> s0_and.B;  # reuse; s0_and now eq_001
+        s0_and.O -> /* alias */ ;
+
+        # eq_010: ~s2 &  s1 & ~s0
+        n_s2.O -> eq_010.A;  opcode[2] -> eq_010.B;   # then AND with ~s0
+        n_s0.O -> s1_and.B;  eq_010.O -> s1_and.A;    # reuse; s1_and now eq_010
+        s1_and.O -> /* alias */ ;
+
+        # is_addsub = (opcode == 000) OR (opcode == 001)
+        eq_000.O -> is_addsub.A; eq_001.O -> is_addsub.B;
+
+        # is_addsub_or_neg = is_addsub OR (opcode == 010)
+        is_addsub.O -> is_addsub_or_neg.A; eq_010.O -> is_addsub_or_neg.B;
+
+        # For adder.sub: we only want '1' for SUB (001). A simple way is to just wire sub=opcode[1] when s1=s2=0.
+        # The earlier connection 'opcode[1] -> adder.sub' works because for other ops result is muxed out anyway.
+
+        # --- 8 data inputs to the big mux (in opcode order) ---
+        # d0: ADD      (000)
+        >i[16]{
+            adder.Result[{i}] -> sel.d0[{i}];
+        }   # adder with sub=0 behaves as ADD, with sub=1 behaves as SUB
+        # d1: SUB      (001)  (same adder, sub=1 selected via opcode[1])
+        >i[16]{
+            adder.Result[{i}] -> sel.d1[{i}];
+        }
+        # d2: NEG      (010)
+        >i[16]{
+            neg.Y[{i}]    -> sel.d2[{i}];
+        }
+        # d3: AND      (011)
+        >i[16]{
+            band.Y[{i}]   -> sel.d3[{i}];
+        }
+        # d4: OR       (100)
+        >i[16]{
+            bor.Y[{i}]    -> sel.d4[{i}];
+        }
+        # d5: XOR      (101)
+        >i[16]{
+            bxor.Y[{i}]   -> sel.d5[{i}];
+        }
+        # d6: NOT A    (106)
+        >i[16]{
+            bnot.Y[{i}]   -> sel.d6[{i}];
+            sh1.Y[{i}]    -> sel.d7[{i}];
+            sel.y[{i}] -> Y[{i}];
+            sel.y[{i}] -> flags.Result[{i}];
+        }
+        # d7: SHIFT    (111)
+        opcode[1] -> sel.s0; opcode[2] -> sel.s1; opcode[3] -> sel.s2;
+        flags.Z -> Z; flags.N -> N;
+
+        # Arithmetic status (Cout/Overflow): valid only for ADD/SUB; for others = 0
+        # Select between {adder.Cout vs 0}, {adder.Overflow vs 0} using is_addsub as selector.
+        ZERO -> cout_mux.a; adder.Cout -> cout_mux.b; is_addsub.O -> cout_mux.sel; cout_mux.y -> Cout;
+        ZERO -> ovf_mux.a;  adder.Overflow -> ovf_mux.b; is_addsub.O -> ovf_mux.sel; ovf_mux.y -> Overflow;
+    }
+}

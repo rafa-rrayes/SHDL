@@ -11,8 +11,11 @@ A lightweight hardware description language and Python driver for digital circui
 - ⚡ **C Backend** - Compiles to optimized C code for fast simulation and portability
 - 🔧 **Command Line Tools** - Built-in compiler and utilities
 - 📦 **Component Reuse** - Import and compose reusable circuit components
+- 🔢 **Constants Support** - Use named constants for parameterizable designs
 
 ## Installation
+
+We recommend using `uv` for using PySHDL. If you don't have it installed, you can install it via pip:
 
 ```bash
 pip install PySHDL
@@ -22,30 +25,24 @@ pip install PySHDL
 
 ### 1. Define a Circuit (SHDL)
 
-Create a file `adder.shdl`:
+Create a file `fullAdder.shdl`:
 
 ```shdl
-use fullAdder::{FullAdder};
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
 
-component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
-    >i[16]{
-        fa{i}: FullAdder;
-    }
-    
+    x1: XOR; a1: AND;
+    x2: XOR; a2: AND;
+    o1: OR;
+
     connect {
-        A[1] -> fa1.A;
-        B[1] -> fa1.B;
-        Cin -> fa1.Cin;
-        fa1.Sum -> Sum[1];
-        
-        >i[2, 16]{
-            A[{i}] -> fa{i}.A;
-            B[{i}] -> fa{i}.B;
-            fa{i-1}.Cout -> fa{i}.Cin;
-            fa{i}.Sum -> Sum[{i}];
-        }
-        
-        fa16.Cout -> Cout;
+        A -> x1.A; B -> x1.B;
+        A -> a1.A; B -> a1.B;
+
+        x1.O -> x2.A; Cin -> x2.B;
+        x1.O -> a2.A; Cin -> a2.B;
+        a1.O -> o1.A; a2.O -> o1.B;
+
+        x2.O -> Sum; o1.O -> Cout;
     }
 }
 ```
@@ -53,21 +50,18 @@ component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
 ### 2. Use in Python
 
 ```python
-from PySHDL import Circuit
+from SHDL import Circuit
 
 # Load and compile the circuit
-circuit = Circuit("adder.shdl")
-
-# Set input values
-circuit.poke("A", 42)
-circuit.poke("B", 17)
-circuit.poke("Cin", 1)
-
-# Run simulation
-circuit.step(10)
-
-# Read output
-result = circuit.peek("Sum")
+with Circuit("fullAdder.shdl") as c:
+    # Set input values
+    c.poke("A", 1)
+    c.poke("B", 1)
+    c.poke("Cin", 1)
+    # Run simulation
+    c.step(10)
+    # Read output
+    result = c.peek("Sum")
 print(f"Result: {result}")  # Output: Result: 60
 ```
 

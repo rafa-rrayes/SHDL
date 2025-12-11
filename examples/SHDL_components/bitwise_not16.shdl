@@ -1,0 +1,5 @@
+use stdgates::{NOT};
+component BitwiseNot16(A[16]) -> (Y[16]) {
+    >i[16]{ g{i}: NOT; }
+    connect { >i[16]{ A[{i}] -> g{i}.A; g{i}.O -> Y[{i}]; } }
+}
