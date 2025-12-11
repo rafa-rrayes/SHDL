@@ -1,6 +1,6 @@
 [project]
 name = "PySHDL"
-version = "0.2.1"
+version = "0.2.2"
 description = "SHDL (Simple Hardware Description Language) is a minimal HDL designed for creating digital circuits and easily simulating them. It compiles directly to C for maximum performance and portability. PySHDL is the Python interface for SHDL."
 readme = "README.md"
 authors = [
