@@ -36,6 +36,9 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       
+      - name: Create virtual environment
+        run: uv venv --python ${{ matrix.python-version }}
+      
       - name: Install dependencies
         run: |
           uv pip install -e .
@@ -80,6 +83,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       
+      - name: Create virtual environment
+        run: uv venv
+      
       - name: Install dependencies
         run: |
           uv pip install -e .
@@ -111,10 +117,13 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       
+      - name: Create virtual environment
+        run: uv venv
+      
       - name: Build package
         run: uv build
       
       - name: Check package
         run: |
-          uv pip install twine
-          uv run twine check dist/*
+          uv tool install twine
+          uv tool run twine check dist/*
