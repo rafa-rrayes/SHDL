@@ -119,7 +119,7 @@ GitHub repository: [rafa-rrayes/SHDL](https://github.com/rafa-rrayes/SHDL)
 
 ## Requirements
 
-- Python >= 3.9
+- Python >= 3.10
 - GCC or compatible C compiler (for circuit compilation)
 
 # 📝 Feedback & Contributions Welcome
