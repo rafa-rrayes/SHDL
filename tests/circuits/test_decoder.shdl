@@ -1,0 +1,112 @@
+# 2-to-4 Decoder
+# Input: 2-bit binary number
+# Output: One of 4 lines is HIGH based on input
+# 00 -> D0=1, 01 -> D1=1, 10 -> D2=1, 11 -> D3=1
+component Decoder2to4(S[2]) -> (D0, D1, D2, D3) {
+    not1: NOT;
+    not2: NOT;
+    and1: AND;
+    and2: AND;
+    and3: AND;
+    and4: AND;
+    
+    connect {
+        S[1] -> not1.A;
+        S[2] -> not2.A;
+        
+        # D0: NOT(S[1]) AND NOT(S[2]) - when S = 00
+        not1.O -> and1.A;
+        not2.O -> and1.B;
+        and1.O -> D0;
+        
+        # D1: S[1] AND NOT(S[2]) - when S = 01
+        S[1] -> and2.A;
+        not2.O -> and2.B;
+        and2.O -> D1;
+        
+        # D2: NOT(S[1]) AND S[2] - when S = 10
+        not1.O -> and3.A;
+        S[2] -> and3.B;
+        and3.O -> D2;
+        
+        # D3: S[1] AND S[2] - when S = 11
+        S[1] -> and4.A;
+        S[2] -> and4.B;
+        and4.O -> D3;
+    }
+}
+
+# 3-to-8 Decoder
+component Decoder3to8(S[3]) -> (D[8]) {
+    not1: NOT;
+    not2: NOT;
+    not3: NOT;
+    
+    # 8 AND gates, each with 3 inputs (built from 2-input ANDs)
+    >i[8]{
+        and_a{i}: AND;
+        and_b{i}: AND;
+    }
+    
+    connect {
+        S[1] -> not1.A;
+        S[2] -> not2.A;
+        S[3] -> not3.A;
+        
+        # D[1]: NOT(S1) AND NOT(S2) AND NOT(S3) - 000
+        not1.O -> and_a1.A;
+        not2.O -> and_a1.B;
+        and_a1.O -> and_b1.A;
+        not3.O -> and_b1.B;
+        and_b1.O -> D[1];
+        
+        # D[2]: S1 AND NOT(S2) AND NOT(S3) - 001
+        S[1] -> and_a2.A;
+        not2.O -> and_a2.B;
+        and_a2.O -> and_b2.A;
+        not3.O -> and_b2.B;
+        and_b2.O -> D[2];
+        
+        # D[3]: NOT(S1) AND S2 AND NOT(S3) - 010
+        not1.O -> and_a3.A;
+        S[2] -> and_a3.B;
+        and_a3.O -> and_b3.A;
+        not3.O -> and_b3.B;
+        and_b3.O -> D[3];
+        
+        # D[4]: S1 AND S2 AND NOT(S3) - 011
+        S[1] -> and_a4.A;
+        S[2] -> and_a4.B;
+        and_a4.O -> and_b4.A;
+        not3.O -> and_b4.B;
+        and_b4.O -> D[4];
+        
+        # D[5]: NOT(S1) AND NOT(S2) AND S3 - 100
+        not1.O -> and_a5.A;
+        not2.O -> and_a5.B;
+        and_a5.O -> and_b5.A;
+        S[3] -> and_b5.B;
+        and_b5.O -> D[5];
+        
+        # D[6]: S1 AND NOT(S2) AND S3 - 101
+        S[1] -> and_a6.A;
+        not2.O -> and_a6.B;
+        and_a6.O -> and_b6.A;
+        S[3] -> and_b6.B;
+        and_b6.O -> D[6];
+        
+        # D[7]: NOT(S1) AND S2 AND S3 - 110
+        not1.O -> and_a7.A;
+        S[2] -> and_a7.B;
+        and_a7.O -> and_b7.A;
+        S[3] -> and_b7.B;
+        and_b7.O -> D[7];
+        
+        # D[8]: S1 AND S2 AND S3 - 111
+        S[1] -> and_a8.A;
+        S[2] -> and_a8.B;
+        and_a8.O -> and_b8.A;
+        S[3] -> and_b8.B;
+        and_b8.O -> D[8];
+    }
+}

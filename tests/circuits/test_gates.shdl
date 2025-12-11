@@ -1,0 +1,113 @@
+# Test circuits for individual primitive gates
+# Based on SHDL Language Reference: Standard Gates
+
+# Simple wrapper for AND gate - allows exhaustive truth table testing
+component TestAND(A, B) -> (O) {
+    g: AND;
+    connect {
+        A -> g.A;
+        B -> g.B;
+        g.O -> O;
+    }
+}
+
+# Simple wrapper for OR gate
+component TestOR(A, B) -> (O) {
+    g: OR;
+    connect {
+        A -> g.A;
+        B -> g.B;
+        g.O -> O;
+    }
+}
+
+# Simple wrapper for NOT gate (inverter)
+component TestNOT(A) -> (O) {
+    g: NOT;
+    connect {
+        A -> g.A;
+        g.O -> O;
+    }
+}
+
+# Simple wrapper for XOR gate
+component TestXOR(A, B) -> (O) {
+    g: XOR;
+    connect {
+        A -> g.A;
+        B -> g.B;
+        g.O -> O;
+    }
+}
+
+# Constant HIGH via VCC power pin
+component TestVCC() -> (O) {
+    vcc: __VCC__;
+    connect {
+        vcc.O -> O;
+    }
+}
+
+# Constant LOW via GND power pin
+component TestGND() -> (O) {
+    gnd: __GND__;
+    connect {
+        gnd.O -> O;
+    }
+}
+
+# Test NAND (derived gate: NOT(AND))
+component TestNAND(A, B) -> (O) {
+    a: AND;
+    n: NOT;
+    connect {
+        A -> a.A;
+        B -> a.B;
+        a.O -> n.A;
+        n.O -> O;
+    }
+}
+
+# Test NOR (derived gate: NOT(OR))
+component TestNOR(A, B) -> (O) {
+    o: OR;
+    n: NOT;
+    connect {
+        A -> o.A;
+        B -> o.B;
+        o.O -> n.A;
+        n.O -> O;
+    }
+}
+
+# Chain of NOT gates for propagation testing
+# A -> NOT1 -> NOT2 -> NOT3 -> O
+# Even number of NOTs should preserve the input value
+component NotChain3(A) -> (O) {
+    n1: NOT;
+    n2: NOT;
+    n3: NOT;
+    connect {
+        A -> n1.A;
+        n1.O -> n2.A;
+        n2.O -> n3.A;
+        n3.O -> O;
+    }
+}
+
+# Chain of 5 NOT gates
+component NotChain5(A) -> (O) {
+    n1: NOT;
+    n2: NOT;
+    n3: NOT;
+    n4: NOT;
+    n5: NOT;
+    connect {
+        A -> n1.A;
+        n1.O -> n2.A;
+        n2.O -> n3.A;
+        n3.O -> n4.A;
+        n4.O -> n5.A;
+        n5.O -> O;
+    }
+}

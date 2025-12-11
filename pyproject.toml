@@ -12,10 +12,10 @@ dependencies = []
 [project.urls]
 Homepage = "https://github.com/rafa-rrayes/SHDL"
 Repository = "https://github.com/rafa-rrayes/SHDL"
-Documentation = "https://github.com/rafa-rrayes/SHDL/blob/master/DOCS.md"
+Documentation = "https://rafa-rrayes.github.io/SHDL/"
 
 [project.scripts]
-shdlc = "SHDL.cli:main"
+shdlc = "SHDL.compiler.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,28 @@
+# 8-bit Ripple Carry Adder
+# Sample testing with edge cases
+
+use test_half_full_adder::{FullAdder};
+
+component Adder8(A[8], B[8], Cin) -> (Sum[8], Cout) {
+    >i[8]{
+        fa{i}: FullAdder;
+    }
+    
+    connect {
+        # First full adder
+        A[1] -> fa1.A;
+        B[1] -> fa1.B;
+        Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+        
+        # Chain the rest
+        >i[2:8]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum -> Sum[{i}];
+        }
+        
+        fa8.Cout -> Cout;
+    }
+}

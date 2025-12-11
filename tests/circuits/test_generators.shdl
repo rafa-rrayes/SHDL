@@ -1,0 +1,88 @@
+# Test generators with various patterns
+
+# Simple generator: create 8 NOT gates
+component TestGenerator8(A[8]) -> (O[8]) {
+    >i[8]{
+        inv{i}: NOT;
+    }
+    
+    connect {
+        >i[8]{
+            A[{i}] -> inv{i}.A;
+            inv{i}.O -> O[{i}];
+        }
+    }
+}
+
+# Generator with arithmetic: double index
+component TestGeneratorArithmetic(A[4]) -> (O[8]) {
+    # Create gates at odd positions
+    >i[4]{
+        inv{i}: NOT;
+    }
+    
+    # VCC for unused even positions
+    >i[4]{
+        vcc{i}: __VCC__;
+    }
+    
+    connect {
+        # Odd bits (1, 3, 5, 7) get inverted input
+        >i[4]{
+            A[{i}] -> inv{i}.A;
+            inv{i}.O -> O[{2*i-1}];
+        }
+        
+        # Even bits (2, 4, 6, 8) are always 1
+        >i[4]{
+            vcc{i}.O -> O[{2*i}];
+        }
+    }
+}
+
+# Nested generators
+component TestNestedGenerator(A[4]) -> (O[4]) {
+    # Create a 2x2 grid of AND gates
+    >i[2]{
+        >j[2]{
+            and{i}_{j}: AND;
+        }
+    }
+    
+    # Final OR
+    or1: OR;
+    or2: OR;
+    or3: OR;
+    
+    connect {
+        # Connect inputs
+        A[1] -> and1_1.A;
+        A[2] -> and1_1.B;
+        A[2] -> and1_2.A;
+        A[3] -> and1_2.B;
+        A[3] -> and2_1.A;
+        A[4] -> and2_1.B;
+        A[4] -> and2_2.A;
+        A[1] -> and2_2.B;
+        
+        # Outputs
+        and1_1.O -> O[1];
+        and1_2.O -> O[2];
+        and2_1.O -> O[3];
+        and2_2.O -> O[4];
+    }
+}
+
+# Generator with range 2:5
+component TestGeneratorRange(A[5]) -> (O[4]) {
+    >i[2:5]{
+        not{i}: NOT;
+    }
+    
+    connect {
+        >i[2:5]{
+            A[{i}] -> not{i}.A;
+            not{i}.O -> O[{i-1}];
+        }
+    }
+}

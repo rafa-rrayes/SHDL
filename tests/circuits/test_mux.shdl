@@ -1,0 +1,76 @@
+# 2-to-1 Multiplexer
+# When Sel = 0, output = A
+# When Sel = 1, output = B
+component Mux2to1(A, B, Sel) -> (Out) {
+    not1: NOT;
+    and1: AND;
+    and2: AND;
+    or1: OR;
+    
+    connect {
+        # Invert selection signal
+        Sel -> not1.A;
+        
+        # Select A when Sel = 0
+        A -> and1.A;
+        not1.O -> and1.B;
+        
+        # Select B when Sel = 1
+        B -> and2.A;
+        Sel -> and2.B;
+        
+        # Combine results
+        and1.O -> or1.A;
+        and2.O -> or1.B;
+        or1.O -> Out;
+    }
+}
+
+# 4-to-1 Multiplexer using 2-to-1 muxes
+# S = 00: D0, S = 01: D1, S = 10: D2, S = 11: D3
+component Mux4to1(D0, D1, D2, D3, S[2]) -> (Out) {
+    mux1: Mux2to1;
+    mux2: Mux2to1;
+    mux3: Mux2to1;
+    
+    connect {
+        # First level: select between D0/D1 and D2/D3 based on S[1]
+        D0 -> mux1.A;
+        D1 -> mux1.B;
+        S[1] -> mux1.Sel;
+        
+        D2 -> mux2.A;
+        D3 -> mux2.B;
+        S[1] -> mux2.Sel;
+        
+        # Second level: select between the two mux outputs based on S[2]
+        mux1.Out -> mux3.A;
+        mux2.Out -> mux3.B;
+        S[2] -> mux3.Sel;
+        
+        mux3.Out -> Out;
+    }
+}
+
+# 8-bit 2-to-1 Multiplexer (vector version)
+component Mux2to1_8bit(A[8], B[8], Sel) -> (Out[8]) {
+    >i[8]{
+        not{i}: NOT;
+        and_a{i}: AND;
+        and_b{i}: AND;
+        or{i}: OR;
+    }
+    
+    connect {
+        >i[8]{
+            Sel -> not{i}.A;
+            A[{i}] -> and_a{i}.A;
+            not{i}.O -> and_a{i}.B;
+            B[{i}] -> and_b{i}.A;
+            Sel -> and_b{i}.B;
+            and_a{i}.O -> or{i}.A;
+            and_b{i}.O -> or{i}.B;
+            or{i}.O -> Out[{i}];
+        }
+    }
+}

@@ -30,7 +30,7 @@ if __name__ == "__main__":
     print("SHDL Driver - Example Usage")
     print("=" * 50)
 
-    circuit = Circuit("/Users/Rafa/Code/Python/SHDL/examples/SHDL_components/adder16.shdl")
+    circuit = Circuit("examples/SHDL_components/adder16.shdl")
     
 
     A = 103

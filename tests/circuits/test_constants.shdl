@@ -1,0 +1,157 @@
+# Test circuits for constants
+
+# Test constant value 100 (decimal) = 0b1100100 (7 bits)
+component TestConstant100(A[8]) -> (Match) {
+    Hundred[8] = 100;
+    
+    # XOR each bit pair - if equal, XOR = 0
+    >i[8]{
+        xor{i}: XOR;
+    }
+    
+    # OR all XOR results - if all 0, output is 0
+    or1: OR;
+    or2: OR;
+    or3: OR;
+    or4: OR;
+    or5: OR;
+    or6: OR;
+    or7: OR;
+    
+    # NOT to invert - 0 means match
+    not1: NOT;
+    
+    connect {
+        >i[8]{
+            A[{i}] -> xor{i}.A;
+            Hundred[{i}] -> xor{i}.B;
+        }
+        
+        # Tree reduction OR
+        xor1.O -> or1.A;
+        xor2.O -> or1.B;
+        xor3.O -> or2.A;
+        xor4.O -> or2.B;
+        xor5.O -> or3.A;
+        xor6.O -> or3.B;
+        xor7.O -> or4.A;
+        xor8.O -> or4.B;
+        
+        or1.O -> or5.A;
+        or2.O -> or5.B;
+        or3.O -> or6.A;
+        or4.O -> or6.B;
+        
+        or5.O -> or7.A;
+        or6.O -> or7.B;
+        
+        or7.O -> not1.A;
+        not1.O -> Match;
+    }
+}
+
+# Test binary constant
+component TestBinaryConstant(A[4]) -> (Match) {
+    Pattern[4] = 0b1010;  # Decimal 10
+    
+    >i[4]{
+        xor{i}: XOR;
+    }
+    
+    or1: OR;
+    or2: OR;
+    or3: OR;
+    not1: NOT;
+    
+    connect {
+        >i[4]{
+            A[{i}] -> xor{i}.A;
+            Pattern[{i}] -> xor{i}.B;
+        }
+        
+        xor1.O -> or1.A;
+        xor2.O -> or1.B;
+        xor3.O -> or2.A;
+        xor4.O -> or2.B;
+        or1.O -> or3.A;
+        or2.O -> or3.B;
+        or3.O -> not1.A;
+        not1.O -> Match;
+    }
+}
+
+# Test hex constant
+component TestHexConstant(A[8]) -> (Match) {
+    HexValue[8] = 0xFF;  # All 1s
+    
+    >i[8]{
+        xor{i}: XOR;
+    }
+    
+    or1: OR;
+    or2: OR;
+    or3: OR;
+    or4: OR;
+    or5: OR;
+    or6: OR;
+    or7: OR;
+    not1: NOT;
+    
+    connect {
+        >i[8]{
+            A[{i}] -> xor{i}.A;
+            HexValue[{i}] -> xor{i}.B;
+        }
+        
+        xor1.O -> or1.A;
+        xor2.O -> or1.B;
+        xor3.O -> or2.A;
+        xor4.O -> or2.B;
+        xor5.O -> or3.A;
+        xor6.O -> or3.B;
+        xor7.O -> or4.A;
+        xor8.O -> or4.B;
+        
+        or1.O -> or5.A;
+        or2.O -> or5.B;
+        or3.O -> or6.A;
+        or4.O -> or6.B;
+        
+        or5.O -> or7.A;
+        or6.O -> or7.B;
+        
+        or7.O -> not1.A;
+        not1.O -> Match;
+    }
+}
+
+# Test zero constant
+component TestZeroConstant(A[4]) -> (Match) {
+    Zero[4] = 0;
+    
+    # If A is zero, all XORs with Zero should be 0
+    >i[4]{
+        xor{i}: XOR;
+    }
+    
+    or1: OR;
+    or2: OR;
+    or3: OR;
+    not1: NOT;
+    
+    connect {
+        >i[4]{
+            A[{i}] -> xor{i}.A;
+            Zero[{i}] -> xor{i}.B;
+        }
+        
+        xor1.O -> or1.A;
+        xor2.O -> or1.B;
+        xor3.O -> or2.A;
+        xor4.O -> or2.B;
+        or1.O -> or3.A;
+        or2.O -> or3.B;
+        or3.O -> not1.A;
+        not1.O -> Match;
+    }
+}

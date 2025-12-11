@@ -1,0 +1,60 @@
+# 8-bit Bitwise Operations
+
+# 8-bit bitwise AND
+component BitwiseAND8(A[8], B[8]) -> (O[8]) {
+    >i[8]{
+        and{i}: AND;
+    }
+    
+    connect {
+        >i[8]{
+            A[{i}] -> and{i}.A;
+            B[{i}] -> and{i}.B;
+            and{i}.O -> O[{i}];
+        }
+    }
+}
+
+# 8-bit bitwise OR
+component BitwiseOR8(A[8], B[8]) -> (O[8]) {
+    >i[8]{
+        or{i}: OR;
+    }
+    
+    connect {
+        >i[8]{
+            A[{i}] -> or{i}.A;
+            B[{i}] -> or{i}.B;
+            or{i}.O -> O[{i}];
+        }
+    }
+}
+
+# 8-bit bitwise XOR
+component BitwiseXOR8(A[8], B[8]) -> (O[8]) {
+    >i[8]{
+        xor{i}: XOR;
+    }
+    
+    connect {
+        >i[8]{
+            A[{i}] -> xor{i}.A;
+            B[{i}] -> xor{i}.B;
+            xor{i}.O -> O[{i}];
+        }
+    }
+}
+
+# 8-bit bitwise NOT
+component BitwiseNOT8(A[8]) -> (O[8]) {
+    >i[8]{
+        not{i}: NOT;
+    }
+    
+    connect {
+        >i[8]{
+            A[{i}] -> not{i}.A;
+            not{i}.O -> O[{i}];
+        }
+    }
+}

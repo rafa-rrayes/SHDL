@@ -1,0 +1,28 @@
+# 4-bit Ripple Carry Adder
+# Exhaustive testing: 16 × 16 = 256 test cases
+
+use test_half_full_adder::{FullAdder};
+
+component Adder4(A[4], B[4], Cin) -> (Sum[4], Cout) {
+    >i[4]{
+        fa{i}: FullAdder;
+    }
+    
+    connect {
+        # First full adder
+        A[1] -> fa1.A;
+        B[1] -> fa1.B;
+        Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+        
+        # Chain the rest
+        >i[2:4]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum -> Sum[{i}];
+        }
+        
+        fa4.Cout -> Cout;
+    }
+}

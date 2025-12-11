@@ -112,8 +112,10 @@ See the `examples/` directory for more complete examples:
 - `SHDL_components/` - Reusable component library
 
 ## Documentation
-Github repository: [rafa-rrayes/SHDL](https://github.com/rafa-rrayes/SHDL)
-For more detailed documentation, see [DOCS.md](https://github.com/rafa-rrayes/SHDL/blob/master/DOCS.md)
+
+For comprehensive documentation, visit our [Documentation Site](https://rafa-rrayes.github.io/SHDL/).
+
+GitHub repository: [rafa-rrayes/SHDL](https://github.com/rafa-rrayes/SHDL)
 
 ## Requirements
 
