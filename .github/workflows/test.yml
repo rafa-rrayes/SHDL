@@ -1,0 +1,120 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: |
+          uv pip install -e .
+          uv pip install pytest pytest-cov
+      
+      - name: Install GCC (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc
+      
+      - name: Install GCC (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # GCC should already be available via Xcode Command Line Tools
+          gcc --version || xcode-select --install
+      
+      - name: Run tests
+        run: uv run pytest tests/ -v --cov=SHDL --cov-report=xml --cov-report=term
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      
+      - name: Set up Python
+        run: uv python install 3.12
+      
+      - name: Install dependencies
+        run: |
+          uv pip install -e .
+          uv pip install ruff mypy
+      
+      - name: Run ruff (linting)
+        run: uv run ruff check src/
+        continue-on-error: true
+      
+      - name: Run ruff (formatting check)
+        run: uv run ruff format --check src/
+        continue-on-error: true
+      
+      - name: Run mypy (type checking)
+        run: uv run mypy src/SHDL --ignore-missing-imports
+        continue-on-error: true
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Set up Python
+        run: uv python install 3.12
+      
+      - name: Build package
+        run: uv build
+      
+      - name: Check package
+        run: |
+          uv pip install twine
+          uv run twine check dist/*

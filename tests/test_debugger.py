@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from shdl.debugger import (
+from SHDL.debugger import (
     DebugInfo,
     SymbolTable,
     SignalRef,
@@ -24,7 +24,7 @@ from shdl.debugger import (
     SourceLocation,
     DebugController,
 )
-from shdl.debugger.controller import (
+from SHDL.debugger.controller import (
     Breakpoint,
     Watchpoint,
     BreakpointType,
@@ -52,7 +52,7 @@ def compiled_full_adder(tmp_path_factory) -> tuple[Path, Path]:
     # Compile with debug info
     result = subprocess.run(
         [
-            "uv", "run", "python", "-m", "shdl.compiler.cli",
+            "uv", "run", "python", "-m", "SHDL.compiler.cli",
             "examples/fullAdder.shdl",
             "-g", "-c",
             "-o", str(lib_path),

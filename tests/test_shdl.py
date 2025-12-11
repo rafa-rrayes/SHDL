@@ -5,12 +5,12 @@ Tests for the SHDL parser and flattener.
 import pytest
 from pathlib import Path
 
-from shdl import (
+from SHDL import (
     parse, parse_file, Lexer, Token, TokenType,
     Flattener, flatten_file, format_base_shdl,
     Module, Component, Port, Instance, Connection, Generator
 )
-from shdl.errors import LexerError, ParseError, FlattenerError
+from SHDL.errors import LexerError, ParseError, FlattenerError
 
 
 # =============================================================================

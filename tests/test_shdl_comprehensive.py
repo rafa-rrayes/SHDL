@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional
 from contextlib import contextmanager
 
-from shdl import (
+from SHDL import (
     SHDLCircuit,
     parse,
     parse_file,
@@ -35,7 +35,7 @@ from shdl import (
     Instance,
     Generator,
 )
-from shdl.errors import LexerError, ParseError, FlattenerError
+from SHDL.errors import LexerError, ParseError, FlattenerError
 
 
 # =============================================================================
@@ -1131,7 +1131,7 @@ class TestParsing:
         comp = module.components[0]
         
         # Constants are in instances
-        from shdl import Constant
+        from SHDL import Constant
         constants = [n for n in comp.instances if isinstance(n, Constant)]
         assert len(constants) == 4
 

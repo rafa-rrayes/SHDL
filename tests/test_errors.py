@@ -6,10 +6,10 @@ correct, helpful error messages.
 """
 
 import pytest
-from shdl import parse, LexerError, ParseError
-from shdl.errors import ErrorCode, Diagnostic, DiagnosticCollection
-from shdl.semantic import analyze, analyze_file
-from shdl.source_map import SourceSpan, SourceFile
+from SHDL import parse, LexerError, ParseError
+from SHDL.errors import ErrorCode, Diagnostic, DiagnosticCollection
+from SHDL.semantic import analyze, analyze_file
+from SHDL.source_map import SourceSpan, SourceFile
 
 
 # =============================================================================

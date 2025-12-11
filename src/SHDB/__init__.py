@@ -48,10 +48,10 @@ from SHDL.debugger import (
     DebugController,
     StopReason,
     StopInfo,
-    "BreakpointType",
+    BreakpointType,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     # High-level API (recommended)
