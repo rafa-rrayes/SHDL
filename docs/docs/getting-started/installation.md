@@ -59,10 +59,10 @@ shdlc run myCircuit.shdl
 ### Python API
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
 # Load and simulate a circuit
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     circuit["A"] = 42
     circuit["B"] = 17
     circuit.step()

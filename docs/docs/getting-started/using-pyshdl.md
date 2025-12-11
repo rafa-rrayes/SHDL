@@ -6,15 +6,15 @@ sidebar_position: 3
 
 PySHDL is the Python library for working with SHDL circuits. This guide covers the Python API for simulating circuits.
 
-## The SHDLCircuit Class
+## The Circuit Class
 
-The main interface for simulation is the `SHDLCircuit` class:
+The main interface for simulation is the `Circuit` class:
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
 # Load a circuit from a file
-circuit = SHDLCircuit("myCircuit.shdl")
+circuit = Circuit("myCircuit.shdl")
 
 # Set inputs
 circuit.poke("A", 42)
@@ -36,9 +36,9 @@ circuit.close()
 Use the context manager for automatic cleanup:
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     circuit["A"] = 100
     circuit["B"] = 200
     circuit.step()
@@ -65,7 +65,7 @@ value = circuit["Sum"]
 Get information about the loaded circuit:
 
 ```python
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     print(circuit.name)      # "Adder16"
     print(circuit.inputs)    # ["A", "B", "Cin"]
     print(circuit.outputs)   # ["Sum", "Cout"]
@@ -80,7 +80,7 @@ with SHDLCircuit("adder16.shdl") as circuit:
 SHDL supports multi-bit signals (vectors). Values are passed as integers:
 
 ```python
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     # Set 16-bit values
     circuit["A"] = 0xFFFF  # 65535
     circuit["B"] = 0x0001  # 1
@@ -96,11 +96,11 @@ with SHDLCircuit("adder16.shdl") as circuit:
 Example of testing an 8-bit adder:
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 import random
 
 def test_adder8():
-    with SHDLCircuit("adder8.shdl") as adder:
+    with Circuit("adder8.shdl") as adder:
         # Test 100 random additions
         for _ in range(100):
             a = random.randint(0, 255)
@@ -152,7 +152,7 @@ PySHDL compiles circuits through several stages:
          │ ctypes
          ▼
 ┌─────────────────┐
-│  SHDLCircuit    │  ← Python interface
+│  Circuit    │  ← Python interface
 └─────────────────┘
 ```
 
@@ -163,7 +163,7 @@ PySHDL compiles circuits through several stages:
 If your circuit imports from other files:
 
 ```python
-circuit = SHDLCircuit(
+circuit = Circuit(
     "cpu.shdl",
     include_paths=["./components", "./alu"]
 )
@@ -174,7 +174,7 @@ circuit = SHDLCircuit(
 If a file has multiple components:
 
 ```python
-circuit = SHDLCircuit(
+circuit = Circuit(
     "components.shdl",
     component="FullAdder"  # Compile this specific component
 )
@@ -185,7 +185,7 @@ circuit = SHDLCircuit(
 For debugging, keep the generated library:
 
 ```python
-circuit = SHDLCircuit(
+circuit = Circuit(
     "circuit.shdl",
     keep_library=True,
     library_dir="./build"
@@ -208,10 +208,10 @@ shdb libcircuit.dylib
 ## Error Handling
 
 ```python
-from SHDL import SHDLCircuit, CompilationError, SimulationError
+from SHDL import Circuit, CompilationError, SimulationError
 
 try:
-    with SHDLCircuit("broken.shdl") as circuit:
+    with Circuit("broken.shdl") as circuit:
         circuit.step()
 except CompilationError as e:
     print(f"Failed to compile: {e}")

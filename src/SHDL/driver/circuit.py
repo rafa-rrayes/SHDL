@@ -1,5 +1,5 @@
 """
-SHDLCircuit - Main circuit driver class
+Circuit - Main circuit driver class
 
 Provides a clean, Pythonic interface for compiling and simulating SHDL circuits.
 """
@@ -59,7 +59,7 @@ class CircuitInfo:
         return None
 
 
-class SHDLCircuit:
+class Circuit:
     """
     A compiled SHDL circuit that can be simulated.
     
@@ -70,7 +70,7 @@ class SHDLCircuit:
     - Advancing simulation time (step)
     
     Example:
-        >>> circuit = SHDLCircuit("adder16.shdl")
+        >>> circuit = Circuit("adder16.shdl")
         >>> circuit.poke("A", 42)
         >>> circuit.poke("B", 17)
         >>> circuit.step(1)
@@ -78,7 +78,7 @@ class SHDLCircuit:
         59
     
     The circuit can also be used as a context manager:
-        >>> with SHDLCircuit("adder16.shdl") as circuit:
+        >>> with Circuit("adder16.shdl") as circuit:
         ...     circuit["A"] = 42
         ...     circuit["B"] = 17
         ...     circuit.step()
@@ -364,7 +364,7 @@ class SHDLCircuit:
     
     # Context manager support
     
-    def __enter__(self) -> "SHDLCircuit":
+    def __enter__(self) -> "Circuit":
         """Enter context manager."""
         return self
     
@@ -427,5 +427,5 @@ class SHDLCircuit:
         if self._info:
             ins = ", ".join(self.inputs)
             outs = ", ".join(self.outputs)
-            return f"SHDLCircuit({self.name}, inputs=[{ins}], outputs=[{outs}])"
-        return "SHDLCircuit(unloaded)"
+            return f"Circuit({self.name}, inputs=[{ins}], outputs=[{outs}])"
+        return "Circuit(unloaded)"

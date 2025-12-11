@@ -115,9 +115,9 @@ component Or8Inputs(A[8]) -> (Out) {
 ## Testing with PySHDL
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-with SHDLCircuit("compare100.shdl") as cmp:
+with Circuit("compare100.shdl") as cmp:
     # Test equal case
     cmp.poke("A", 100)
     cmp.step()

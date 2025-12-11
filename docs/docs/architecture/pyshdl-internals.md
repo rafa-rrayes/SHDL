@@ -26,7 +26,7 @@ shdl/
 │   ├── compiler.py      # Compilation orchestration
 │   └── cli.py           # Command-line interface
 └── driver/              # Python ↔ C interface
-    ├── circuit.py       # SHDLCircuit class
+    ├── circuit.py       # Circuit class
     └── exceptions.py    # Driver-specific errors
 ```
 
@@ -96,23 +96,23 @@ The driver provides a high-level Python interface for compiled circuits.
 
 | Module | Purpose |
 |--------|---------|
-| `circuit.py` | `SHDLCircuit` class for circuit simulation |
+| `circuit.py` | `Circuit` class for circuit simulation |
 | `exceptions.py` | Driver-specific exception classes |
 
 #### Public API
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
 # Create and use a circuit
-circuit = SHDLCircuit("adder16.shdl")
+circuit = Circuit("adder16.shdl")
 circuit.poke("A", 100)
 circuit.poke("B", 50)
 circuit.step()
 result = circuit.peek("Sum")
 
 # Use as context manager
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     circuit["A"] = 100
     circuit["B"] = 50
     circuit.step()
@@ -127,7 +127,7 @@ All SHDL errors inherit from a base `SHDLError`:
 from SHDL import SHDLError, LexerError, ParseError, FlattenerError
 
 try:
-    circuit = SHDLCircuit("broken.shdl")
+    circuit = Circuit("broken.shdl")
 except LexerError as e:
     print(f"Lexer error: {e}")
 except ParseError as e:
@@ -247,9 +247,9 @@ To add a new primitive gate type:
 ### Custom Include Paths
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-circuit = SHDLCircuit(
+circuit = Circuit(
     "main.shdl",
     include_paths=["./components", "./lib"]
 )
@@ -260,7 +260,7 @@ circuit = SHDLCircuit(
 By default, compiled libraries are deleted. To keep them:
 
 ```python
-circuit = SHDLCircuit(
+circuit = Circuit(
     "adder.shdl",
     keep_library=True,
     library_dir="./build"
@@ -276,7 +276,7 @@ Currently, PySHDL recompiles circuits on each instantiation. For repeated use, c
 
 ```python
 # Compile once, reuse
-circuit = SHDLCircuit("adder.shdl", keep_library=True, library_dir="./cache")
+circuit = Circuit("adder.shdl", keep_library=True, library_dir="./cache")
 
 # Later, load the cached library
 # (Not yet implemented - future feature)
@@ -287,7 +287,7 @@ circuit = SHDLCircuit("adder.shdl", keep_library=True, library_dir="./cache")
 Control C compiler optimization:
 
 ```python
-circuit = SHDLCircuit(
+circuit = Circuit(
     "adder.shdl",
     optimize=3,  # -O3 (default)
     cc="clang"   # Compiler to use

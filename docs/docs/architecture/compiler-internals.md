@@ -320,9 +320,9 @@ c_code = compile_shdl_file("adder16.shdl")
 print(c_code)
 
 # Or compile directly to a loadable circuit
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-circuit = SHDLCircuit("adder16.shdl")
+circuit = Circuit("adder16.shdl")
 ```
 
 ### From Command Line

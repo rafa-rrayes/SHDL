@@ -209,9 +209,9 @@ component Decoder2to4Enable(A[2], En) -> (Y[4]) {
 ## Testing with PySHDL
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-with SHDLCircuit("decoder.shdl") as dec:
+with Circuit("decoder.shdl") as dec:
     for i in range(4):
         dec.poke("A", i + 1)  # Remember: SHDL uses 1-based!
         dec.step()

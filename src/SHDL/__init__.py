@@ -54,7 +54,7 @@ from .compiler import (
 
 # Driver (Python interface to compiled circuits)
 from .driver import (
-    SHDLCircuit,
+    Circuit,
     SHDLDriverError,
     CompilationError,
     SimulationError,
@@ -135,7 +135,7 @@ __all__ = [
     "WarningChecker",
     
     # Driver
-    "SHDLCircuit",
+    "Circuit",
     "SHDLDriverError",
     "CompilationError",
     "SimulationError",

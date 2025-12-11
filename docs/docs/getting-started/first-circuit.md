@@ -94,7 +94,7 @@ The PySHDL library provides a wrapper for you to interact with your circuits dir
 ```python
 from pyshdl import Circuit
 
-with SHDLCircuit("halfAdder.shdl") as circuit:
+with Circuit("halfAdder.shdl") as circuit:
     # Test all input combinations
     for a in [0, 1]:
         for b in [0, 1]:

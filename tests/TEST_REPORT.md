@@ -223,7 +223,7 @@ SHDL uses **1-based indexing** where:
 - A[1] = LSB, A[8] = MSB
 
 ### 3. API Usage
-The `SHDLCircuit` class requires careful handling:
+The `Circuit` class requires careful handling:
 - When passing source code, use file paths (not inline strings)
 - The `poke(signal, value)` method sets inputs
 - The `peek(signal)` method reads outputs

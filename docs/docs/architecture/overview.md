@@ -52,7 +52,7 @@ SHDL uses a multi-stage compilation pipeline that transforms high-level hardware
                               ▼
                     ┌─────────────────┐
                     │   PYTHON API    │
-                    │  (SHDLCircuit)  │
+                    │  (Circuit)      │
                     └─────────────────┘
 ```
 
@@ -148,16 +148,16 @@ print(c_code)
 
 ### 4. Driver
 
-The `SHDLCircuit` class handles:
+The `Circuit` class handles:
 - Compilation to C
 - Invoking the C compiler
 - Loading the shared library
 - Providing `poke()`, `peek()`, `step()` interface
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-with SHDLCircuit("adder16.shdl") as circuit:
+with Circuit("adder16.shdl") as circuit:
     circuit.poke("A", 100)
     circuit.poke("B", 50)
     circuit.step()

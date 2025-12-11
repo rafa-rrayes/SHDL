@@ -24,7 +24,7 @@ from typing import Optional
 from contextlib import contextmanager
 
 from SHDL import (
-    SHDLCircuit,
+    Circuit,
     parse,
     parse_file,
     Flattener,
@@ -50,7 +50,7 @@ def circuit_from_source(source: str, component: Optional[str] = None):
     """
     Helper to compile inline SHDL source.
     
-    Works around the issue where SHDLCircuit tries to interpret long
+    Works around the issue where Circuit tries to interpret long
     source strings as file paths (causing OSError: File name too long).
     """
     # Write to a temp file to avoid the path length issue
@@ -59,7 +59,7 @@ def circuit_from_source(source: str, component: Optional[str] = None):
         temp_path = f.name
     
     try:
-        circuit = SHDLCircuit(temp_path, component=component)
+        circuit = Circuit(temp_path, component=component)
         yield circuit
         circuit.close()
     finally:
@@ -69,10 +69,10 @@ def circuit_from_source(source: str, component: Optional[str] = None):
             pass
 
 
-def compile_file(filename: str, component: Optional[str] = None) -> SHDLCircuit:
+def compile_file(filename: str, component: Optional[str] = None) -> Circuit:
     """Helper to compile from test circuits directory."""
     path = CIRCUITS_DIR / filename
-    return SHDLCircuit(path, component=component)
+    return Circuit(path, component=component)
 
 
 # =============================================================================
@@ -1721,7 +1721,7 @@ class TestComponentImports:
 
 class TestResetBehavior:
     """
-    Test the reset() functionality of SHDLCircuit.
+    Test the reset() functionality of Circuit.
     """
     
     def test_reset_clears_state(self):

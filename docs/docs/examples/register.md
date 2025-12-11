@@ -204,9 +204,9 @@ component RegFile4x16(
 ## Testing with PySHDL
 
 ```python
-from SHDL import SHDLCircuit
+from SHDL import Circuit
 
-with SHDLCircuit("reg16.shdl") as reg:
+with Circuit("reg16.shdl") as reg:
     # Test 1: Load a value
     reg.poke("D", 0xABCD)
     reg.poke("Load", 1)

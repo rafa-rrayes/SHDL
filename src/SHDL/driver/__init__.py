@@ -5,10 +5,10 @@ A minimal module for compiling and driving SHDL circuits from Python.
 Provides a clean, Pythonic API for circuit simulation.
 
 Example:
-    >>> from SHDL import SHDLCircuit
+    >>> from SHDL import Circuit
     >>> 
     >>> # Load and compile a circuit
-    >>> circuit = SHDLCircuit("adder16.shdl")
+    >>> circuit = Circuit("adder16.shdl")
     >>> 
     >>> # Set inputs
     >>> circuit.poke("A", 42)
@@ -21,7 +21,7 @@ Example:
     >>> print(circuit.peek("Sum"))
 """
 
-from .circuit import SHDLCircuit, PortInfo, CircuitInfo
+from .circuit import Circuit, PortInfo, CircuitInfo
 from .exceptions import (
     SHDLDriverError,
     CompilationError,
@@ -30,7 +30,7 @@ from .exceptions import (
 )
 
 __all__ = [
-    "SHDLCircuit",
+    "Circuit",
     "PortInfo",
     "CircuitInfo",
     "SHDLDriverError",
