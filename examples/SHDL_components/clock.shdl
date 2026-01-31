@@ -10,7 +10,7 @@ component Clock(clk)->(out[20]) {
 
     connect {
         clk -> o1.A;
-        >i[2, 20]{
+        >i[2: 20]{
             o{i-1}.O -> o{i}.A; 
             o{i-1}.O -> o{i}.B;
             o{i-1}.O -> out[{i-1}];

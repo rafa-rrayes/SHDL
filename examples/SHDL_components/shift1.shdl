@@ -29,7 +29,7 @@ component Shift1(A[16], dir, arith) -> (Y[16], Cout) {
         ZERO -> bitmux1.a; A[2] -> bitmux1.b; dir -> bitmux1.sel; bitmux1.y -> Y[1];
 
         # Bits 2..15:
-        >i[2,15]{
+        >i[2:15]{
             # left candidate: A[i-1]; right candidate: A[i+1]
             A[{i-1}] -> bitmux{i}.a;
             A[{i+1}] -> bitmux{i}.b;
