@@ -22,6 +22,7 @@ from .ast import (
 )
 from .parser import parse, parse_file
 from ..errors import FlattenerError
+from ..semantic.analyzer import SemanticAnalyzer
 
 
 # =============================================================================
@@ -760,7 +761,12 @@ def rewire_signal_for_source(signal: Signal, port_mappings: dict[str, PortMappin
                 return Signal(name=parts[1], instance=parts[0], index=None)
             else:
                 return Signal(name=internal, instance=None, index=signal.index)
-    
+
+        # Defensive guard: port not found in mappings for a flattened instance
+        raise FlattenerError(
+            f"Port '{signal.name}' not found on flattened instance '{signal.instance}'"
+        )
+
     # It's a reference to a primitive instance - apply prefix
     new_instance = f"{prefix}{signal.instance}" if prefix else signal.instance
     return Signal(name=signal.name, instance=new_instance, index=signal.index)
@@ -796,7 +802,12 @@ def rewire_signal_for_dest(signal: Signal, port_mappings: dict[str, PortMapping]
                 return Signal(name=parts[1], instance=parts[0], index=None)
             else:
                 return Signal(name=internal, instance=None, index=signal.index)
-    
+
+        # Defensive guard: port not found in mappings for a flattened instance
+        raise FlattenerError(
+            f"Port '{signal.name}' not found on flattened instance '{signal.instance}'"
+        )
+
     # It's a reference to a primitive instance - apply prefix
     new_instance = f"{prefix}{signal.instance}" if prefix else signal.instance
     return Signal(name=signal.name, instance=new_instance, index=signal.index)
@@ -847,45 +858,68 @@ def flatten_component_full(component: Component, library: ComponentLibrary, pref
 @dataclass
 class Flattener:
     """Main flattener class for transforming SHDL."""
-    
+
     search_paths: list[str] = field(default_factory=list)
-    
+    validate: bool = True
+
     def __post_init__(self) -> None:
         self._library = ComponentLibrary(
             search_paths=[Path(p) for p in self.search_paths]
         )
-    
+        self._module: Optional[Module] = None
+        self._file_path: Optional[str] = None
+
     def add_component(self, component: Component) -> None:
         """Add a component to the library."""
         self._library.add(component)
-    
+
     def load_file(self, path: str) -> Module:
         """Load and parse an SHDL file, adding its components to the library."""
         module = parse_file(path)
-        
+        self._file_path = path
+
         # Process imports first - load all referenced modules
         for imp in module.imports:
             if not self._library.load_module(imp.module):
                 raise FlattenerError(f"Cannot find module: {imp.module}")
-        
+
         # Then add components from this file
         for comp in module.components:
             self._library.add(comp)
-        
+
+        self._module = module
         return module
-    
+
     def load_source(self, source: str) -> Module:
         """Load and parse SHDL source code, adding its components to the library."""
         module = parse(source)
         for comp in module.components:
             self._library.add(comp)
+        self._module = module
         return module
-    
+
+    def _run_semantic_analysis(self) -> None:
+        """Run the semantic analyzer on the loaded module before flattening."""
+        if self._module is None:
+            return
+
+        search_paths = [str(p) for p in self._library.search_paths]
+        analyzer = SemanticAnalyzer(
+            search_paths=search_paths,
+            enable_warnings=False,
+        )
+        result = analyzer.analyze(self._module)
+        if result.has_errors:
+            result.diagnostics.print_all()
+            result.raise_if_errors()
+
     def flatten(self, component_name: str) -> Component:
         """Flatten a component by name."""
+        if self.validate:
+            self._run_semantic_analysis()
         component = self._library.resolve(component_name)
         return flatten_component_full(component, self._library)
-    
+
     def flatten_to_base_shdl(self, component_name: str) -> str:
         """Flatten a component and return Base SHDL source code."""
         flattened = self.flatten(component_name)
