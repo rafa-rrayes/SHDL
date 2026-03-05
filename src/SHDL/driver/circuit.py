@@ -118,7 +118,7 @@ class Circuit:
         
         # Determine if source is a file path or source code
         source_path = Path(source) if not isinstance(source, Path) else source
-        
+
         if source_path.exists() and source_path.is_file():
             self._compile_file(
                 source_path,
@@ -127,6 +127,10 @@ class Circuit:
                 library_dir=library_dir,
                 cc=cc,
                 optimize=optimize,
+            )
+        elif str(source).endswith('.shdl'):
+            raise FileNotFoundError(
+                f"SHDL file not found: '{source}'"
             )
         else:
             # Treat as source code string
