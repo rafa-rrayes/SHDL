@@ -154,28 +154,29 @@ class Circuit:
     ) -> None:
         """Compile an SHDL file to a shared library."""
         from ..flattener import Flattener
+        from ..bus_compiler import BusCompiler
         from ..compiler import SHDLCompiler
-        
+
         # Determine output path
         if library_dir:
             lib_dir = Path(library_dir)
             lib_dir.mkdir(parents=True, exist_ok=True)
         else:
             lib_dir = Path(tempfile.mkdtemp(prefix="shdl_"))
-        
+
         # Get component name
         if flatten:
             # Build search paths: file's directory + user-provided include paths
             search_paths = [str(path.parent)] + self._include_paths
             flattener = Flattener(search_paths=search_paths)
             flattener.load_file(str(path))
-            
+
             if component:
                 comp_name = component
             else:
                 # Use the last component
                 comp_name = list(flattener._library.components.keys())[-1]
-            
+
             # Extract port info before flattening
             original_comp = flattener._library.components[comp_name]
             self._info = CircuitInfo(
@@ -189,35 +190,45 @@ class Circuit:
                     for p in original_comp.outputs
                 ],
             )
-            
-            # Flatten to Base SHDL
-            base_shdl = flattener.flatten_to_base_shdl(comp_name)
+
+            # Flatten to expanded AST Component and compile with bus compiler
+            flattened = flattener.flatten(comp_name)
+
+            lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
+            self._lib_path = lib_dir / lib_name
+
+            bus_compiler = BusCompiler()
+            result = bus_compiler.compile_to_library(
+                flattened,
+                str(self._lib_path),
+                cc=cc,
+                cflags=[f"-O{optimize}"],
+            )
         else:
-            # Read file directly as Base SHDL
+            # Read file directly as Base SHDL (old pipeline)
             with open(path, 'r') as f:
                 base_shdl = f.read()
             comp_name = component
-        
-        # Compile to library
-        lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
-        self._lib_path = lib_dir / lib_name
-        
-        compiler = SHDLCompiler()
-        result = compiler.compile_to_library(
-            base_shdl,
-            str(self._lib_path),
-            component_name=comp_name,
-            cc=cc,
-            cflags=[f"-O{optimize}"],
-        )
-        
+
+            lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
+            self._lib_path = lib_dir / lib_name
+
+            compiler = SHDLCompiler()
+            result = compiler.compile_to_library(
+                base_shdl,
+                str(self._lib_path),
+                component_name=comp_name,
+                cc=cc,
+                cflags=[f"-O{optimize}"],
+            )
+
         if not result.success:
             errors_str = "\n".join(result.errors) if result.errors else "Unknown error"
             raise CompilationError(
                 f"Failed to compile {path}:\n{errors_str}",
                 errors=result.errors
             )
-        
+
         # Load the library
         self._load_library()
     
@@ -232,24 +243,25 @@ class Circuit:
     ) -> None:
         """Compile SHDL source code to a shared library."""
         from ..flattener import Flattener
+        from ..bus_compiler import BusCompiler
         from ..compiler import SHDLCompiler
-        
+
         # Determine output path
         if library_dir:
             lib_dir = Path(library_dir)
             lib_dir.mkdir(parents=True, exist_ok=True)
         else:
             lib_dir = Path(tempfile.mkdtemp(prefix="shdl_"))
-        
+
         if flatten:
             flattener = Flattener(search_paths=self._include_paths)
             flattener.load_source(source)
-            
+
             if component:
                 comp_name = component
             else:
                 comp_name = list(flattener._library.components.keys())[-1]
-            
+
             # Extract port info
             original_comp = flattener._library.components[comp_name]
             self._info = CircuitInfo(
@@ -263,31 +275,42 @@ class Circuit:
                     for p in original_comp.outputs
                 ],
             )
-            
-            base_shdl = flattener.flatten_to_base_shdl(comp_name)
+
+            # Flatten to expanded AST Component and compile with bus compiler
+            flattened = flattener.flatten(comp_name)
+
+            lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
+            self._lib_path = lib_dir / lib_name
+
+            bus_compiler = BusCompiler()
+            result = bus_compiler.compile_to_library(
+                flattened,
+                str(self._lib_path),
+                cc=cc,
+                cflags=[f"-O{optimize}"],
+            )
         else:
             base_shdl = source
             comp_name = component
-        
-        # Compile
-        lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
-        self._lib_path = lib_dir / lib_name
-        
-        compiler = SHDLCompiler()
-        result = compiler.compile_to_library(
-            base_shdl,
-            str(self._lib_path),
-            component_name=comp_name,
-            cc=cc,
-            cflags=[f"-O{optimize}"],
-        )
-        
+
+            lib_name = f"lib{comp_name or 'circuit'}{_get_library_extension()}"
+            self._lib_path = lib_dir / lib_name
+
+            compiler = SHDLCompiler()
+            result = compiler.compile_to_library(
+                base_shdl,
+                str(self._lib_path),
+                component_name=comp_name,
+                cc=cc,
+                cflags=[f"-O{optimize}"],
+            )
+
         if not result.success:
             raise CompilationError(
                 "Failed to compile source",
                 errors=result.errors
             )
-        
+
         self._load_library()
     
     def _load_library(self) -> None:
