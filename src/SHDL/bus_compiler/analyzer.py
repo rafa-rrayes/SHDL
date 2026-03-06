@@ -114,12 +114,18 @@ class BusAnalyzer:
                 grouped_gates.add(gate.name)
                 gate_group_map[gate.name] = name
 
+        # Build position map: gate_name -> (group_name, position_in_group)
+        gate_position_map: dict[str, tuple[str, int]] = {}
+        for group in bus_groups:
+            for pos, gate in enumerate(group.gates):
+                gate_position_map[gate.name] = (group.name, pos)
+
         # Singletons
         singletons = [g for g in all_gates if g.name not in grouped_gates]
 
         # Step 4: Classify sources for each bus group
         for group in bus_groups:
-            self._classify_sources(group, gate_group_map)
+            self._classify_sources(group, gate_group_map, gate_position_map)
 
         # Step 5: SCC detection
         scc_map = self._detect_feedback(bus_groups)
@@ -215,7 +221,8 @@ class BusAnalyzer:
 
         return positions
 
-    def _classify_sources(self, group: BusGroup, gate_group_map: dict[str, str]):
+    def _classify_sources(self, group: BusGroup, gate_group_map: dict[str, str],
+                          gate_position_map: dict[str, tuple[str, int]]):
         """Classify each input port source for a bus group."""
         input_port_names = ["A", "B"] if group.primitive != "NOT" else ["A"]
 
@@ -228,12 +235,14 @@ class BusAnalyzer:
             if not wires or wires[0] is None:
                 continue
 
-            source = self._classify_wire_list(wires, group.bit_indices, gate_group_map)
+            source = self._classify_wire_list(wires, group.bit_indices, gate_group_map,
+                                              gate_position_map)
             group.input_sources[port_name] = source
 
     def _classify_wire_list(
         self, wires: list[WireRef], bit_indices: list[int],
-        gate_group_map: dict[str, str]
+        gate_group_map: dict[str, str],
+        gate_position_map: dict[str, tuple[str, int]]
     ) -> BusSource:
         """Classify a list of wires (one per gate in the group)."""
         if not wires or wires[0] is None:
@@ -275,7 +284,17 @@ class BusAnalyzer:
 
             if len(src_groups) == 1 and None not in src_groups:
                 group_name = src_groups.pop()
-                return BusSource(kind="bus_group", ref=group_name)
+                # Verify sequential alignment: source positions must be 0,1,2,...
+                positions = []
+                misaligned = False
+                for w in wires:
+                    info = gate_position_map.get(w.name)
+                    if info is None or info[0] != group_name:
+                        misaligned = True
+                        break
+                    positions.append(info[1])
+                if not misaligned and positions == list(range(len(positions))):
+                    return BusSource(kind="bus_group", ref=group_name)
 
         # Fallback: mixed
         return BusSource(kind="mixed", per_bit=list(wires))

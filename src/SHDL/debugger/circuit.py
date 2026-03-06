@@ -237,55 +237,54 @@ class Circuit:
     
     def _load_from_source(self, source_path: Path) -> None:
         """Compile SHDL source and load the result."""
-        from SHDL.compiler import SHDLCompiler
+        from SHDL.bus_compiler import BusCompiler
         from SHDL import Flattener
-        
+
         self._source_path = source_path.absolute()
-        
+
         # Create temp directory for compiled files
         temp_dir = Path(tempfile.mkdtemp(prefix="shdb_"))
         lib_name = source_path.stem
-        
+
         # Determine library extension
         import platform
         ext = ".dylib" if platform.system() == "Darwin" else ".so"
         lib_path = temp_dir / f"lib{lib_name}{ext}"
-        
+
         # Flatten the source first
         flattener = Flattener(search_paths=[str(source_path.parent)])
         flattener.load_file(str(source_path))
-        
+
         # Get the last component
         components = list(flattener._library.components.keys())
         if not components:
             raise ValueError(f"No components found in {source_path}")
         comp_name = components[-1]
-        
-        base_shdl = flattener.flatten_to_base_shdl(comp_name)
-        
-        # Compile with debug info
-        compiler = SHDLCompiler()
+
+        # Flatten to expanded AST Component (same as Circuit does)
+        flattened = flattener.flatten(comp_name)
+
+        # Compile with debug info using bus compiler
+        compiler = BusCompiler()
         result = compiler.compile_to_library_debug(
-            base_shdl,
+            flattened,
             str(lib_path),
             component_name=comp_name,
             source_path=str(source_path),
-            debug_level=2,
-            generate_shdb=True,
         )
-        
+
         if not result.success:
             errors = "\n".join(result.errors)
             raise RuntimeError(f"Compilation failed:\n{errors}")
-        
+
         self._temp_files.append(lib_path)
-        
+
         # Load debug info
         shdb_path = Path(str(lib_path).rsplit(".", 1)[0] + ".shdb")
         if shdb_path.exists():
             self._debug_info = DebugInfo.load(shdb_path)
             self._temp_files.append(shdb_path)
-        
+
         # Create controller
         self._controller = DebugController(
             lib_path,
