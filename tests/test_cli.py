@@ -1,6 +1,6 @@
 from helpers import FIXTURES, TS, flatten_fixture
 
-from flattener.baseshdl import parse_base
+from shdlc.baseshdl import parse_base
 from flattener.cli import main
 
 ADD2 = str(FIXTURES / "add2.shdl")

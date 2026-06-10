@@ -2,7 +2,7 @@ import json
 
 from helpers import FIXTURES, flatten_fixture
 
-from flattener.baseshdl import parse_base
+from shdlc.baseshdl import parse_base
 
 ALL_TOPS = sorted(p.stem for p in FIXTURES.glob("*.shdl") if p.stem != "stdgates")
 

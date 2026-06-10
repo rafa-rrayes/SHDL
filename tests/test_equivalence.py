@@ -10,8 +10,8 @@ import random
 import pytest
 from helpers import flatten_fixture
 
-from flattener.baseshdl import parse_base
-from flattener.sim.base_eval import BaseEval
+from shdlc.baseshdl import parse_base
+from shdlc.sim.base_eval import BaseEval
 from flattener.sim.high_eval import HighEval
 
 
