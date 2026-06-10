@@ -7,9 +7,9 @@ introduces one new language feature and builds on the ones before it.
 Compile any example to Base SHDL from the repo root:
 
 ```sh
-uv run shdlc examples/alu.shdl                    # uses the `top`-marked component
-uv run shdlc examples/stdgates.shdl --top NAND    # pick a component explicitly
-uv run shdlc examples/adderN.shdl -o adderN.bshdl # write to a file
+uv run shdl-flatten examples/alu.shdl                    # uses the `top`-marked component
+uv run shdl-flatten examples/stdgates.shdl --top NAND    # pick a component explicitly
+uv run shdl-flatten examples/adderN.shdl -o adderN.bshdl # write to a file
 ```
 
 Imports resolve relative to the importing file, so the directory works as-is

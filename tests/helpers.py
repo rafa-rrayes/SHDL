@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from shdlc.diagnostics import ErrorCode, SHDLError
-from shdlc.pipeline import flatten_program
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.pipeline import flatten_program
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TS = "2026-01-01T00:00:00Z"

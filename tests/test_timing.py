@@ -1,6 +1,6 @@
 from helpers import FIXTURES, flatten_fixture
 
-from shdlc.phases.flatten import node_str
+from flattener.phases.flatten import node_str
 
 ALL_FIXTURE_TOPS = sorted(p.stem for p in FIXTURES.glob("*.shdl") if p.stem != "stdgates")
 
@@ -79,8 +79,8 @@ def test_critical_path_is_real_everywhere():
 
 def test_settle_counts_match_functional_need():
     # max_depth steps after a poke must fully propagate any input change.
-    from shdlc.baseshdl import parse_base
-    from shdlc.sim.base_eval import BaseEval
+    from flattener.baseshdl import parse_base
+    from flattener.sim.base_eval import BaseEval
 
     out = flatten_fixture("add100")
     ev = BaseEval(parse_base(out.text))

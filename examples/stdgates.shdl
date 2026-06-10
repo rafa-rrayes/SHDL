@@ -12,7 +12,7 @@ examples pull gates from it with
 
 To flatten one of them directly, pick it explicitly:
 
-    shdlc examples/stdgates.shdl --top NAND
+    shdl-flatten examples/stdgates.shdl --top NAND
 """
 
 component NAND(A, B) -> (O) {

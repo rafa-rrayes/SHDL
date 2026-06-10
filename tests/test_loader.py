@@ -1,7 +1,7 @@
 from helpers import TS, expect_error, flatten_source
 
-from shdlc.diagnostics import ErrorCode, SHDLError
-from shdlc.pipeline import flatten_program
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.pipeline import flatten_program
 
 INV = "component Inv(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> O; } }"
 MAIN = (

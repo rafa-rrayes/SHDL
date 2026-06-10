@@ -5,7 +5,7 @@ A component declares an input list, an output list, instances, and a
 connect block.  Everything in SHDL is ultimately gates and wires; this
 is one gate and two wires.
 
-Compile:  shdlc examples/inverter.shdl
+Flatten:  shdl-flatten examples/inverter.shdl
 """
 
 top component Inverter(A) -> (O) {

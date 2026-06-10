@@ -1,8 +1,8 @@
 import pytest
 
-from shdlc.diagnostics import ErrorCode, SHDLError
-from shdlc.lexer import T, lex
-from shdlc.source import SourceFile
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.lexer import T, lex
+from flattener.source import SourceFile
 
 
 def toks(text: str):

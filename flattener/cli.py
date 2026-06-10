@@ -1,6 +1,6 @@
 """Command-line entry point.
 
-    shdlc FILE [--top NAME] [-I DIR]... [-o FILE] [--timestamp TS]
+    shdl-flatten FILE [--top NAME] [-I DIR]... [-o FILE] [--timestamp TS]
 
 Exit status 0 on success, 1 on any positioned diagnostic or I/O failure.
 Diagnostics go to stderr in the ``file:line:col: error[CODE]: message``
@@ -18,7 +18,7 @@ from .pipeline import flatten_program
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="shdlc",
+        prog="shdl-flatten",
         description="Flatten SHDL to Base SHDL (a single-bit primitive netlist).",
     )
     ap.add_argument("file", help="main .shdl source file")
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         print(e.diagnostic, file=sys.stderr)
         return 1
     except OSError as e:
-        print(f"shdlc: error: {e}", file=sys.stderr)
+        print(f"shdl-flatten: error: {e}", file=sys.stderr)
         return 1
 
     if args.output:
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
             with open(args.output, "w", encoding="utf-8", newline="") as f:
                 f.write(out.text)
         except OSError as e:
-            print(f"shdlc: error: {e}", file=sys.stderr)
+            print(f"shdl-flatten: error: {e}", file=sys.stderr)
             return 1
     else:
         sys.stdout.write(out.text)

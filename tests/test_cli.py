@@ -1,7 +1,7 @@
 from helpers import FIXTURES, TS, flatten_fixture
 
-from shdlc.baseshdl import parse_base
-from shdlc.cli import main
+from flattener.baseshdl import parse_base
+from flattener.cli import main
 
 ADD2 = str(FIXTURES / "add2.shdl")
 STDGATES = str(FIXTURES / "stdgates.shdl")

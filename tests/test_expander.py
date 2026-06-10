@@ -2,7 +2,7 @@ from helpers import expect_error, flatten_source
 
 
 def conn_strs(out):
-    from shdlc.phases.flatten import node_str
+    from flattener.phases.flatten import node_str
 
     return [f"{node_str(s)} -> {node_str(d)}" for s, d, _ in out.flat.netlist.connections]
 

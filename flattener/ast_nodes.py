@@ -1,7 +1,7 @@
 """AST for the full SHDL grammar (shdl.md §13).
 
 Every node carries the position of its first token. Arithmetic and boolean
-expressions are kept as trees and evaluated by :mod:`shdlc.expr` against an
+expressions are kept as trees and evaluated by :mod:`flattener.expr` against an
 environment of parameters and generator variables.
 """
 

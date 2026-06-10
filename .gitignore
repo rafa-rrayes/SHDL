@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+*.dylib
+*.so
+.pytest_cache/

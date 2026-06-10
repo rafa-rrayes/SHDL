@@ -1,9 +1,9 @@
 import pytest
 
-from shdlc.ast_nodes import BinOp, BoolAnd, BoolOr, Cmp, Name, Num
-from shdlc.diagnostics import ErrorCode, SHDLError
-from shdlc.expr import eval_arith, eval_bool, expr_names
-from shdlc.source import Pos
+from flattener.ast_nodes import BinOp, BoolAnd, BoolOr, Cmp, Name, Num
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.expr import eval_arith, eval_bool, expr_names
+from flattener.source import Pos
 
 P = Pos("t.shdl", 1, 1)
 

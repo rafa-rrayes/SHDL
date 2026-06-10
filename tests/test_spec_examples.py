@@ -7,7 +7,7 @@ comparison is order-insensitive.
 
 from helpers import flatten_fixture
 
-from shdlc.baseshdl import parse_base
+from flattener.baseshdl import parse_base
 
 # base_shdl.md §3.7, verbatim.
 SPEC_3_7 = """

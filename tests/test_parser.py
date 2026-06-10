@@ -1,9 +1,9 @@
 import pytest
 
-from shdlc import ast_nodes as A
-from shdlc.diagnostics import ErrorCode, SHDLError
-from shdlc.parser import parse_source
-from shdlc.source import SourceFile
+from flattener import ast_nodes as A
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.parser import parse_source
+from flattener.source import SourceFile
 
 
 def parse(text: str, name: str = "m") -> A.Module:

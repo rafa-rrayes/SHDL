@@ -1,6 +1,6 @@
 from helpers import expect_error, flatten_fixture, flatten_source
 
-from shdlc.phases.flatten import node_str
+from flattener.phases.flatten import node_str
 
 
 def conn_strs(out):

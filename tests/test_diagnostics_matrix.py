@@ -8,7 +8,7 @@ matrix to the ErrorCode enum so a new code cannot land untested.
 import pytest
 from helpers import expect_error
 
-from shdlc.diagnostics import ErrorCode
+from flattener.diagnostics import ErrorCode
 
 WIRE = "component W(In) -> (Out) { connect { In -> Out; } }"
 PARAM1 = "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }"
@@ -164,7 +164,7 @@ def test_self_connection_guard(tmp_path, monkeypatch):
     # E0504 is structurally unreachable through the public pipeline: the role
     # checks partition sources from destinations before bit pairing. Disable
     # them to prove the guard itself works.
-    import shdlc.phases.expander as expander
+    import flattener.phases.expander as expander
 
     monkeypatch.setattr(expander, "_check_role", lambda *a, **k: None)
     expect_error(
