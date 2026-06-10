@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -34,4 +36,16 @@ def build_library(
     Writes the generated C to ``emit_c`` if given, otherwise to a temporary
     file next to ``out_path``. Returns ``out_path`` as a Path.
     """
-    raise NotImplementedError
+    _, c_source = compile_text(base_text)
+    out = Path(out_path)
+    if emit_c is not None:
+        c_file = Path(emit_c)
+        c_file.write_text(c_source, encoding="utf-8")
+        return build_shared(c_file, out, cc=cc, cflags=cflags)
+    fd, tmp = tempfile.mkstemp(suffix=".c", prefix=out.stem + "-", dir=out.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(c_source)
+        return build_shared(tmp, out, cc=cc, cflags=cflags)
+    finally:
+        os.unlink(tmp)
