@@ -1,0 +1,10 @@
+component ConstDemo(A) -> (O1, O2, O3) {
+    FIVE[3] = 5;
+    a1: AND;  a2: AND;  a3: AND;
+
+    connect {
+        FIVE[1] -> a1.A;  A -> a1.B;  a1.O -> O1;   # bit 1 of 5 -> __VCC__
+        FIVE[2] -> a2.A;  A -> a2.B;  a2.O -> O2;   # bit 2 of 5 -> __GND__
+        FIVE[9] -> a3.A;  A -> a3.B;  a3.O -> O3;   # beyond width -> __GND__
+    }
+}

@@ -1,0 +1,27 @@
+"""
+08 -- Add100: named constants as connection sources.
+
+A constant is an unbounded unsigned integer: bit k of `Hundred` is
+the k-th bit of 100, and every bit above the significant ones reads
+as 0 (§8.1).  The declared width [8] is purely an overflow assertion.
+Each referenced bit materializes as a __VCC__ or __GND__ power pin
+during flattening; constants may only ever be connection sources.
+"""
+
+use adderN::{AdderN};
+
+top component Add100(A[8]) -> (Sum[8], Cout) {
+    Hundred[8] = 100;     # 0b01100100
+    ZERO      = 0;
+
+    add: AdderN<8>;
+
+    connect {
+        A    -> add.A;                          # whole-vector connection
+        ZERO -> add.Cin;                        # a constant driving a single-bit sink
+        >i[8]{ Hundred[{i}] -> add.B[{i}]; }    # ...or any individual bit
+
+        add.Sum  -> Sum;
+        add.Cout -> Cout;
+    }
+}

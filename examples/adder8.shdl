@@ -1,0 +1,31 @@
+"""
+06 -- Adder8: an 8-bit ripple-carry adder written with generators.
+
+A generator >i[range]{ ... } is a compile-time loop: its body is
+emitted once per value, with every {expr} substituted (§7).  One
+generator declares the eight FullAdder instances; another wires the
+interior stages.  Compare with adderN, which folds the boundary
+stages back into the loop with `when`.
+"""
+
+use fullAdder::{FullAdder};
+
+top component Adder8(A[8], B[8], Cin) -> (Sum[8], Cout) {
+    >i[8]{ fa{i}: FullAdder; }     # fa1, fa2, ..., fa8
+
+    connect {
+        # Stage 1 takes the external carry-in.
+        A[1] -> fa1.A;  B[1] -> fa1.B;  Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+
+        # Stages 2..8 chain the carry.
+        >i[2:8]{
+            A[{i}]       -> fa{i}.A;
+            B[{i}]       -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum    -> Sum[{i}];
+        }
+
+        fa8.Cout -> Cout;
+    }
+}

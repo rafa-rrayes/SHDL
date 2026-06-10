@@ -1,0 +1,65 @@
+"""
+15 -- ALU: a parameterized arithmetic-logic unit (capstone).
+
+Combines most of the language in one design: imports, a parameter
+passed down the hierarchy, generators for the bitwise lanes, a
+constant for the adder carry-in, a 4-way mux on the result, `when`
+boundary folding, and an OR-reduction for the Zero flag.
+
+    Op = 0b00  ->  R = A AND B
+    Op = 0b01  ->  R = A OR  B
+    Op = 0b10  ->  R = A XOR B
+    Op = 0b11  ->  R = A +   B
+
+Cout is the adder's carry and is meaningful only when Op = 0b11.
+Requires N >= 2 (the Zero-flag reduction chain).
+"""
+
+use adderN::{AdderN};
+use muxN::{Mux4N};
+
+top component ALU<N = 8>(A[N], B[N], Op[2]) -> (R[N], Cout, Zero) {
+    ZERO = 0;
+
+    "Bitwise lanes: one AND, OR, XOR cell per bit."
+    >i[N]{ lAnd{i}: AND;  lOr{i}: OR;  lXor{i}: XOR; }
+
+    add: AdderN<N>;       # arithmetic lane
+    sel: Mux4N<N>;        # result select
+
+    >i[2:N]{ red{i}: OR; }     # OR-reduction chain for the Zero flag
+    zInv: NOT;
+
+    connect {
+        # --- bitwise lanes ---
+        >i[N]{
+            A[{i}] -> lAnd{i}.A;   B[{i}] -> lAnd{i}.B;
+            A[{i}] -> lOr{i}.A;    B[{i}] -> lOr{i}.B;
+            A[{i}] -> lXor{i}.A;   B[{i}] -> lXor{i}.B;
+
+            lAnd{i}.O -> sel.D0[{i}];
+            lOr{i}.O  -> sel.D1[{i}];
+            lXor{i}.O -> sel.D2[{i}];
+        }
+
+        # --- arithmetic lane ---
+        A    -> add.A;
+        B    -> add.B;
+        ZERO -> add.Cin;
+        add.Sum  -> sel.D3;
+        add.Cout -> Cout;
+
+        # --- result select ---
+        Op    -> sel.S;
+        sel.O -> R;
+
+        # --- Zero flag: NOT(OR-reduce over the result) ---
+        >i[2:N]{
+            when {i == 2} { sel.O[1]   -> red{i}.A; }
+            else          { red{i-1}.O -> red{i}.A; }
+            sel.O[{i}] -> red{i}.B;
+        }
+        red{N}.O -> zInv.A;
+        zInv.O   -> Zero;
+    }
+}

@@ -1,0 +1,13 @@
+component Repeater<N = 2, M = 3>(In[N]) -> (Out[N * M]) {
+    >i[N]{ >j[M]{ buf{i}_{j}: OR; } }
+
+    connect {
+        >i[N]{
+            >j[M]{
+                In[{i}] -> buf{i}_{j}.A;
+                In[{i}] -> buf{i}_{j}.B;
+                buf{i}_{j}.O -> Out[{i * M - M + j}];   # (i-1)*M + j, paren-free (§13 Factor)
+            }
+        }
+    }
+}

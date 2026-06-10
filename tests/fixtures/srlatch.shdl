@@ -1,0 +1,15 @@
+use stdgates::{NOR};
+
+component SRLatch(S, R) -> (Q, Qn) {
+    n1: NOR;  n2: NOR;
+
+    init {
+        n1.O = 0;     # power-on: Q  = 0
+        n2.O = 1;     #           Qn = 1
+    }
+
+    connect {
+        R -> n1.A;   n2.O -> n1.B;   n1.O -> Q;
+        S -> n2.A;   n1.O -> n2.B;   n2.O -> Qn;
+    }
+}

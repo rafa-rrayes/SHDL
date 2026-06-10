@@ -1,0 +1,14 @@
+use adderN::{AdderN};
+
+top component ALU<N = 4>(A[N], B[N]) -> (Sum[N], Cout) {
+    add: AdderN<N>;       # parameter passed through from the enclosing component
+    z: __GND__;
+
+    connect {
+        A -> add.A;       # whole-vector instance ports
+        B -> add.B;
+        z.O -> add.Cin;
+        add.Sum -> Sum;
+        add.Cout -> Cout;
+    }
+}

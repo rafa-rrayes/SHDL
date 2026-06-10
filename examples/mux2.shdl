@@ -1,0 +1,26 @@
+"""
+03 -- Mux2: a 2-to-1 multiplexer, one bit wide.
+
+O = A when S = 0, B when S = 1.  Classic AND-OR select logic:
+
+    O = (A AND NOT S) OR (B AND S)
+
+Demonstrates fan-out: S drives two gates, and fan-out is free (§6.4).
+"""
+
+top component Mux2(A, B, S) -> (O) {
+    inv: NOT;
+    gA:  AND;     # passes A when S = 0
+    gB:  AND;     # passes B when S = 1
+    o1:  OR;
+
+    connect {
+        S -> inv.A;
+
+        A -> gA.A;   inv.O -> gA.B;
+        B -> gB.A;   S     -> gB.B;
+
+        gA.O -> o1.A;  gB.O -> o1.B;
+        o1.O -> O;
+    }
+}

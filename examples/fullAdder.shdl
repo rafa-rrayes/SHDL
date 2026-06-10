@@ -1,0 +1,34 @@
+"""
+04 -- Half adder and full adder: hierarchy inside one module.
+
+A module may define several components that instantiate one another;
+here FullAdder is built from two HalfAdders and an OR.  The `top`
+marker makes FullAdder the default when this file is compiled
+directly; other modules import it with
+
+    use fullAdder::{FullAdder};
+"""
+
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;  a1: AND;
+
+    connect {
+        A -> x1.A;  B -> x1.B;  x1.O -> Sum;
+        A -> a1.A;  B -> a1.B;  a1.O -> Carry;
+    }
+}
+
+top component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    ha1: HalfAdder;     # A + B
+    ha2: HalfAdder;     # (A + B) + Cin
+    o1:  OR;            # carry out if either stage carried
+
+    connect {
+        A       -> ha1.A;   B   -> ha1.B;
+        ha1.Sum -> ha2.A;   Cin -> ha2.B;
+        ha2.Sum -> Sum;
+
+        ha1.Carry -> o1.A;  ha2.Carry -> o1.B;
+        o1.O -> Cout;
+    }
+}

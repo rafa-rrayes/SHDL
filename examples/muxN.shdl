@@ -1,0 +1,39 @@
+"""
+09 -- MuxN / Mux4N: parameterized multiplexers, composed hierarchically.
+
+MuxN selects between two N-bit buses with one select line, one
+AND-OR cell per bit.  Mux4N then composes three MuxN instances into
+a 4-way select tree, passing its own parameter N straight through to
+the children (§5.3).
+"""
+
+component MuxN<N = 8>(A[N], B[N], S) -> (O[N]) {
+    inv: NOT;
+    >i[N]{ gA{i}: AND;  gB{i}: AND;  o{i}: OR; }
+
+    connect {
+        S -> inv.A;
+        >i[N]{
+            A[{i}] -> gA{i}.A;   inv.O -> gA{i}.B;
+            B[{i}] -> gB{i}.A;   S     -> gB{i}.B;
+            gA{i}.O -> o{i}.A;   gB{i}.O -> o{i}.B;
+            o{i}.O -> O[{i}];
+        }
+    }
+}
+
+top component Mux4N<N = 8>(D0[N], D1[N], D2[N], D3[N], S[2]) -> (O[N]) {
+    mLow:  MuxN<N>;     # D0 / D1, selected by S[1]
+    mHigh: MuxN<N>;     # D2 / D3, selected by S[1]
+    mOut:  MuxN<N>;     # low pair / high pair, selected by S[2]
+
+    connect {
+        D0 -> mLow.A;    D1 -> mLow.B;    S[1] -> mLow.S;
+        D2 -> mHigh.A;   D3 -> mHigh.B;   S[1] -> mHigh.S;
+
+        mLow.O  -> mOut.A;
+        mHigh.O -> mOut.B;
+        S[2]    -> mOut.S;
+        mOut.O  -> O;
+    }
+}

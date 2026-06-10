@@ -1,0 +1,18 @@
+"""
+01 -- Inverter: the "hello, circuit" of SHDL.
+
+A component declares an input list, an output list, instances, and a
+connect block.  Everything in SHDL is ultimately gates and wires; this
+is one gate and two wires.
+
+Compile:  shdlc examples/inverter.shdl
+"""
+
+top component Inverter(A) -> (O) {
+    n1: NOT;              # one primitive gate instance
+
+    connect {
+        A    -> n1.A;     # component input -> gate input
+        n1.O -> O;        # gate output     -> component output
+    }
+}

@@ -1,0 +1,30 @@
+"""
+10 -- EqualN: an N-bit equality comparator (requires N >= 2).
+
+XNOR each bit pair, then AND-reduce the per-bit results with a
+chained generator -- the standard reduction pattern.  `when` handles
+the first link of the chain, the same boundary-folding idiom as
+adderN.
+"""
+
+use stdgates::{XNOR};
+
+top component EqualN<N = 8>(A[N], B[N]) -> (EQ) {
+    >i[N]{ eq{i}: XNOR; }          # per-bit equality
+    >i[2:N]{ red{i}: AND; }        # N-1 links in the reduction chain
+
+    connect {
+        >i[N]{
+            A[{i}] -> eq{i}.A;
+            B[{i}] -> eq{i}.B;
+        }
+
+        >i[2:N]{
+            when {i == 2} { eq1.O      -> red{i}.A; }   # chain head
+            else          { red{i-1}.O -> red{i}.A; }   # chain link
+            eq{i}.O -> red{i}.B;
+        }
+
+        red{N}.O -> EQ;
+    }
+}

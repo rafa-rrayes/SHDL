@@ -1,0 +1,27 @@
+"""
+07 -- AdderN: a width-parameterized ripple-carry adder.
+
+<N = 8> declares a compile-time parameter with a default, so one
+definition serves every width (§4.4).  The `when` conditional folds
+the boundary stage back into a single uniform loop (§7.7.1) instead
+of hoisting stage 1 out by hand as adder8 does.
+
+Instantiate at any width:    add: AdderN<16>;
+"""
+
+use fullAdder::{FullAdder};
+
+top component AdderN<N = 8>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ fa{i}: FullAdder; }
+
+    connect {
+        >i[N]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            when {i == 1} { Cin          -> fa{i}.Cin; }   # first stage: external carry-in
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }   # interior: chain the carry
+            fa{i}.Sum -> Sum[{i}];
+        }
+        fa{N}.Cout -> Cout;
+    }
+}

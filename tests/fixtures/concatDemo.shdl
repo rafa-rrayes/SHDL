@@ -1,0 +1,12 @@
+component ConcatDemo(In[4], Sign) -> (Word[4], Ext[6], High[2], Low[2], X) {
+    x1: XOR;
+
+    connect {
+        {In[3:4], In[1:2]} -> Word;    # concatenation as a source, slice items
+        {4{Sign}, In[1:2]} -> Ext;     # replication (sign-extension)
+        In -> {High, Low};             # concatenation as a destination
+        {In[1]} -> x1.A;               # bare one-element concatenation
+        {Sign}  -> x1.B;
+        x1.O -> X;
+    }
+}
