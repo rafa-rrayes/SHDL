@@ -91,7 +91,7 @@ def gen_circuit(rng: random.Random) -> str:
     for k, t in enumerate(types):
         lines.append(f"    g{k}: {t};")
     lines.append("    connect {")
-    for k, _t in enumerate(types):
+    for k in range(len(types)):
         for pin in ("A", "B"):
             if (k, pin) in pins:
                 lines.append(f"        {pins[(k, pin)]} -> g{k}.{pin};")

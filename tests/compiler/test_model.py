@@ -505,3 +505,26 @@ def test_fixture_passthru_out_ports_reach_input_refs():
     (c_ref,) = out_ports["C"].refs
     assert c_ref == Ref("gate", 0)  # the lone XOR
     assert c.gates[0] == Gate("x1", "XOR", Ref("in", 0), Ref("in", 1))
+
+
+def test_too_many_input_wires_rejected():
+    # The generated C indexes input wires with uint16_t; beyond 65535 the
+    # wire tables would silently truncate under release cflags. The model
+    # must reject at the boundary. (BaseComponent built directly: parsing a
+    # 65k-name header is needlessly slow.)
+    from shdlc.baseshdl import BaseComponent
+
+    n = 0x10000
+    comp = BaseComponent(
+        name="Huge",
+        inputs=[f"i{k}" for k in range(n)],
+        outputs=["y"],
+        gates={},
+        connections=[("i0", "y")],
+        meta={"ports": {"inputs": {"i0": ["i0"]}, "outputs": {"y": ["y"]}}},
+    )
+    with pytest.raises(ModelError, match=r"too many input wires \(65536\)"):
+        build_circuit(comp)
+    # One fewer is fine.
+    comp.inputs = comp.inputs[:-1]
+    assert len(build_circuit(comp).inputs) == 0xFFFF

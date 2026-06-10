@@ -43,10 +43,18 @@ class BaseEval:
 
     def _seeded_gate(self, key: str) -> str:
         # An init key is a gate output "g.O" or an output-port wire, which
-        # aliases the gate that drives it.
-        if "." in key:
-            return key.split(".")[0]
-        return self.out_src[key].split(".")[0]
+        # aliases the gate that drives it — possibly through a chain of
+        # output-wire aliases (out -> out -> ... -> gate.O).
+        sig = key
+        seen: set[str] = set()
+        while "." not in sig:
+            if sig in self.inputs:  # passthrough: no gate to seed
+                raise ValueError(f"init key {key!r} resolves to input wire {sig!r}")
+            if sig in seen or sig not in self.out_src:
+                raise ValueError(f"init key {key!r} does not resolve to a gate")
+            seen.add(sig)
+            sig = self.out_src[sig]
+        return sig.split(".")[0]
 
     def _value(self, sig: str) -> int:
         if "." in sig:

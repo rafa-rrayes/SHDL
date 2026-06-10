@@ -114,6 +114,11 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 #: Port-width ceiling imposed by the uint64_t poke/peek ABI.
 _MAX_PORT_WIDTH = 64
 
+#: Input-wire ceiling imposed by the uint16_t wire-index tables in the
+#: generated C; beyond it the table initializers would silently truncate
+#: under release cflags (no -Werror).
+_MAX_INPUT_WIRES = 0xFFFF
+
 
 def build_circuit(comp: BaseComponent) -> Circuit:
     """Validate ``comp`` and lower it to a :class:`Circuit`.
@@ -129,6 +134,11 @@ def build_circuit(comp: BaseComponent) -> Circuit:
             raise ModelError(f"duplicate name {name!r}: declared as {region[name]} and {kind}")
         region[name] = kind
 
+    if len(comp.inputs) > _MAX_INPUT_WIRES:
+        raise ModelError(
+            f"too many input wires ({len(comp.inputs)}): the generated C "
+            f"indexes input wires with uint16_t (max {_MAX_INPUT_WIRES})"
+        )
     for name in comp.inputs:
         declare(name, "input")
     for name in comp.outputs:

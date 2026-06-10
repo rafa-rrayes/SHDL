@@ -66,3 +66,44 @@ def test_peek_after_reset_does_not_change_state(builds):
     for _ in range(3):
         assert snapshot(sim) == first
     assert first["Q"] == 0 and first["Qn"] == 1
+
+
+def test_reset_with_pending_poke_clears_dirty(builds):
+    # poke -> reset -> peek, with NO step in between: reset must disarm the
+    # pending lazy tick. Mutation-killing test: with `dirty = 0;` deleted
+    # from the emitted reset(), the first output peek here fires a tick from
+    # the seeded state and Q reads 1 (BaseEval idle transient), not 0.
+    sim = builds.sim_fixture("srlatch")
+    sim.poke("S", 1)  # arm dirty; deliberately no step
+    sim.reset()
+    assert snapshot(sim) == {"S": 0, "R": 0, "Q": 0, "Qn": 1}
+    assert snapshot(sim)["Q"] == 0  # still no tick on repeated reads
+
+
+#: Multi-hop output-alias chain (g1.O -> W2 -> W1) seeded via the OUTERMOST
+#: alias. The model must resolve "W1" through the chain to gate g1; the
+#: BaseEval oracle must follow the same multi-hop chain (regression: its
+#: _seeded_gate used to resolve one hop only and silently dropped the seed).
+ALIAS_INIT_TEXT = """\
+component AliasInit(a) -> (W1, W2) {
+    g1: NOT;
+    connect { a -> g1.A; g1.O -> W2; W2 -> W1; }
+}
+meta { "ports": { "inputs": { "a": ["a"] }, "outputs": { "W1": ["W1"], "W2": ["W2"] } }, "init": { "W1": 1 } }
+"""
+
+
+def test_multi_hop_alias_init_seeds_driving_gate(builds):
+    sim = builds.sim_from_text("alias_init", ALIAS_INIT_TEXT)
+    oracle = make_oracle(ALIAS_INIT_TEXT)
+    # Fresh load: the seed must be visible through BOTH aliases, lib and
+    # oracle agreeing.
+    for port in ("W1", "W2"):
+        assert sim.peek(port) == oracle.peek(port) == 1
+    # The seed is power-on state, not pinned: with a=1 the NOT flips to 0 at
+    # cycle 1 on both sides.
+    sim.poke("a", 1)
+    oracle.poke("a", 1)
+    sim.step(1)
+    oracle.step(1)
+    assert sim.peek("W1") == oracle.peek("W1") == 0
