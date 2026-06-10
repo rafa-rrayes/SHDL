@@ -62,3 +62,78 @@ its keep):
 3. Two test-side fixes: `N{x}` asserts the parser's documented tie-break
    (name template; identifier-count replication needs signal-only contents
    like `N{x.O, y}`), and an init-block unpacking typo.
+
+---
+
+# Phase 1 — Base SHDL → C Compiler (shdlc) — Build Checklist
+
+Plan reference: approved Phase-1 plan (Base SHDL → readable C → shared
+library exporting the release ABI `reset`/`poke`/`peek`/`step`; unit-delay
+two-buffer model per shdl.md §11 / shdlc_goals.md §2; no optimizations).
+
+- [x] 0. Rename: flattener package `shdlc/` → `flattener/`, console script → `shdl-flatten`
+      (distribution name stays `shdlc`); untracked committed `__pycache__`, added `.gitignore`
+- [x] 1. Compiler skeleton: new `shdlc/` package; `baseshdl.py` + `sim/base_eval.py` moved
+      in (consumer-side modules); frozen seams (model dataclasses, cc/compile signatures)
+- [x] 2a. `model.py`: `build_circuit` — 8-rule validation (name uniqueness, endpoint
+      resolution, pin arity, single drivers, completeness, alias-chain resolution to
+      ultimate drivers, ports incl. width 1..64, init resolution; strict on passthrough
+      seeds where BaseEval was lenient) — 54 tests
+- [x] 2b. `cc.py`: discovery (`--cc` → `$CC` → cc/clang/gcc, shlex-split), suffix per
+      platform, CCError with argv + compiler stderr verbatim — 21 tests
+- [x] 2c. `codegen.py`: per-gate emitted C (one line per gate, named enum indices,
+      gate-name comments), two-buffer tick with single pointer-swap commit,
+      recompute_outputs after commit, `^ 1u` NOT, VCC/GND recomputed per tick,
+      per-bit scatter/gather (no width-64 UB), SHDLC_API on exactly the 4 ABI fns,
+      `__GNUC__` constructor → reset, byte-deterministic — 29 structural tests
+- [x] 2d. Verification suite: ctypes harness (RTLD_LOCAL, per-instance dylib copies),
+      DualSim lockstep vs BaseEval (raw pokes to lib / masked to oracle), STRICT_CFLAGS
+      (-Wall -Wextra -Werror -pedantic) on every test build, fuzz generator
+      (leveled DAG + feedback rewires + random ports/init, self-checked via BaseEval)
+- [x] 3. Integration: `compile.build_library`, `shdlc` CLI (Base or .shdl input,
+      --base/--shdl, -o, --emit-c, --no-build, --cc; --top/-I rejected for Base) —
+      full suite green on first integrated run
+- [x] 4. Adversarial verification: 4 read-only reviewers + soak
+      (SHDLC_FUZZ=100 × 500 cycles, SHDLC_DIFF_CYCLES=1000 — green)
+- [x] 5. Wrap-up: docs, this section, final suite run
+
+## Review
+
+**Final state: 435 tests passing (211 flattener + 224 compiler), ruff clean,
+soak green, byte-deterministic C verified across processes.**
+
+Compiler suite: 21 files. Semantics pinned cycle-by-cycle against BaseEval
+(the flattener-verified oracle): primitives incl. cycle-0 zeros and the
+VCC→NOT trace `[0,1,0,0,...]`; anti-settling (adder8 per-cycle Sum trace, ≥8
+distinct values, Cout 0@15/1@16); srlatch exact transient traces incl.
+Q==Qn states mid-flip; 20-stage ring one-hot rotation; reset/init (constructor
+seeds live at load, idempotence, reset==fresh-load); lazy-peek lifecycle
+(exactly-one-hidden-tick pinned via the clock-ring thermometer counter);
+LSB-first scatter/gather, masking, 64-bit ports; per-handle independence of
+simultaneously loaded libraries; `nm -gU` = exactly the 4 ABI symbols;
+differential + fuzz lockstep on every fixture and random netlists.
+
+Adversarial review (4 independent reviewers, all core claims HOLD; one
+reviewer built a topological-settle mutant and confirmed three independent
+assertions kill it). Confirmed findings, all fixed:
+
+1. **uint16_t wire-table ceiling**: >65535 input wires would silently
+   truncate initializers under release cflags (no -Werror). Fix: ModelError
+   at the boundary (`test_too_many_input_wires_rejected`).
+2. **Oracle bug — BaseEval._seeded_gate was single-hop**: a multi-hop
+   output-alias chain (`g.O -> W2; W2 -> W1` with `init {"W1": …}`) silently
+   dropped the seed in the oracle while the compiler applied it correctly
+   (spec-correct). Fix: follow the chain; error on passthrough/unresolvable
+   keys. Regression: `test_multi_hop_alias_init_seeds_driving_gate`.
+3. **Mutation-testing gaps** (code was correct, behavior unpinned):
+   `dirty = 0` deletion from reset() survived the suite → pinned by
+   poke→reset→peek; unknown-name poke arming dirty would have survived →
+   pinned via the clock counter; negative step pinned; deterministic
+   scrambled-order meta.ports regression added (was fuzz-only coverage).
+
+Known limitations (documented, deliberate): load-time constructor is
+`__GNUC__`/`_WIN32`-gated (MSVC would need an explicit reset() before first
+peek); duplicate/shared wires across port groups are permitted by the spec
+and behave identically (last-write-wins) in lib and oracle, but are
+unspecified in shdlc_goals.md; `peek` of an output is a mutating read when
+dirty (spec-mandated single evaluation).
