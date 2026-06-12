@@ -1,7 +1,7 @@
 [project]
 name = "pyshdl"
 version = "0.1.0"                            # keep in sync with flattener/ and shdlc/ __version__
-description = "SHDL hardware-description toolchain: the SHDL→Base SHDL flattener, the Base SHDL→C compiler (shdlc), and the conformance suite (the PySHDL user-facing driver is forthcoming)."
+description = "SHDL hardware-description toolchain: the PySHDL user-facing driver, the SHDL→Base SHDL flattener, the Base SHDL→C compiler (shdlc), and the conformance suite."
 requires-python = ">=3.14"
 dependencies = []
 
@@ -15,7 +15,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["flattener", "shdlc", "conformance"]
+packages = ["pyshdl", "flattener", "shdlc", "conformance"]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
