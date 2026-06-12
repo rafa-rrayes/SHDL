@@ -1,0 +1,86 @@
+# Nightly soak + coverage (golden_tests.md T5, FUZ-6, the P2 coverage gate).
+#
+# The commit-time CI (ci.yml) runs the suite at its fast defaults. This scheduled
+# job re-runs it with the soak knobs cranked to campaign scale — the large-N
+# differential / fuzz tiers and the SHDLC_SCALE stress builds (SCL-3/4) — and
+# emits a report-only coverage summary for flattener/ and shdlc/. A nightly
+# failure freezes a permanent regression artifact (suite policy §4).
+name: Nightly
+
+on:
+  schedule:
+    # 07:00 UTC daily (off-peak; after most pushes have settled).
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Soak campaign (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      # Differential / netlist-fuzz tiers at campaign scale.
+      SHDLC_FUZZ: "500"
+      SHDLC_DIFF_CYCLES: "5000"
+      # FUZ-3 SHDL-source fuzzer at campaign scale, with the compiled-C lockstep
+      # leg enabled (opt-in / ~100x slower, so it only runs here).
+      SHDLC_SOURCE_FUZZ: "500"
+      SHDLC_SOURCE_FUZZ_CYCLES: "100"
+      SHDLC_SOURCE_FUZZ_CC: "1"
+      # FUZ-4 frontend no-crash campaign.
+      SHDLC_NOCRASH: "2000"
+      # SCL-3/SCL-4 minutes-scale stress builds (10^5-gate compile + 100-cycle
+      # differential, 10^4-instance generator).
+      SHDLC_SCALE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pin Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync the environment
+        run: uv sync --frozen
+
+      # -p no:randomly / no special flags: the suite is seed-stable by name, so a
+      # campaign-scale run is a deterministic, larger replay of the same tests.
+      - name: Run the soak campaign (T0-T5)
+        run: uv run pytest -q
+
+  coverage:
+    name: Coverage (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pin Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync the environment
+        run: uv sync --frozen
+
+      # Report-only line+branch coverage for the two packages the P2 gate names.
+      # pytest-cov is pulled in ad-hoc via --with so it never enters the locked
+      # runtime/dev dependency set. No fail-under here: this is a ratchet target
+      # (≥95% on flattener phases), reported, not yet enforced.
+      - name: Coverage report for flattener/ and shdlc/
+        run: >-
+          uv run --with pytest-cov pytest -q
+          --cov=flattener --cov=shdlc --cov-branch
+          --cov-report=term-missing

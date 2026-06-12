@@ -1,0 +1,64 @@
+# CI — T0..T4 on every push / PR (golden_tests.md §1.2, CCT-6, FUZ-6 gate).
+#
+# Runs the commit-time tiers (unit, property, differential small-N, conformance,
+# CPU acceptance) across the Linux + macOS platform matrix with both the system
+# compiler and, on Linux, clang — the CCT-6 platform-matrix obligation (today the
+# suite is proven on macOS/clang only). uv provides Python 3.14 and the single
+# dev dependency (pytest). The heavy stress tier (SHDLC_SCALE) and the soak
+# campaign run nightly, not here, so commit-time stays fast.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: T0-T4 (${{ matrix.os }}, cc=${{ matrix.cc }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux: exercise both gcc (system cc) and clang — the two backends
+          # CCT-6 calls out as missing today.
+          - os: ubuntu-latest
+            cc: gcc
+          - os: ubuntu-latest
+            cc: clang
+          # macOS: the platform the suite was originally proven on (clang).
+          - os: macos-latest
+            cc: clang
+    env:
+      # shdlc.cc honours $CC for compiler discovery; pin it per matrix leg so the
+      # generated-C builds (differential, chunked, CPU) use the intended toolchain.
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pin Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync the environment (pytest only; no extra deps)
+        run: uv sync --frozen
+
+      - name: Show the compiler under test
+        run: ${{ matrix.cc }} --version
+
+      # T0 unit + T1 property + T2 differential (small N) + T3 conformance + T4
+      # CPU acceptance. The whole tree under tests/ is the commit-time suite; the
+      # minutes-scale stress tests self-skip unless SHDLC_SCALE is set (nightly).
+      - name: Run T0-T4 (uv run pytest -q)
+        run: uv run pytest -q
