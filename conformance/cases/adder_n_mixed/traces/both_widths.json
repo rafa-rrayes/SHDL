@@ -1,0 +1,188 @@
+{
+  "trace_format": 1,
+  "name": "both_widths",
+  "tier": "B",
+  "description": "2-bit and 3-bit sums computed by the two bindings independently.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 3
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "C",
+      "value": 5
+    },
+    {
+      "op": "poke",
+      "signal": "D",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 7
+    },
+    {
+      "op": "expect",
+      "signal": "SumS",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutS",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "SumL",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutL",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "C",
+      "value": 3
+    },
+    {
+      "op": "poke",
+      "signal": "D",
+      "value": 4
+    },
+    {
+      "op": "step",
+      "cycles": 7
+    },
+    {
+      "op": "expect",
+      "signal": "SumS",
+      "value": 2
+    },
+    {
+      "op": "expect",
+      "signal": "CoutS",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "SumL",
+      "value": 7
+    },
+    {
+      "op": "expect",
+      "signal": "CoutL",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "C",
+      "value": 7
+    },
+    {
+      "op": "poke",
+      "signal": "D",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 7
+    },
+    {
+      "op": "expect",
+      "signal": "SumS",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutS",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "SumL",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutL",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 2
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 2
+    },
+    {
+      "op": "poke",
+      "signal": "C",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "D",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 7
+    },
+    {
+      "op": "expect",
+      "signal": "SumS",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutS",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "SumL",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "CoutL",
+      "value": 0
+    }
+  ]
+}

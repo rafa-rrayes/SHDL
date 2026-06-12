@@ -1,0 +1,6 @@
+component SplitByte(In[8]) -> (Low[4], High[4]) {
+    connect {
+        In[:4]  -> Low;     # In[1..4] -> Low[1..4]
+        In[5:8] -> High;    # In[5..8] -> High[1..4]
+    }
+}

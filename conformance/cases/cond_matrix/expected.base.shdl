@@ -1,0 +1,179 @@
+component CondMatrix(P, Q) -> (Out_1_, Out_2_, Out_3_, Out_4_, Out_5_, Out_6_) {
+    z: __GND__;
+    lane1: OR;
+    lane2: OR;
+    lane3: OR;
+    lane4: OR;
+    lane5: OR;
+    lane6: OR;
+
+    connect {
+        P -> lane1.A;
+        z.O -> lane1.B;
+        lane1.O -> Out_1_;
+        Q -> lane2.A;
+        z.O -> lane2.B;
+        lane2.O -> Out_2_;
+        P -> lane3.A;
+        z.O -> lane3.B;
+        lane3.O -> Out_3_;
+        P -> lane4.A;
+        z.O -> lane4.B;
+        lane4.O -> Out_4_;
+        Q -> lane5.A;
+        z.O -> lane5.B;
+        lane5.O -> Out_5_;
+        Q -> lane6.A;
+        z.O -> lane6.B;
+        lane6.O -> Out_6_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "P": [
+        "P"
+      ],
+      "Q": [
+        "Q"
+      ]
+    },
+    "outputs": {
+      "Out": [
+        "Out_1_",
+        "Out_2_",
+        "Out_3_",
+        "Out_4_",
+        "Out_5_",
+        "Out_6_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "CondMatrix": {
+      "source_file": "circuit.shdl",
+      "source_line": 18,
+      "instances": {
+        "z": {
+          "type": "__GND__",
+          "gate": "z"
+        },
+        "lane1": {
+          "type": "OR",
+          "gate": "lane1"
+        },
+        "lane2": {
+          "type": "OR",
+          "gate": "lane2"
+        },
+        "lane3": {
+          "type": "OR",
+          "gate": "lane3"
+        },
+        "lane4": {
+          "type": "OR",
+          "gate": "lane4"
+        },
+        "lane5": {
+          "type": "OR",
+          "gate": "lane5"
+        },
+        "lane6": {
+          "type": "OR",
+          "gate": "lane6"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "z": {
+        "file": "circuit.shdl",
+        "line": 19,
+        "column": 5
+      },
+      "lane1": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      },
+      "lane2": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      },
+      "lane3": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      },
+      "lane4": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      },
+      "lane5": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      },
+      "lane6": {
+        "file": "circuit.shdl",
+        "line": 20,
+        "column": 12
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "19": [
+          "z"
+        ],
+        "20": [
+          "lane1",
+          "lane2",
+          "lane3",
+          "lane4",
+          "lane5",
+          "lane6"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 2,
+    "output_depths": {
+      "Out_1_": 2,
+      "Out_2_": 2,
+      "Out_3_": 2,
+      "Out_4_": 2,
+      "Out_5_": 2,
+      "Out_6_": 2
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "z",
+      "lane1",
+      "Out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 7,
+    "total_connections": 18,
+    "total_ports": 8,
+    "by_type": {
+      "__GND__": 1,
+      "OR": 6
+    }
+  },
+  "doc": {
+    "description": "Conditional-operator matrix: every when-condition operator at flatten time.\n\nA 6-lane generator where each lane's structure is chosen by a distinct\nrelational/boolean operator over the loop index i (1..6). Exactly one\nwhen-branch fires per lane, selecting that lane's source:\n\n    i == 1            -> P     (equality)\n    i != 1 && i < 3   -> Q     (inequality, less-than, boolean AND)\n    i >= 3 && i <= 4  -> P     (ge, le)\n    i > 4 || i == 99  -> Q     (gt, boolean OR)\n\nThe operators are compile-time only (shdl.md §13, §7.7); they never\nbecome gates. Each lane ORs its chosen source with a shared GND (0) so\nOR(src, 0) = src is observable after one cycle. Out (LSB-first) =\n[P, Q, P, P, Q, Q].",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

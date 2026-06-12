@@ -1,0 +1,34 @@
+{
+  "case_format": 1,
+  "name": "alu",
+  "title": "8-bit ALU: AND/OR/XOR/ADD with Cout and Zero flags",
+  "description": "The capstone composite: bitwise generator lanes, an AdderN<8> arithmetic lane, a Mux4N result select, and an OR-reduction Zero flag with the when/else boundary \u2014 most of the language in one artifact.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "adderN.shdl",
+    "circuit.shdl",
+    "fullAdder.shdl",
+    "muxN.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/all_ops.json"
+  ],
+  "features": [
+    "composite:large",
+    "lang:named-constants",
+    "lang:hierarchy",
+    "lang:imports",
+    "lang:conditionals-multi-binding",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

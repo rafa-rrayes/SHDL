@@ -1,0 +1,27 @@
+{
+  "case_format": 1,
+  "name": "repeated_names",
+  "title": "Identical instance names in sibling scopes",
+  "description": "Two Cell instances each own a gate named 'g', and the top level has its own 'g'; flattening must keep three distinct NOTs (O = NOT^3(A)). The trace watches the inversion wave cross the chain one gate per cycle.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/propagation_wave.json"
+  ],
+  "features": [
+    "degenerate:repeated-names",
+    "lang:hierarchy"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

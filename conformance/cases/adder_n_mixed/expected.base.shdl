@@ -1,0 +1,651 @@
+component AdderNMixed(A_1_, A_2_, B_1_, B_2_, C_1_, C_2_, C_3_, D_1_, D_2_, D_3_) -> (SumS_1_, SumS_2_, CoutS, SumL_1_, SumL_2_, SumL_3_, CoutL) {
+    small_fa1_x1: XOR;
+    small_fa1_a1: AND;
+    small_fa1_x2: XOR;
+    small_fa1_a2: AND;
+    small_fa1_o1: OR;
+    small_fa2_x1: XOR;
+    small_fa2_a1: AND;
+    small_fa2_x2: XOR;
+    small_fa2_a2: AND;
+    small_fa2_o1: OR;
+    large_fa1_x1: XOR;
+    large_fa1_a1: AND;
+    large_fa1_x2: XOR;
+    large_fa1_a2: AND;
+    large_fa1_o1: OR;
+    large_fa2_x1: XOR;
+    large_fa2_a1: AND;
+    large_fa2_x2: XOR;
+    large_fa2_a2: AND;
+    large_fa2_o1: OR;
+    large_fa3_x1: XOR;
+    large_fa3_a1: AND;
+    large_fa3_x2: XOR;
+    large_fa3_a2: AND;
+    large_fa3_o1: OR;
+    z: __GND__;
+
+    connect {
+        A_1_ -> small_fa1_x1.A;
+        B_1_ -> small_fa1_x1.B;
+        A_1_ -> small_fa1_a1.A;
+        B_1_ -> small_fa1_a1.B;
+        small_fa1_x1.O -> small_fa1_x2.A;
+        z.O -> small_fa1_x2.B;
+        small_fa1_x1.O -> small_fa1_a2.A;
+        z.O -> small_fa1_a2.B;
+        small_fa1_a1.O -> small_fa1_o1.A;
+        small_fa1_a2.O -> small_fa1_o1.B;
+        A_2_ -> small_fa2_x1.A;
+        B_2_ -> small_fa2_x1.B;
+        A_2_ -> small_fa2_a1.A;
+        B_2_ -> small_fa2_a1.B;
+        small_fa2_x1.O -> small_fa2_x2.A;
+        small_fa1_o1.O -> small_fa2_x2.B;
+        small_fa2_x1.O -> small_fa2_a2.A;
+        small_fa1_o1.O -> small_fa2_a2.B;
+        small_fa2_a1.O -> small_fa2_o1.A;
+        small_fa2_a2.O -> small_fa2_o1.B;
+        C_1_ -> large_fa1_x1.A;
+        D_1_ -> large_fa1_x1.B;
+        C_1_ -> large_fa1_a1.A;
+        D_1_ -> large_fa1_a1.B;
+        large_fa1_x1.O -> large_fa1_x2.A;
+        z.O -> large_fa1_x2.B;
+        large_fa1_x1.O -> large_fa1_a2.A;
+        z.O -> large_fa1_a2.B;
+        large_fa1_a1.O -> large_fa1_o1.A;
+        large_fa1_a2.O -> large_fa1_o1.B;
+        C_2_ -> large_fa2_x1.A;
+        D_2_ -> large_fa2_x1.B;
+        C_2_ -> large_fa2_a1.A;
+        D_2_ -> large_fa2_a1.B;
+        large_fa2_x1.O -> large_fa2_x2.A;
+        large_fa1_o1.O -> large_fa2_x2.B;
+        large_fa2_x1.O -> large_fa2_a2.A;
+        large_fa1_o1.O -> large_fa2_a2.B;
+        large_fa2_a1.O -> large_fa2_o1.A;
+        large_fa2_a2.O -> large_fa2_o1.B;
+        C_3_ -> large_fa3_x1.A;
+        D_3_ -> large_fa3_x1.B;
+        C_3_ -> large_fa3_a1.A;
+        D_3_ -> large_fa3_a1.B;
+        large_fa3_x1.O -> large_fa3_x2.A;
+        large_fa2_o1.O -> large_fa3_x2.B;
+        large_fa3_x1.O -> large_fa3_a2.A;
+        large_fa2_o1.O -> large_fa3_a2.B;
+        large_fa3_a1.O -> large_fa3_o1.A;
+        large_fa3_a2.O -> large_fa3_o1.B;
+        small_fa2_x2.O -> SumS_2_;
+        small_fa1_x2.O -> SumS_1_;
+        small_fa2_o1.O -> CoutS;
+        large_fa3_x2.O -> SumL_3_;
+        large_fa2_x2.O -> SumL_2_;
+        large_fa1_x2.O -> SumL_1_;
+        large_fa3_o1.O -> CoutL;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A_1_",
+        "A_2_"
+      ],
+      "B": [
+        "B_1_",
+        "B_2_"
+      ],
+      "C": [
+        "C_1_",
+        "C_2_",
+        "C_3_"
+      ],
+      "D": [
+        "D_1_",
+        "D_2_",
+        "D_3_"
+      ]
+    },
+    "outputs": {
+      "SumS": [
+        "SumS_1_",
+        "SumS_2_"
+      ],
+      "CoutS": [
+        "CoutS"
+      ],
+      "SumL": [
+        "SumL_1_",
+        "SumL_2_",
+        "SumL_3_"
+      ],
+      "CoutL": [
+        "CoutL"
+      ]
+    }
+  },
+  "hierarchy": {
+    "AdderNMixed": {
+      "source_file": "circuit.shdl",
+      "source_line": 10,
+      "instances": {
+        "small": {
+          "type": "AdderN",
+          "params": {
+            "N": 2
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 11,
+          "prefix": "small_",
+          "ports": {
+            "A": [
+              "A_1_",
+              "A_2_"
+            ],
+            "B": [
+              "B_1_",
+              "B_2_"
+            ],
+            "Cin": "z.O",
+            "Sum": [
+              "SumS_1_",
+              "SumS_2_"
+            ],
+            "Cout": "CoutS"
+          },
+          "instances": {
+            "fa1": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 4,
+              "prefix": "small_fa1_",
+              "ports": {
+                "A": "A_1_",
+                "B": "B_1_",
+                "Cin": "z.O",
+                "Sum": "SumS_1_",
+                "Cout": "small_fa1_o1.O"
+              },
+              "instances": {
+                "x1": {
+                  "type": "XOR",
+                  "gate": "small_fa1_x1"
+                },
+                "a1": {
+                  "type": "AND",
+                  "gate": "small_fa1_a1"
+                },
+                "x2": {
+                  "type": "XOR",
+                  "gate": "small_fa1_x2"
+                },
+                "a2": {
+                  "type": "AND",
+                  "gate": "small_fa1_a2"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "small_fa1_o1"
+                }
+              }
+            },
+            "fa2": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 4,
+              "prefix": "small_fa2_",
+              "ports": {
+                "A": "A_2_",
+                "B": "B_2_",
+                "Cin": "small_fa1_o1.O",
+                "Sum": "SumS_2_",
+                "Cout": "CoutS"
+              },
+              "instances": {
+                "x1": {
+                  "type": "XOR",
+                  "gate": "small_fa2_x1"
+                },
+                "a1": {
+                  "type": "AND",
+                  "gate": "small_fa2_a1"
+                },
+                "x2": {
+                  "type": "XOR",
+                  "gate": "small_fa2_x2"
+                },
+                "a2": {
+                  "type": "AND",
+                  "gate": "small_fa2_a2"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "small_fa2_o1"
+                }
+              }
+            }
+          }
+        },
+        "large": {
+          "type": "AdderN",
+          "params": {
+            "N": 3
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 12,
+          "prefix": "large_",
+          "ports": {
+            "A": [
+              "C_1_",
+              "C_2_",
+              "C_3_"
+            ],
+            "B": [
+              "D_1_",
+              "D_2_",
+              "D_3_"
+            ],
+            "Cin": "z.O",
+            "Sum": [
+              "SumL_1_",
+              "SumL_2_",
+              "SumL_3_"
+            ],
+            "Cout": "CoutL"
+          },
+          "instances": {
+            "fa1": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 4,
+              "prefix": "large_fa1_",
+              "ports": {
+                "A": "C_1_",
+                "B": "D_1_",
+                "Cin": "z.O",
+                "Sum": "SumL_1_",
+                "Cout": "large_fa1_o1.O"
+              },
+              "instances": {
+                "x1": {
+                  "type": "XOR",
+                  "gate": "large_fa1_x1"
+                },
+                "a1": {
+                  "type": "AND",
+                  "gate": "large_fa1_a1"
+                },
+                "x2": {
+                  "type": "XOR",
+                  "gate": "large_fa1_x2"
+                },
+                "a2": {
+                  "type": "AND",
+                  "gate": "large_fa1_a2"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "large_fa1_o1"
+                }
+              }
+            },
+            "fa2": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 4,
+              "prefix": "large_fa2_",
+              "ports": {
+                "A": "C_2_",
+                "B": "D_2_",
+                "Cin": "large_fa1_o1.O",
+                "Sum": "SumL_2_",
+                "Cout": "large_fa2_o1.O"
+              },
+              "instances": {
+                "x1": {
+                  "type": "XOR",
+                  "gate": "large_fa2_x1"
+                },
+                "a1": {
+                  "type": "AND",
+                  "gate": "large_fa2_a1"
+                },
+                "x2": {
+                  "type": "XOR",
+                  "gate": "large_fa2_x2"
+                },
+                "a2": {
+                  "type": "AND",
+                  "gate": "large_fa2_a2"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "large_fa2_o1"
+                }
+              }
+            },
+            "fa3": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 4,
+              "prefix": "large_fa3_",
+              "ports": {
+                "A": "C_3_",
+                "B": "D_3_",
+                "Cin": "large_fa2_o1.O",
+                "Sum": "SumL_3_",
+                "Cout": "CoutL"
+              },
+              "instances": {
+                "x1": {
+                  "type": "XOR",
+                  "gate": "large_fa3_x1"
+                },
+                "a1": {
+                  "type": "AND",
+                  "gate": "large_fa3_a1"
+                },
+                "x2": {
+                  "type": "XOR",
+                  "gate": "large_fa3_x2"
+                },
+                "a2": {
+                  "type": "AND",
+                  "gate": "large_fa3_a2"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "large_fa3_o1"
+                }
+              }
+            }
+          }
+        },
+        "z": {
+          "type": "__GND__",
+          "gate": "z"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "small_fa1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "small_fa1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "small_fa1_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "small_fa1_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "small_fa1_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "small_fa2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "small_fa2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "small_fa2_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "small_fa2_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "small_fa2_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "large_fa1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "large_fa1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "large_fa1_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "large_fa1_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "large_fa1_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "large_fa2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "large_fa2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "large_fa2_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "large_fa2_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "large_fa2_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "large_fa3_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "large_fa3_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "large_fa3_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "large_fa3_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "large_fa3_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "z": {
+        "file": "circuit.shdl",
+        "line": 13,
+        "column": 5
+      }
+    },
+    "lines": {
+      "adderN.shdl": {
+        "4": [
+          "small_fa1_x1",
+          "small_fa1_a1",
+          "small_fa1_x2",
+          "small_fa1_a2",
+          "small_fa1_o1",
+          "small_fa2_x1",
+          "small_fa2_a1",
+          "small_fa2_x2",
+          "small_fa2_a2",
+          "small_fa2_o1",
+          "large_fa1_x1",
+          "large_fa1_a1",
+          "large_fa1_x2",
+          "large_fa1_a2",
+          "large_fa1_o1",
+          "large_fa2_x1",
+          "large_fa2_a1",
+          "large_fa2_x2",
+          "large_fa2_a2",
+          "large_fa2_o1",
+          "large_fa3_x1",
+          "large_fa3_a1",
+          "large_fa3_x2",
+          "large_fa3_a2",
+          "large_fa3_o1"
+        ]
+      },
+      "circuit.shdl": {
+        "11": [
+          "small_fa1_x1",
+          "small_fa1_a1",
+          "small_fa1_x2",
+          "small_fa1_a2",
+          "small_fa1_o1",
+          "small_fa2_x1",
+          "small_fa2_a1",
+          "small_fa2_x2",
+          "small_fa2_a2",
+          "small_fa2_o1"
+        ],
+        "12": [
+          "large_fa1_x1",
+          "large_fa1_a1",
+          "large_fa1_x2",
+          "large_fa1_a2",
+          "large_fa1_o1",
+          "large_fa2_x1",
+          "large_fa2_a1",
+          "large_fa2_x2",
+          "large_fa2_a2",
+          "large_fa2_o1",
+          "large_fa3_x1",
+          "large_fa3_a1",
+          "large_fa3_x2",
+          "large_fa3_a2",
+          "large_fa3_o1"
+        ],
+        "13": [
+          "z"
+        ]
+      },
+      "fullAdder.shdl": {
+        "2": [
+          "small_fa1_x1",
+          "small_fa1_a1",
+          "small_fa2_x1",
+          "small_fa2_a1",
+          "large_fa1_x1",
+          "large_fa1_a1",
+          "large_fa2_x1",
+          "large_fa2_a1",
+          "large_fa3_x1",
+          "large_fa3_a1"
+        ],
+        "3": [
+          "small_fa1_x2",
+          "small_fa1_a2",
+          "small_fa2_x2",
+          "small_fa2_a2",
+          "large_fa1_x2",
+          "large_fa1_a2",
+          "large_fa2_x2",
+          "large_fa2_a2",
+          "large_fa3_x2",
+          "large_fa3_a2"
+        ],
+        "4": [
+          "small_fa1_o1",
+          "small_fa2_o1",
+          "large_fa1_o1",
+          "large_fa2_o1",
+          "large_fa3_o1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 7,
+    "output_depths": {
+      "SumS_1_": 2,
+      "SumS_2_": 4,
+      "CoutS": 5,
+      "SumL_1_": 2,
+      "SumL_2_": 4,
+      "SumL_3_": 6,
+      "CoutL": 7
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "C_1_",
+      "large_fa1_x1",
+      "large_fa1_a2",
+      "large_fa1_o1",
+      "large_fa2_a2",
+      "large_fa2_o1",
+      "large_fa3_a2",
+      "large_fa3_o1",
+      "CoutL"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 26,
+    "total_connections": 57,
+    "total_ports": 17,
+    "by_type": {
+      "XOR": 10,
+      "AND": 10,
+      "OR": 5,
+      "__GND__": 1
+    }
+  },
+  "doc": {
+    "description": "Conformance: one generator-and-conditional component at two bindings.\n\nAdderN's ripple loop uses `>i[N]` with a `when {i == 1} / else` boundary;\ninstantiating it at N = 2 and N = 3 in one artifact pins that generators and\nconditionals elaborate correctly per binding.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

@@ -1,0 +1,27 @@
+{
+  "case_format": 1,
+  "name": "mux4n",
+  "title": "4-way 8-bit mux tree (Mux4N over three MuxN instances)",
+  "description": "Mux4N passes its parameter N straight through to three MuxN children; S[2] selects among four distinct byte patterns.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/select_tree.json"
+  ],
+  "features": [
+    "lang:hierarchy",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

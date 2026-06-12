@@ -1,0 +1,54 @@
+{
+  "trace_format": 1,
+  "name": "cycle_semantics",
+  "tier": "B",
+  "description": "O is 0 at cycle 0 (no tick yet), 1 after one cycle with A=0, then follows NOT A.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 1
+    }
+  ]
+}

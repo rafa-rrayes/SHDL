@@ -1,0 +1,69 @@
+{
+  "trace_format": 1,
+  "name": "masking",
+  "tier": "C",
+  "description": "poke 255 -> In reads 3; poke 4 -> In reads 0 (bit 3 dropped); in-range pokes pass through unchanged.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 255
+    },
+    {
+      "op": "expect",
+      "signal": "In",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 3
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 4
+    },
+    {
+      "op": "expect",
+      "signal": "In",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 2
+    },
+    {
+      "op": "expect",
+      "signal": "In",
+      "value": 2
+    }
+  ]
+}

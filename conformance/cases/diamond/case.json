@@ -1,0 +1,33 @@
+{
+  "case_format": 1,
+  "name": "diamond",
+  "title": "Diamond import: two arms share one leaf module",
+  "description": "Top imports left (Nand) and right (Nor); both import the same leaf (Inv). The shared module binds once by name (AMB-27 program-global identity) and the diamond flattens to NAND on Na and NOR on No, depth 2.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "leaf.shdl",
+    "left.shdl",
+    "right.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/nand_nor.json"
+  ],
+  "features": [
+    "lang:imports",
+    "lang:diamond-import",
+    "lang:hierarchy",
+    "derived:nand",
+    "derived:nor"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.1.0 addition (2026-06-12); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

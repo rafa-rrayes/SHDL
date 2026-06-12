@@ -1,0 +1,26 @@
+{
+  "case_format": 1,
+  "name": "abi_peek_input",
+  "title": "ABI: peek of an input never ticks and never clears dirty",
+  "description": "After poke clk=1, two input peeks must return the poked value without advancing the circuit; the dirty flag must survive them, so the first output peek afterwards still ticks exactly once (out=1, not 3 or more).",
+  "tiers": [
+    "A",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/input_peek_tickless.json"
+  ],
+  "features": [
+    "abi:peek-input-never-ticks"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

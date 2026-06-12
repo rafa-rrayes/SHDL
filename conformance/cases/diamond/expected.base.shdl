@@ -1,0 +1,198 @@
+component Diamond(A, B) -> (Na, No) {
+    g1_a: AND;
+    g1_i_n: NOT;
+    g2_o: OR;
+    g2_i_n: NOT;
+
+    connect {
+        g1_a.O -> g1_i_n.A;
+        A -> g1_a.A;
+        B -> g1_a.B;
+        g2_o.O -> g2_i_n.A;
+        A -> g2_o.A;
+        B -> g2_o.B;
+        g1_i_n.O -> Na;
+        g2_i_n.O -> No;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ]
+    },
+    "outputs": {
+      "Na": [
+        "Na"
+      ],
+      "No": [
+        "No"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Diamond": {
+      "source_file": "circuit.shdl",
+      "source_line": 15,
+      "instances": {
+        "g1": {
+          "type": "Nand",
+          "source_file": "circuit.shdl",
+          "source_line": 16,
+          "prefix": "g1_",
+          "ports": {
+            "A": "A",
+            "B": "B",
+            "O": "Na"
+          },
+          "instances": {
+            "a": {
+              "type": "AND",
+              "gate": "g1_a"
+            },
+            "i": {
+              "type": "Inv",
+              "source_file": "left.shdl",
+              "source_line": 6,
+              "prefix": "g1_i_",
+              "ports": {
+                "A": "g1_a.O",
+                "O": "Na"
+              },
+              "instances": {
+                "n": {
+                  "type": "NOT",
+                  "gate": "g1_i_n"
+                }
+              }
+            }
+          }
+        },
+        "g2": {
+          "type": "Nor",
+          "source_file": "circuit.shdl",
+          "source_line": 16,
+          "prefix": "g2_",
+          "ports": {
+            "A": "A",
+            "B": "B",
+            "O": "No"
+          },
+          "instances": {
+            "o": {
+              "type": "OR",
+              "gate": "g2_o"
+            },
+            "i": {
+              "type": "Inv",
+              "source_file": "right.shdl",
+              "source_line": 6,
+              "prefix": "g2_i_",
+              "ports": {
+                "A": "g2_o.O",
+                "O": "No"
+              },
+              "instances": {
+                "n": {
+                  "type": "NOT",
+                  "gate": "g2_i_n"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "g1_a": {
+        "file": "left.shdl",
+        "line": 6,
+        "column": 5
+      },
+      "g1_i_n": {
+        "file": "leaf.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "g2_o": {
+        "file": "right.shdl",
+        "line": 6,
+        "column": 5
+      },
+      "g2_i_n": {
+        "file": "leaf.shdl",
+        "line": 4,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "16": [
+          "g1_a",
+          "g1_i_n",
+          "g2_o",
+          "g2_i_n"
+        ]
+      },
+      "leaf.shdl": {
+        "4": [
+          "g1_i_n",
+          "g2_i_n"
+        ]
+      },
+      "left.shdl": {
+        "6": [
+          "g1_a",
+          "g1_i_n"
+        ]
+      },
+      "right.shdl": {
+        "6": [
+          "g2_o",
+          "g2_i_n"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 2,
+    "output_depths": {
+      "Na": 2,
+      "No": 2
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "g1_a",
+      "g1_i_n",
+      "Na"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 4,
+    "total_connections": 8,
+    "total_ports": 4,
+    "by_type": {
+      "AND": 1,
+      "NOT": 2,
+      "OR": 1
+    }
+  },
+  "doc": {
+    "description": "Diamond import: top imports two arms that both import one shared leaf.\n\n    circuit ─┬─ left  (Nand) ─┐\n             └─ right (Nor)  ─┴─ leaf (Inv)\n\n`Inv` is reachable through two distinct import paths (via left and via\nright). Pins that the loader binds the shared module once by name and\nthat the diamond flattens — every Inv instance inlines the same NOT\n(shdl.md §9.1, AMB-27 program-global module identity).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

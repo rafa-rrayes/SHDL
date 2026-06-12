@@ -1,0 +1,107 @@
+{
+  "trace_format": 1,
+  "name": "equality",
+  "tier": "B",
+  "description": "EQ=1 iff A==B: equal pairs, one-bit difference, full complement.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 9
+    },
+    {
+      "op": "expect",
+      "signal": "EQ",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 165
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 165
+    },
+    {
+      "op": "step",
+      "cycles": 9
+    },
+    {
+      "op": "expect",
+      "signal": "EQ",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 165
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 164
+    },
+    {
+      "op": "step",
+      "cycles": 9
+    },
+    {
+      "op": "expect",
+      "signal": "EQ",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 255
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 9
+    },
+    {
+      "op": "expect",
+      "signal": "EQ",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 128
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 128
+    },
+    {
+      "op": "step",
+      "cycles": 9
+    },
+    {
+      "op": "expect",
+      "signal": "EQ",
+      "value": 1
+    }
+  ]
+}

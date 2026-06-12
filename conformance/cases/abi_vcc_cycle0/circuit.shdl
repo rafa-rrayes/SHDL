@@ -1,0 +1,16 @@
+"""Conformance: __VCC__ reads 0 at cycle 0 and 1 from cycle 1 on.
+
+The NOT tap sees the cycle-0 zero exactly once, so HiInv goes 0, 1, 0, ...
+— a trace only a faithful unit-delay implementation reproduces.
+"""
+
+top component VccProbe() -> (Hi, HiInv) {
+    v: __VCC__;
+    n: NOT;
+
+    connect {
+        v.O -> Hi;
+        v.O -> n.A;
+        n.O -> HiInv;
+    }
+}

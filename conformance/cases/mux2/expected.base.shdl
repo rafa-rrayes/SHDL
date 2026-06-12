@@ -1,0 +1,136 @@
+component Mux2(A, B, S) -> (O) {
+    inv: NOT;
+    gA: AND;
+    gB: AND;
+    o1: OR;
+
+    connect {
+        S -> inv.A;
+        A -> gA.A;
+        inv.O -> gA.B;
+        B -> gB.A;
+        S -> gB.B;
+        gA.O -> o1.A;
+        gB.O -> o1.B;
+        o1.O -> O;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ],
+      "S": [
+        "S"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Mux2": {
+      "source_file": "circuit.shdl",
+      "source_line": 11,
+      "instances": {
+        "inv": {
+          "type": "NOT",
+          "gate": "inv"
+        },
+        "gA": {
+          "type": "AND",
+          "gate": "gA"
+        },
+        "gB": {
+          "type": "AND",
+          "gate": "gB"
+        },
+        "o1": {
+          "type": "OR",
+          "gate": "o1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "inv": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 5
+      },
+      "gA": {
+        "file": "circuit.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "gB": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "o1": {
+        "file": "circuit.shdl",
+        "line": 15,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "12": [
+          "inv"
+        ],
+        "13": [
+          "gA"
+        ],
+        "14": [
+          "gB"
+        ],
+        "15": [
+          "o1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "O": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "S",
+      "inv",
+      "gA",
+      "o1",
+      "O"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 4,
+    "total_connections": 8,
+    "total_ports": 4,
+    "by_type": {
+      "NOT": 1,
+      "AND": 2,
+      "OR": 1
+    }
+  },
+  "doc": {
+    "description": "03 -- Mux2: a 2-to-1 multiplexer, one bit wide.\n\nO = A when S = 0, B when S = 1.  Classic AND-OR select logic:\n\n    O = (A AND NOT S) OR (B AND S)\n\nDemonstrates fan-out: S drives two gates, and fan-out is free (§6.4).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

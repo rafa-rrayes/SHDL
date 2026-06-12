@@ -1,0 +1,11 @@
+use stdgates::{NAND, NOR, XNOR};
+
+top component GatesDemo(A, B) -> (Na, No, Xn) {
+    g1: NAND;  g2: NOR;  g3: XNOR;
+
+    connect {
+        A -> g1.A;  B -> g1.B;  g1.O -> Na;
+        A -> g2.A;  B -> g2.B;  g2.O -> No;
+        A -> g3.A;  B -> g3.B;  g3.O -> Xn;
+    }
+}

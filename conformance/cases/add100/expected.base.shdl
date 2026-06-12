@@ -1,0 +1,934 @@
+component Add100(A_1_, A_2_, A_3_, A_4_, A_5_, A_6_, A_7_, A_8_) -> (Sum_1_, Sum_2_, Sum_3_, Sum_4_, Sum_5_, Sum_6_, Sum_7_, Sum_8_, Cout) {
+    fa1_x1: XOR;
+    fa1_a1: AND;
+    fa1_x2: XOR;
+    fa1_a2: AND;
+    fa1_o1: OR;
+    fa2_x1: XOR;
+    fa2_a1: AND;
+    fa2_x2: XOR;
+    fa2_a2: AND;
+    fa2_o1: OR;
+    fa3_x1: XOR;
+    fa3_a1: AND;
+    fa3_x2: XOR;
+    fa3_a2: AND;
+    fa3_o1: OR;
+    fa4_x1: XOR;
+    fa4_a1: AND;
+    fa4_x2: XOR;
+    fa4_a2: AND;
+    fa4_o1: OR;
+    fa5_x1: XOR;
+    fa5_a1: AND;
+    fa5_x2: XOR;
+    fa5_a2: AND;
+    fa5_o1: OR;
+    fa6_x1: XOR;
+    fa6_a1: AND;
+    fa6_x2: XOR;
+    fa6_a2: AND;
+    fa6_o1: OR;
+    fa7_x1: XOR;
+    fa7_a1: AND;
+    fa7_x2: XOR;
+    fa7_a2: AND;
+    fa7_o1: OR;
+    fa8_x1: XOR;
+    fa8_a1: AND;
+    fa8_x2: XOR;
+    fa8_a2: AND;
+    fa8_o1: OR;
+    ZERO_bit1: __GND__;
+    Hundred_bit1: __GND__;
+    Hundred_bit2: __GND__;
+    Hundred_bit3: __VCC__;
+    Hundred_bit4: __GND__;
+    Hundred_bit5: __GND__;
+    Hundred_bit6: __VCC__;
+    Hundred_bit7: __VCC__;
+    Hundred_bit8: __GND__;
+
+    connect {
+        A_1_ -> fa1_x1.A;
+        Hundred_bit1.O -> fa1_x1.B;
+        A_1_ -> fa1_a1.A;
+        Hundred_bit1.O -> fa1_a1.B;
+        fa1_x1.O -> fa1_x2.A;
+        ZERO_bit1.O -> fa1_x2.B;
+        fa1_x1.O -> fa1_a2.A;
+        ZERO_bit1.O -> fa1_a2.B;
+        fa1_a1.O -> fa1_o1.A;
+        fa1_a2.O -> fa1_o1.B;
+        A_2_ -> fa2_x1.A;
+        Hundred_bit2.O -> fa2_x1.B;
+        A_2_ -> fa2_a1.A;
+        Hundred_bit2.O -> fa2_a1.B;
+        fa2_x1.O -> fa2_x2.A;
+        fa1_o1.O -> fa2_x2.B;
+        fa2_x1.O -> fa2_a2.A;
+        fa1_o1.O -> fa2_a2.B;
+        fa2_a1.O -> fa2_o1.A;
+        fa2_a2.O -> fa2_o1.B;
+        A_3_ -> fa3_x1.A;
+        Hundred_bit3.O -> fa3_x1.B;
+        A_3_ -> fa3_a1.A;
+        Hundred_bit3.O -> fa3_a1.B;
+        fa3_x1.O -> fa3_x2.A;
+        fa2_o1.O -> fa3_x2.B;
+        fa3_x1.O -> fa3_a2.A;
+        fa2_o1.O -> fa3_a2.B;
+        fa3_a1.O -> fa3_o1.A;
+        fa3_a2.O -> fa3_o1.B;
+        A_4_ -> fa4_x1.A;
+        Hundred_bit4.O -> fa4_x1.B;
+        A_4_ -> fa4_a1.A;
+        Hundred_bit4.O -> fa4_a1.B;
+        fa4_x1.O -> fa4_x2.A;
+        fa3_o1.O -> fa4_x2.B;
+        fa4_x1.O -> fa4_a2.A;
+        fa3_o1.O -> fa4_a2.B;
+        fa4_a1.O -> fa4_o1.A;
+        fa4_a2.O -> fa4_o1.B;
+        A_5_ -> fa5_x1.A;
+        Hundred_bit5.O -> fa5_x1.B;
+        A_5_ -> fa5_a1.A;
+        Hundred_bit5.O -> fa5_a1.B;
+        fa5_x1.O -> fa5_x2.A;
+        fa4_o1.O -> fa5_x2.B;
+        fa5_x1.O -> fa5_a2.A;
+        fa4_o1.O -> fa5_a2.B;
+        fa5_a1.O -> fa5_o1.A;
+        fa5_a2.O -> fa5_o1.B;
+        A_6_ -> fa6_x1.A;
+        Hundred_bit6.O -> fa6_x1.B;
+        A_6_ -> fa6_a1.A;
+        Hundred_bit6.O -> fa6_a1.B;
+        fa6_x1.O -> fa6_x2.A;
+        fa5_o1.O -> fa6_x2.B;
+        fa6_x1.O -> fa6_a2.A;
+        fa5_o1.O -> fa6_a2.B;
+        fa6_a1.O -> fa6_o1.A;
+        fa6_a2.O -> fa6_o1.B;
+        A_7_ -> fa7_x1.A;
+        Hundred_bit7.O -> fa7_x1.B;
+        A_7_ -> fa7_a1.A;
+        Hundred_bit7.O -> fa7_a1.B;
+        fa7_x1.O -> fa7_x2.A;
+        fa6_o1.O -> fa7_x2.B;
+        fa7_x1.O -> fa7_a2.A;
+        fa6_o1.O -> fa7_a2.B;
+        fa7_a1.O -> fa7_o1.A;
+        fa7_a2.O -> fa7_o1.B;
+        A_8_ -> fa8_x1.A;
+        Hundred_bit8.O -> fa8_x1.B;
+        A_8_ -> fa8_a1.A;
+        Hundred_bit8.O -> fa8_a1.B;
+        fa8_x1.O -> fa8_x2.A;
+        fa7_o1.O -> fa8_x2.B;
+        fa8_x1.O -> fa8_a2.A;
+        fa7_o1.O -> fa8_a2.B;
+        fa8_a1.O -> fa8_o1.A;
+        fa8_a2.O -> fa8_o1.B;
+        fa1_x2.O -> Sum_1_;
+        fa2_x2.O -> Sum_2_;
+        fa3_x2.O -> Sum_3_;
+        fa4_x2.O -> Sum_4_;
+        fa5_x2.O -> Sum_5_;
+        fa6_x2.O -> Sum_6_;
+        fa7_x2.O -> Sum_7_;
+        fa8_x2.O -> Sum_8_;
+        fa8_o1.O -> Cout;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A_1_",
+        "A_2_",
+        "A_3_",
+        "A_4_",
+        "A_5_",
+        "A_6_",
+        "A_7_",
+        "A_8_"
+      ]
+    },
+    "outputs": {
+      "Sum": [
+        "Sum_1_",
+        "Sum_2_",
+        "Sum_3_",
+        "Sum_4_",
+        "Sum_5_",
+        "Sum_6_",
+        "Sum_7_",
+        "Sum_8_"
+      ],
+      "Cout": [
+        "Cout"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Add100": {
+      "source_file": "circuit.shdl",
+      "source_line": 3,
+      "instances": {
+        "fa1": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa1_",
+          "ports": {
+            "A": "A_1_",
+            "B": "Hundred_bit1.O",
+            "Cin": "ZERO_bit1.O",
+            "Sum": "Sum_1_",
+            "Cout": "fa1_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa1_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa1_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa1_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa1_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa1_o1"
+            }
+          }
+        },
+        "fa2": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa2_",
+          "ports": {
+            "A": "A_2_",
+            "B": "Hundred_bit2.O",
+            "Cin": "fa1_o1.O",
+            "Sum": "Sum_2_",
+            "Cout": "fa2_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa2_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa2_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa2_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa2_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa2_o1"
+            }
+          }
+        },
+        "fa3": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa3_",
+          "ports": {
+            "A": "A_3_",
+            "B": "Hundred_bit3.O",
+            "Cin": "fa2_o1.O",
+            "Sum": "Sum_3_",
+            "Cout": "fa3_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa3_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa3_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa3_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa3_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa3_o1"
+            }
+          }
+        },
+        "fa4": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa4_",
+          "ports": {
+            "A": "A_4_",
+            "B": "Hundred_bit4.O",
+            "Cin": "fa3_o1.O",
+            "Sum": "Sum_4_",
+            "Cout": "fa4_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa4_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa4_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa4_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa4_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa4_o1"
+            }
+          }
+        },
+        "fa5": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa5_",
+          "ports": {
+            "A": "A_5_",
+            "B": "Hundred_bit5.O",
+            "Cin": "fa4_o1.O",
+            "Sum": "Sum_5_",
+            "Cout": "fa5_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa5_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa5_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa5_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa5_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa5_o1"
+            }
+          }
+        },
+        "fa6": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa6_",
+          "ports": {
+            "A": "A_6_",
+            "B": "Hundred_bit6.O",
+            "Cin": "fa5_o1.O",
+            "Sum": "Sum_6_",
+            "Cout": "fa6_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa6_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa6_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa6_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa6_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa6_o1"
+            }
+          }
+        },
+        "fa7": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa7_",
+          "ports": {
+            "A": "A_7_",
+            "B": "Hundred_bit7.O",
+            "Cin": "fa6_o1.O",
+            "Sum": "Sum_7_",
+            "Cout": "fa7_o1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa7_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa7_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa7_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa7_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa7_o1"
+            }
+          }
+        },
+        "fa8": {
+          "type": "FullAdder",
+          "source_file": "circuit.shdl",
+          "source_line": 6,
+          "prefix": "fa8_",
+          "ports": {
+            "A": "A_8_",
+            "B": "Hundred_bit8.O",
+            "Cin": "fa7_o1.O",
+            "Sum": "Sum_8_",
+            "Cout": "Cout"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "fa8_x1"
+            },
+            "a1": {
+              "type": "AND",
+              "gate": "fa8_a1"
+            },
+            "x2": {
+              "type": "XOR",
+              "gate": "fa8_x2"
+            },
+            "a2": {
+              "type": "AND",
+              "gate": "fa8_a2"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "fa8_o1"
+            }
+          }
+        },
+        "ZERO_bit1": {
+          "type": "__GND__",
+          "gate": "ZERO_bit1"
+        },
+        "Hundred_bit1": {
+          "type": "__GND__",
+          "gate": "Hundred_bit1"
+        },
+        "Hundred_bit2": {
+          "type": "__GND__",
+          "gate": "Hundred_bit2"
+        },
+        "Hundred_bit3": {
+          "type": "__VCC__",
+          "gate": "Hundred_bit3"
+        },
+        "Hundred_bit4": {
+          "type": "__GND__",
+          "gate": "Hundred_bit4"
+        },
+        "Hundred_bit5": {
+          "type": "__GND__",
+          "gate": "Hundred_bit5"
+        },
+        "Hundred_bit6": {
+          "type": "__VCC__",
+          "gate": "Hundred_bit6"
+        },
+        "Hundred_bit7": {
+          "type": "__VCC__",
+          "gate": "Hundred_bit7"
+        },
+        "Hundred_bit8": {
+          "type": "__GND__",
+          "gate": "Hundred_bit8"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "fa1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa1_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa1_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa1_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa2_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa2_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa2_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa3_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa3_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa3_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa3_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa3_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa4_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa4_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa4_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa4_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa4_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa5_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa5_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa5_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa5_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa5_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa6_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa6_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa6_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa6_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa6_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa7_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa7_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa7_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa7_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa7_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "fa8_x1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "fa8_a1": {
+        "file": "fullAdder.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "fa8_x2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "fa8_a2": {
+        "file": "fullAdder.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "fa8_o1": {
+        "file": "fullAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "ZERO_bit1": {
+        "file": "circuit.shdl",
+        "line": 5,
+        "column": 5
+      },
+      "Hundred_bit1": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit2": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit3": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit4": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit5": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit6": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit7": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "Hundred_bit8": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "4": [
+          "Hundred_bit1",
+          "Hundred_bit2",
+          "Hundred_bit3",
+          "Hundred_bit4",
+          "Hundred_bit5",
+          "Hundred_bit6",
+          "Hundred_bit7",
+          "Hundred_bit8"
+        ],
+        "5": [
+          "ZERO_bit1"
+        ],
+        "6": [
+          "fa1_x1",
+          "fa1_a1",
+          "fa1_x2",
+          "fa1_a2",
+          "fa1_o1",
+          "fa2_x1",
+          "fa2_a1",
+          "fa2_x2",
+          "fa2_a2",
+          "fa2_o1",
+          "fa3_x1",
+          "fa3_a1",
+          "fa3_x2",
+          "fa3_a2",
+          "fa3_o1",
+          "fa4_x1",
+          "fa4_a1",
+          "fa4_x2",
+          "fa4_a2",
+          "fa4_o1",
+          "fa5_x1",
+          "fa5_a1",
+          "fa5_x2",
+          "fa5_a2",
+          "fa5_o1",
+          "fa6_x1",
+          "fa6_a1",
+          "fa6_x2",
+          "fa6_a2",
+          "fa6_o1",
+          "fa7_x1",
+          "fa7_a1",
+          "fa7_x2",
+          "fa7_a2",
+          "fa7_o1",
+          "fa8_x1",
+          "fa8_a1",
+          "fa8_x2",
+          "fa8_a2",
+          "fa8_o1"
+        ]
+      },
+      "fullAdder.shdl": {
+        "2": [
+          "fa1_x1",
+          "fa1_a1",
+          "fa2_x1",
+          "fa2_a1",
+          "fa3_x1",
+          "fa3_a1",
+          "fa4_x1",
+          "fa4_a1",
+          "fa5_x1",
+          "fa5_a1",
+          "fa6_x1",
+          "fa6_a1",
+          "fa7_x1",
+          "fa7_a1",
+          "fa8_x1",
+          "fa8_a1"
+        ],
+        "3": [
+          "fa1_x2",
+          "fa1_a2",
+          "fa2_x2",
+          "fa2_a2",
+          "fa3_x2",
+          "fa3_a2",
+          "fa4_x2",
+          "fa4_a2",
+          "fa5_x2",
+          "fa5_a2",
+          "fa6_x2",
+          "fa6_a2",
+          "fa7_x2",
+          "fa7_a2",
+          "fa8_x2",
+          "fa8_a2"
+        ],
+        "4": [
+          "fa1_o1",
+          "fa2_o1",
+          "fa3_o1",
+          "fa4_o1",
+          "fa5_o1",
+          "fa6_o1",
+          "fa7_o1",
+          "fa8_o1"
+        ]
+      }
+    }
+  },
+  "constants": {
+    "ZERO": {
+      "value": 0,
+      "width": 1,
+      "bits": {
+        "1": "ZERO_bit1"
+      }
+    },
+    "Hundred": {
+      "value": 100,
+      "width": 8,
+      "bits": {
+        "1": "Hundred_bit1",
+        "2": "Hundred_bit2",
+        "3": "Hundred_bit3",
+        "4": "Hundred_bit4",
+        "5": "Hundred_bit5",
+        "6": "Hundred_bit6",
+        "7": "Hundred_bit7",
+        "8": "Hundred_bit8"
+      }
+    }
+  },
+  "timing": {
+    "max_depth": 18,
+    "output_depths": {
+      "Sum_1_": 3,
+      "Sum_2_": 5,
+      "Sum_3_": 7,
+      "Sum_4_": 9,
+      "Sum_5_": 11,
+      "Sum_6_": 13,
+      "Sum_7_": 15,
+      "Sum_8_": 17,
+      "Cout": 18
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "Hundred_bit1",
+      "fa1_x1",
+      "fa1_a2",
+      "fa1_o1",
+      "fa2_a2",
+      "fa2_o1",
+      "fa3_a2",
+      "fa3_o1",
+      "fa4_a2",
+      "fa4_o1",
+      "fa5_a2",
+      "fa5_o1",
+      "fa6_a2",
+      "fa6_o1",
+      "fa7_a2",
+      "fa7_o1",
+      "fa8_a2",
+      "fa8_o1",
+      "Cout"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 49,
+    "total_connections": 89,
+    "total_ports": 17,
+    "by_type": {
+      "XOR": 16,
+      "AND": 16,
+      "OR": 8,
+      "__GND__": 6,
+      "__VCC__": 3
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

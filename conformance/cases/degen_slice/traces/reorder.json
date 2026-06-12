@@ -1,0 +1,124 @@
+{
+  "trace_format": 1,
+  "name": "reorder",
+  "tier": "B",
+  "description": "Exhaustive over the 3-bit input: Out is In's bits {3,1,2} permuted onto {1,2,3}; e.g. In=1 -> Out=2, In=4 -> Out=1, In=7 -> Out=7.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 2
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 4
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 6
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 4
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 5
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 3
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 6
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 5
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 7
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 7
+    }
+  ]
+}

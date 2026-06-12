@@ -1,0 +1,32 @@
+{
+  "case_format": 1,
+  "name": "primitives_all",
+  "title": "All six primitives in one circuit",
+  "description": "Hand-authored AllGates exposes AND, OR, XOR, NOT plus __VCC__ and __GND__ directly on output ports; the truth-table trace pins each primitive's operator.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/cycle0.json",
+    "traces/truth_tables.json"
+  ],
+  "features": [
+    "primitive:and",
+    "primitive:or",
+    "primitive:xor",
+    "primitive:not",
+    "primitive:vcc",
+    "primitive:gnd"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

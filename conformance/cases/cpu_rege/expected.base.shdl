@@ -1,0 +1,5940 @@
+component RegE(D_1_, D_2_, D_3_, D_4_, D_5_, D_6_, D_7_, D_8_, D_9_, D_10_, D_11_, D_12_, D_13_, D_14_, D_15_, D_16_, LD, Phi1, Phi2) -> (Q_1_, Q_2_, Q_3_, Q_4_, Q_5_, Q_6_, Q_7_, Q_8_, Q_9_, Q_10_, Q_11_, Q_12_, Q_13_, Q_14_, Q_15_, Q_16_) {
+    b1_en: AND;
+    b1_m_inv: NOT;
+    b1_m_gSet: AND;
+    b1_m_gRst: AND;
+    b1_m_latch_n1_o1: OR;
+    b1_m_latch_n1_n1: NOT;
+    b1_m_latch_n2_o1: OR;
+    b1_m_latch_n2_n1: NOT;
+    b1_s_inv: NOT;
+    b1_s_gSet: AND;
+    b1_s_gRst: AND;
+    b1_s_latch_n1_o1: OR;
+    b1_s_latch_n1_n1: NOT;
+    b1_s_latch_n2_o1: OR;
+    b1_s_latch_n2_n1: NOT;
+    b2_en: AND;
+    b2_m_inv: NOT;
+    b2_m_gSet: AND;
+    b2_m_gRst: AND;
+    b2_m_latch_n1_o1: OR;
+    b2_m_latch_n1_n1: NOT;
+    b2_m_latch_n2_o1: OR;
+    b2_m_latch_n2_n1: NOT;
+    b2_s_inv: NOT;
+    b2_s_gSet: AND;
+    b2_s_gRst: AND;
+    b2_s_latch_n1_o1: OR;
+    b2_s_latch_n1_n1: NOT;
+    b2_s_latch_n2_o1: OR;
+    b2_s_latch_n2_n1: NOT;
+    b3_en: AND;
+    b3_m_inv: NOT;
+    b3_m_gSet: AND;
+    b3_m_gRst: AND;
+    b3_m_latch_n1_o1: OR;
+    b3_m_latch_n1_n1: NOT;
+    b3_m_latch_n2_o1: OR;
+    b3_m_latch_n2_n1: NOT;
+    b3_s_inv: NOT;
+    b3_s_gSet: AND;
+    b3_s_gRst: AND;
+    b3_s_latch_n1_o1: OR;
+    b3_s_latch_n1_n1: NOT;
+    b3_s_latch_n2_o1: OR;
+    b3_s_latch_n2_n1: NOT;
+    b4_en: AND;
+    b4_m_inv: NOT;
+    b4_m_gSet: AND;
+    b4_m_gRst: AND;
+    b4_m_latch_n1_o1: OR;
+    b4_m_latch_n1_n1: NOT;
+    b4_m_latch_n2_o1: OR;
+    b4_m_latch_n2_n1: NOT;
+    b4_s_inv: NOT;
+    b4_s_gSet: AND;
+    b4_s_gRst: AND;
+    b4_s_latch_n1_o1: OR;
+    b4_s_latch_n1_n1: NOT;
+    b4_s_latch_n2_o1: OR;
+    b4_s_latch_n2_n1: NOT;
+    b5_en: AND;
+    b5_m_inv: NOT;
+    b5_m_gSet: AND;
+    b5_m_gRst: AND;
+    b5_m_latch_n1_o1: OR;
+    b5_m_latch_n1_n1: NOT;
+    b5_m_latch_n2_o1: OR;
+    b5_m_latch_n2_n1: NOT;
+    b5_s_inv: NOT;
+    b5_s_gSet: AND;
+    b5_s_gRst: AND;
+    b5_s_latch_n1_o1: OR;
+    b5_s_latch_n1_n1: NOT;
+    b5_s_latch_n2_o1: OR;
+    b5_s_latch_n2_n1: NOT;
+    b6_en: AND;
+    b6_m_inv: NOT;
+    b6_m_gSet: AND;
+    b6_m_gRst: AND;
+    b6_m_latch_n1_o1: OR;
+    b6_m_latch_n1_n1: NOT;
+    b6_m_latch_n2_o1: OR;
+    b6_m_latch_n2_n1: NOT;
+    b6_s_inv: NOT;
+    b6_s_gSet: AND;
+    b6_s_gRst: AND;
+    b6_s_latch_n1_o1: OR;
+    b6_s_latch_n1_n1: NOT;
+    b6_s_latch_n2_o1: OR;
+    b6_s_latch_n2_n1: NOT;
+    b7_en: AND;
+    b7_m_inv: NOT;
+    b7_m_gSet: AND;
+    b7_m_gRst: AND;
+    b7_m_latch_n1_o1: OR;
+    b7_m_latch_n1_n1: NOT;
+    b7_m_latch_n2_o1: OR;
+    b7_m_latch_n2_n1: NOT;
+    b7_s_inv: NOT;
+    b7_s_gSet: AND;
+    b7_s_gRst: AND;
+    b7_s_latch_n1_o1: OR;
+    b7_s_latch_n1_n1: NOT;
+    b7_s_latch_n2_o1: OR;
+    b7_s_latch_n2_n1: NOT;
+    b8_en: AND;
+    b8_m_inv: NOT;
+    b8_m_gSet: AND;
+    b8_m_gRst: AND;
+    b8_m_latch_n1_o1: OR;
+    b8_m_latch_n1_n1: NOT;
+    b8_m_latch_n2_o1: OR;
+    b8_m_latch_n2_n1: NOT;
+    b8_s_inv: NOT;
+    b8_s_gSet: AND;
+    b8_s_gRst: AND;
+    b8_s_latch_n1_o1: OR;
+    b8_s_latch_n1_n1: NOT;
+    b8_s_latch_n2_o1: OR;
+    b8_s_latch_n2_n1: NOT;
+    b9_en: AND;
+    b9_m_inv: NOT;
+    b9_m_gSet: AND;
+    b9_m_gRst: AND;
+    b9_m_latch_n1_o1: OR;
+    b9_m_latch_n1_n1: NOT;
+    b9_m_latch_n2_o1: OR;
+    b9_m_latch_n2_n1: NOT;
+    b9_s_inv: NOT;
+    b9_s_gSet: AND;
+    b9_s_gRst: AND;
+    b9_s_latch_n1_o1: OR;
+    b9_s_latch_n1_n1: NOT;
+    b9_s_latch_n2_o1: OR;
+    b9_s_latch_n2_n1: NOT;
+    b10_en: AND;
+    b10_m_inv: NOT;
+    b10_m_gSet: AND;
+    b10_m_gRst: AND;
+    b10_m_latch_n1_o1: OR;
+    b10_m_latch_n1_n1: NOT;
+    b10_m_latch_n2_o1: OR;
+    b10_m_latch_n2_n1: NOT;
+    b10_s_inv: NOT;
+    b10_s_gSet: AND;
+    b10_s_gRst: AND;
+    b10_s_latch_n1_o1: OR;
+    b10_s_latch_n1_n1: NOT;
+    b10_s_latch_n2_o1: OR;
+    b10_s_latch_n2_n1: NOT;
+    b11_en: AND;
+    b11_m_inv: NOT;
+    b11_m_gSet: AND;
+    b11_m_gRst: AND;
+    b11_m_latch_n1_o1: OR;
+    b11_m_latch_n1_n1: NOT;
+    b11_m_latch_n2_o1: OR;
+    b11_m_latch_n2_n1: NOT;
+    b11_s_inv: NOT;
+    b11_s_gSet: AND;
+    b11_s_gRst: AND;
+    b11_s_latch_n1_o1: OR;
+    b11_s_latch_n1_n1: NOT;
+    b11_s_latch_n2_o1: OR;
+    b11_s_latch_n2_n1: NOT;
+    b12_en: AND;
+    b12_m_inv: NOT;
+    b12_m_gSet: AND;
+    b12_m_gRst: AND;
+    b12_m_latch_n1_o1: OR;
+    b12_m_latch_n1_n1: NOT;
+    b12_m_latch_n2_o1: OR;
+    b12_m_latch_n2_n1: NOT;
+    b12_s_inv: NOT;
+    b12_s_gSet: AND;
+    b12_s_gRst: AND;
+    b12_s_latch_n1_o1: OR;
+    b12_s_latch_n1_n1: NOT;
+    b12_s_latch_n2_o1: OR;
+    b12_s_latch_n2_n1: NOT;
+    b13_en: AND;
+    b13_m_inv: NOT;
+    b13_m_gSet: AND;
+    b13_m_gRst: AND;
+    b13_m_latch_n1_o1: OR;
+    b13_m_latch_n1_n1: NOT;
+    b13_m_latch_n2_o1: OR;
+    b13_m_latch_n2_n1: NOT;
+    b13_s_inv: NOT;
+    b13_s_gSet: AND;
+    b13_s_gRst: AND;
+    b13_s_latch_n1_o1: OR;
+    b13_s_latch_n1_n1: NOT;
+    b13_s_latch_n2_o1: OR;
+    b13_s_latch_n2_n1: NOT;
+    b14_en: AND;
+    b14_m_inv: NOT;
+    b14_m_gSet: AND;
+    b14_m_gRst: AND;
+    b14_m_latch_n1_o1: OR;
+    b14_m_latch_n1_n1: NOT;
+    b14_m_latch_n2_o1: OR;
+    b14_m_latch_n2_n1: NOT;
+    b14_s_inv: NOT;
+    b14_s_gSet: AND;
+    b14_s_gRst: AND;
+    b14_s_latch_n1_o1: OR;
+    b14_s_latch_n1_n1: NOT;
+    b14_s_latch_n2_o1: OR;
+    b14_s_latch_n2_n1: NOT;
+    b15_en: AND;
+    b15_m_inv: NOT;
+    b15_m_gSet: AND;
+    b15_m_gRst: AND;
+    b15_m_latch_n1_o1: OR;
+    b15_m_latch_n1_n1: NOT;
+    b15_m_latch_n2_o1: OR;
+    b15_m_latch_n2_n1: NOT;
+    b15_s_inv: NOT;
+    b15_s_gSet: AND;
+    b15_s_gRst: AND;
+    b15_s_latch_n1_o1: OR;
+    b15_s_latch_n1_n1: NOT;
+    b15_s_latch_n2_o1: OR;
+    b15_s_latch_n2_n1: NOT;
+    b16_en: AND;
+    b16_m_inv: NOT;
+    b16_m_gSet: AND;
+    b16_m_gRst: AND;
+    b16_m_latch_n1_o1: OR;
+    b16_m_latch_n1_n1: NOT;
+    b16_m_latch_n2_o1: OR;
+    b16_m_latch_n2_n1: NOT;
+    b16_s_inv: NOT;
+    b16_s_gSet: AND;
+    b16_s_gRst: AND;
+    b16_s_latch_n1_o1: OR;
+    b16_s_latch_n1_n1: NOT;
+    b16_s_latch_n2_o1: OR;
+    b16_s_latch_n2_n1: NOT;
+
+    connect {
+        b1_m_gRst.O -> b1_m_latch_n1_o1.A;
+        b1_m_latch_n2_n1.O -> b1_m_latch_n1_o1.B;
+        b1_m_latch_n1_o1.O -> b1_m_latch_n1_n1.A;
+        b1_m_gSet.O -> b1_m_latch_n2_o1.A;
+        b1_m_latch_n1_n1.O -> b1_m_latch_n2_o1.B;
+        b1_m_latch_n2_o1.O -> b1_m_latch_n2_n1.A;
+        D_1_ -> b1_m_inv.A;
+        D_1_ -> b1_m_gSet.A;
+        b1_en.O -> b1_m_gSet.B;
+        b1_m_inv.O -> b1_m_gRst.A;
+        b1_en.O -> b1_m_gRst.B;
+        b1_s_gRst.O -> b1_s_latch_n1_o1.A;
+        b1_s_latch_n2_n1.O -> b1_s_latch_n1_o1.B;
+        b1_s_latch_n1_o1.O -> b1_s_latch_n1_n1.A;
+        b1_s_gSet.O -> b1_s_latch_n2_o1.A;
+        b1_s_latch_n1_n1.O -> b1_s_latch_n2_o1.B;
+        b1_s_latch_n2_o1.O -> b1_s_latch_n2_n1.A;
+        b1_m_latch_n1_n1.O -> b1_s_inv.A;
+        b1_m_latch_n1_n1.O -> b1_s_gSet.A;
+        Phi2 -> b1_s_gSet.B;
+        b1_s_inv.O -> b1_s_gRst.A;
+        Phi2 -> b1_s_gRst.B;
+        LD -> b1_en.A;
+        Phi1 -> b1_en.B;
+        b2_m_gRst.O -> b2_m_latch_n1_o1.A;
+        b2_m_latch_n2_n1.O -> b2_m_latch_n1_o1.B;
+        b2_m_latch_n1_o1.O -> b2_m_latch_n1_n1.A;
+        b2_m_gSet.O -> b2_m_latch_n2_o1.A;
+        b2_m_latch_n1_n1.O -> b2_m_latch_n2_o1.B;
+        b2_m_latch_n2_o1.O -> b2_m_latch_n2_n1.A;
+        D_2_ -> b2_m_inv.A;
+        D_2_ -> b2_m_gSet.A;
+        b2_en.O -> b2_m_gSet.B;
+        b2_m_inv.O -> b2_m_gRst.A;
+        b2_en.O -> b2_m_gRst.B;
+        b2_s_gRst.O -> b2_s_latch_n1_o1.A;
+        b2_s_latch_n2_n1.O -> b2_s_latch_n1_o1.B;
+        b2_s_latch_n1_o1.O -> b2_s_latch_n1_n1.A;
+        b2_s_gSet.O -> b2_s_latch_n2_o1.A;
+        b2_s_latch_n1_n1.O -> b2_s_latch_n2_o1.B;
+        b2_s_latch_n2_o1.O -> b2_s_latch_n2_n1.A;
+        b2_m_latch_n1_n1.O -> b2_s_inv.A;
+        b2_m_latch_n1_n1.O -> b2_s_gSet.A;
+        Phi2 -> b2_s_gSet.B;
+        b2_s_inv.O -> b2_s_gRst.A;
+        Phi2 -> b2_s_gRst.B;
+        LD -> b2_en.A;
+        Phi1 -> b2_en.B;
+        b3_m_gRst.O -> b3_m_latch_n1_o1.A;
+        b3_m_latch_n2_n1.O -> b3_m_latch_n1_o1.B;
+        b3_m_latch_n1_o1.O -> b3_m_latch_n1_n1.A;
+        b3_m_gSet.O -> b3_m_latch_n2_o1.A;
+        b3_m_latch_n1_n1.O -> b3_m_latch_n2_o1.B;
+        b3_m_latch_n2_o1.O -> b3_m_latch_n2_n1.A;
+        D_3_ -> b3_m_inv.A;
+        D_3_ -> b3_m_gSet.A;
+        b3_en.O -> b3_m_gSet.B;
+        b3_m_inv.O -> b3_m_gRst.A;
+        b3_en.O -> b3_m_gRst.B;
+        b3_s_gRst.O -> b3_s_latch_n1_o1.A;
+        b3_s_latch_n2_n1.O -> b3_s_latch_n1_o1.B;
+        b3_s_latch_n1_o1.O -> b3_s_latch_n1_n1.A;
+        b3_s_gSet.O -> b3_s_latch_n2_o1.A;
+        b3_s_latch_n1_n1.O -> b3_s_latch_n2_o1.B;
+        b3_s_latch_n2_o1.O -> b3_s_latch_n2_n1.A;
+        b3_m_latch_n1_n1.O -> b3_s_inv.A;
+        b3_m_latch_n1_n1.O -> b3_s_gSet.A;
+        Phi2 -> b3_s_gSet.B;
+        b3_s_inv.O -> b3_s_gRst.A;
+        Phi2 -> b3_s_gRst.B;
+        LD -> b3_en.A;
+        Phi1 -> b3_en.B;
+        b4_m_gRst.O -> b4_m_latch_n1_o1.A;
+        b4_m_latch_n2_n1.O -> b4_m_latch_n1_o1.B;
+        b4_m_latch_n1_o1.O -> b4_m_latch_n1_n1.A;
+        b4_m_gSet.O -> b4_m_latch_n2_o1.A;
+        b4_m_latch_n1_n1.O -> b4_m_latch_n2_o1.B;
+        b4_m_latch_n2_o1.O -> b4_m_latch_n2_n1.A;
+        D_4_ -> b4_m_inv.A;
+        D_4_ -> b4_m_gSet.A;
+        b4_en.O -> b4_m_gSet.B;
+        b4_m_inv.O -> b4_m_gRst.A;
+        b4_en.O -> b4_m_gRst.B;
+        b4_s_gRst.O -> b4_s_latch_n1_o1.A;
+        b4_s_latch_n2_n1.O -> b4_s_latch_n1_o1.B;
+        b4_s_latch_n1_o1.O -> b4_s_latch_n1_n1.A;
+        b4_s_gSet.O -> b4_s_latch_n2_o1.A;
+        b4_s_latch_n1_n1.O -> b4_s_latch_n2_o1.B;
+        b4_s_latch_n2_o1.O -> b4_s_latch_n2_n1.A;
+        b4_m_latch_n1_n1.O -> b4_s_inv.A;
+        b4_m_latch_n1_n1.O -> b4_s_gSet.A;
+        Phi2 -> b4_s_gSet.B;
+        b4_s_inv.O -> b4_s_gRst.A;
+        Phi2 -> b4_s_gRst.B;
+        LD -> b4_en.A;
+        Phi1 -> b4_en.B;
+        b5_m_gRst.O -> b5_m_latch_n1_o1.A;
+        b5_m_latch_n2_n1.O -> b5_m_latch_n1_o1.B;
+        b5_m_latch_n1_o1.O -> b5_m_latch_n1_n1.A;
+        b5_m_gSet.O -> b5_m_latch_n2_o1.A;
+        b5_m_latch_n1_n1.O -> b5_m_latch_n2_o1.B;
+        b5_m_latch_n2_o1.O -> b5_m_latch_n2_n1.A;
+        D_5_ -> b5_m_inv.A;
+        D_5_ -> b5_m_gSet.A;
+        b5_en.O -> b5_m_gSet.B;
+        b5_m_inv.O -> b5_m_gRst.A;
+        b5_en.O -> b5_m_gRst.B;
+        b5_s_gRst.O -> b5_s_latch_n1_o1.A;
+        b5_s_latch_n2_n1.O -> b5_s_latch_n1_o1.B;
+        b5_s_latch_n1_o1.O -> b5_s_latch_n1_n1.A;
+        b5_s_gSet.O -> b5_s_latch_n2_o1.A;
+        b5_s_latch_n1_n1.O -> b5_s_latch_n2_o1.B;
+        b5_s_latch_n2_o1.O -> b5_s_latch_n2_n1.A;
+        b5_m_latch_n1_n1.O -> b5_s_inv.A;
+        b5_m_latch_n1_n1.O -> b5_s_gSet.A;
+        Phi2 -> b5_s_gSet.B;
+        b5_s_inv.O -> b5_s_gRst.A;
+        Phi2 -> b5_s_gRst.B;
+        LD -> b5_en.A;
+        Phi1 -> b5_en.B;
+        b6_m_gRst.O -> b6_m_latch_n1_o1.A;
+        b6_m_latch_n2_n1.O -> b6_m_latch_n1_o1.B;
+        b6_m_latch_n1_o1.O -> b6_m_latch_n1_n1.A;
+        b6_m_gSet.O -> b6_m_latch_n2_o1.A;
+        b6_m_latch_n1_n1.O -> b6_m_latch_n2_o1.B;
+        b6_m_latch_n2_o1.O -> b6_m_latch_n2_n1.A;
+        D_6_ -> b6_m_inv.A;
+        D_6_ -> b6_m_gSet.A;
+        b6_en.O -> b6_m_gSet.B;
+        b6_m_inv.O -> b6_m_gRst.A;
+        b6_en.O -> b6_m_gRst.B;
+        b6_s_gRst.O -> b6_s_latch_n1_o1.A;
+        b6_s_latch_n2_n1.O -> b6_s_latch_n1_o1.B;
+        b6_s_latch_n1_o1.O -> b6_s_latch_n1_n1.A;
+        b6_s_gSet.O -> b6_s_latch_n2_o1.A;
+        b6_s_latch_n1_n1.O -> b6_s_latch_n2_o1.B;
+        b6_s_latch_n2_o1.O -> b6_s_latch_n2_n1.A;
+        b6_m_latch_n1_n1.O -> b6_s_inv.A;
+        b6_m_latch_n1_n1.O -> b6_s_gSet.A;
+        Phi2 -> b6_s_gSet.B;
+        b6_s_inv.O -> b6_s_gRst.A;
+        Phi2 -> b6_s_gRst.B;
+        LD -> b6_en.A;
+        Phi1 -> b6_en.B;
+        b7_m_gRst.O -> b7_m_latch_n1_o1.A;
+        b7_m_latch_n2_n1.O -> b7_m_latch_n1_o1.B;
+        b7_m_latch_n1_o1.O -> b7_m_latch_n1_n1.A;
+        b7_m_gSet.O -> b7_m_latch_n2_o1.A;
+        b7_m_latch_n1_n1.O -> b7_m_latch_n2_o1.B;
+        b7_m_latch_n2_o1.O -> b7_m_latch_n2_n1.A;
+        D_7_ -> b7_m_inv.A;
+        D_7_ -> b7_m_gSet.A;
+        b7_en.O -> b7_m_gSet.B;
+        b7_m_inv.O -> b7_m_gRst.A;
+        b7_en.O -> b7_m_gRst.B;
+        b7_s_gRst.O -> b7_s_latch_n1_o1.A;
+        b7_s_latch_n2_n1.O -> b7_s_latch_n1_o1.B;
+        b7_s_latch_n1_o1.O -> b7_s_latch_n1_n1.A;
+        b7_s_gSet.O -> b7_s_latch_n2_o1.A;
+        b7_s_latch_n1_n1.O -> b7_s_latch_n2_o1.B;
+        b7_s_latch_n2_o1.O -> b7_s_latch_n2_n1.A;
+        b7_m_latch_n1_n1.O -> b7_s_inv.A;
+        b7_m_latch_n1_n1.O -> b7_s_gSet.A;
+        Phi2 -> b7_s_gSet.B;
+        b7_s_inv.O -> b7_s_gRst.A;
+        Phi2 -> b7_s_gRst.B;
+        LD -> b7_en.A;
+        Phi1 -> b7_en.B;
+        b8_m_gRst.O -> b8_m_latch_n1_o1.A;
+        b8_m_latch_n2_n1.O -> b8_m_latch_n1_o1.B;
+        b8_m_latch_n1_o1.O -> b8_m_latch_n1_n1.A;
+        b8_m_gSet.O -> b8_m_latch_n2_o1.A;
+        b8_m_latch_n1_n1.O -> b8_m_latch_n2_o1.B;
+        b8_m_latch_n2_o1.O -> b8_m_latch_n2_n1.A;
+        D_8_ -> b8_m_inv.A;
+        D_8_ -> b8_m_gSet.A;
+        b8_en.O -> b8_m_gSet.B;
+        b8_m_inv.O -> b8_m_gRst.A;
+        b8_en.O -> b8_m_gRst.B;
+        b8_s_gRst.O -> b8_s_latch_n1_o1.A;
+        b8_s_latch_n2_n1.O -> b8_s_latch_n1_o1.B;
+        b8_s_latch_n1_o1.O -> b8_s_latch_n1_n1.A;
+        b8_s_gSet.O -> b8_s_latch_n2_o1.A;
+        b8_s_latch_n1_n1.O -> b8_s_latch_n2_o1.B;
+        b8_s_latch_n2_o1.O -> b8_s_latch_n2_n1.A;
+        b8_m_latch_n1_n1.O -> b8_s_inv.A;
+        b8_m_latch_n1_n1.O -> b8_s_gSet.A;
+        Phi2 -> b8_s_gSet.B;
+        b8_s_inv.O -> b8_s_gRst.A;
+        Phi2 -> b8_s_gRst.B;
+        LD -> b8_en.A;
+        Phi1 -> b8_en.B;
+        b9_m_gRst.O -> b9_m_latch_n1_o1.A;
+        b9_m_latch_n2_n1.O -> b9_m_latch_n1_o1.B;
+        b9_m_latch_n1_o1.O -> b9_m_latch_n1_n1.A;
+        b9_m_gSet.O -> b9_m_latch_n2_o1.A;
+        b9_m_latch_n1_n1.O -> b9_m_latch_n2_o1.B;
+        b9_m_latch_n2_o1.O -> b9_m_latch_n2_n1.A;
+        D_9_ -> b9_m_inv.A;
+        D_9_ -> b9_m_gSet.A;
+        b9_en.O -> b9_m_gSet.B;
+        b9_m_inv.O -> b9_m_gRst.A;
+        b9_en.O -> b9_m_gRst.B;
+        b9_s_gRst.O -> b9_s_latch_n1_o1.A;
+        b9_s_latch_n2_n1.O -> b9_s_latch_n1_o1.B;
+        b9_s_latch_n1_o1.O -> b9_s_latch_n1_n1.A;
+        b9_s_gSet.O -> b9_s_latch_n2_o1.A;
+        b9_s_latch_n1_n1.O -> b9_s_latch_n2_o1.B;
+        b9_s_latch_n2_o1.O -> b9_s_latch_n2_n1.A;
+        b9_m_latch_n1_n1.O -> b9_s_inv.A;
+        b9_m_latch_n1_n1.O -> b9_s_gSet.A;
+        Phi2 -> b9_s_gSet.B;
+        b9_s_inv.O -> b9_s_gRst.A;
+        Phi2 -> b9_s_gRst.B;
+        LD -> b9_en.A;
+        Phi1 -> b9_en.B;
+        b10_m_gRst.O -> b10_m_latch_n1_o1.A;
+        b10_m_latch_n2_n1.O -> b10_m_latch_n1_o1.B;
+        b10_m_latch_n1_o1.O -> b10_m_latch_n1_n1.A;
+        b10_m_gSet.O -> b10_m_latch_n2_o1.A;
+        b10_m_latch_n1_n1.O -> b10_m_latch_n2_o1.B;
+        b10_m_latch_n2_o1.O -> b10_m_latch_n2_n1.A;
+        D_10_ -> b10_m_inv.A;
+        D_10_ -> b10_m_gSet.A;
+        b10_en.O -> b10_m_gSet.B;
+        b10_m_inv.O -> b10_m_gRst.A;
+        b10_en.O -> b10_m_gRst.B;
+        b10_s_gRst.O -> b10_s_latch_n1_o1.A;
+        b10_s_latch_n2_n1.O -> b10_s_latch_n1_o1.B;
+        b10_s_latch_n1_o1.O -> b10_s_latch_n1_n1.A;
+        b10_s_gSet.O -> b10_s_latch_n2_o1.A;
+        b10_s_latch_n1_n1.O -> b10_s_latch_n2_o1.B;
+        b10_s_latch_n2_o1.O -> b10_s_latch_n2_n1.A;
+        b10_m_latch_n1_n1.O -> b10_s_inv.A;
+        b10_m_latch_n1_n1.O -> b10_s_gSet.A;
+        Phi2 -> b10_s_gSet.B;
+        b10_s_inv.O -> b10_s_gRst.A;
+        Phi2 -> b10_s_gRst.B;
+        LD -> b10_en.A;
+        Phi1 -> b10_en.B;
+        b11_m_gRst.O -> b11_m_latch_n1_o1.A;
+        b11_m_latch_n2_n1.O -> b11_m_latch_n1_o1.B;
+        b11_m_latch_n1_o1.O -> b11_m_latch_n1_n1.A;
+        b11_m_gSet.O -> b11_m_latch_n2_o1.A;
+        b11_m_latch_n1_n1.O -> b11_m_latch_n2_o1.B;
+        b11_m_latch_n2_o1.O -> b11_m_latch_n2_n1.A;
+        D_11_ -> b11_m_inv.A;
+        D_11_ -> b11_m_gSet.A;
+        b11_en.O -> b11_m_gSet.B;
+        b11_m_inv.O -> b11_m_gRst.A;
+        b11_en.O -> b11_m_gRst.B;
+        b11_s_gRst.O -> b11_s_latch_n1_o1.A;
+        b11_s_latch_n2_n1.O -> b11_s_latch_n1_o1.B;
+        b11_s_latch_n1_o1.O -> b11_s_latch_n1_n1.A;
+        b11_s_gSet.O -> b11_s_latch_n2_o1.A;
+        b11_s_latch_n1_n1.O -> b11_s_latch_n2_o1.B;
+        b11_s_latch_n2_o1.O -> b11_s_latch_n2_n1.A;
+        b11_m_latch_n1_n1.O -> b11_s_inv.A;
+        b11_m_latch_n1_n1.O -> b11_s_gSet.A;
+        Phi2 -> b11_s_gSet.B;
+        b11_s_inv.O -> b11_s_gRst.A;
+        Phi2 -> b11_s_gRst.B;
+        LD -> b11_en.A;
+        Phi1 -> b11_en.B;
+        b12_m_gRst.O -> b12_m_latch_n1_o1.A;
+        b12_m_latch_n2_n1.O -> b12_m_latch_n1_o1.B;
+        b12_m_latch_n1_o1.O -> b12_m_latch_n1_n1.A;
+        b12_m_gSet.O -> b12_m_latch_n2_o1.A;
+        b12_m_latch_n1_n1.O -> b12_m_latch_n2_o1.B;
+        b12_m_latch_n2_o1.O -> b12_m_latch_n2_n1.A;
+        D_12_ -> b12_m_inv.A;
+        D_12_ -> b12_m_gSet.A;
+        b12_en.O -> b12_m_gSet.B;
+        b12_m_inv.O -> b12_m_gRst.A;
+        b12_en.O -> b12_m_gRst.B;
+        b12_s_gRst.O -> b12_s_latch_n1_o1.A;
+        b12_s_latch_n2_n1.O -> b12_s_latch_n1_o1.B;
+        b12_s_latch_n1_o1.O -> b12_s_latch_n1_n1.A;
+        b12_s_gSet.O -> b12_s_latch_n2_o1.A;
+        b12_s_latch_n1_n1.O -> b12_s_latch_n2_o1.B;
+        b12_s_latch_n2_o1.O -> b12_s_latch_n2_n1.A;
+        b12_m_latch_n1_n1.O -> b12_s_inv.A;
+        b12_m_latch_n1_n1.O -> b12_s_gSet.A;
+        Phi2 -> b12_s_gSet.B;
+        b12_s_inv.O -> b12_s_gRst.A;
+        Phi2 -> b12_s_gRst.B;
+        LD -> b12_en.A;
+        Phi1 -> b12_en.B;
+        b13_m_gRst.O -> b13_m_latch_n1_o1.A;
+        b13_m_latch_n2_n1.O -> b13_m_latch_n1_o1.B;
+        b13_m_latch_n1_o1.O -> b13_m_latch_n1_n1.A;
+        b13_m_gSet.O -> b13_m_latch_n2_o1.A;
+        b13_m_latch_n1_n1.O -> b13_m_latch_n2_o1.B;
+        b13_m_latch_n2_o1.O -> b13_m_latch_n2_n1.A;
+        D_13_ -> b13_m_inv.A;
+        D_13_ -> b13_m_gSet.A;
+        b13_en.O -> b13_m_gSet.B;
+        b13_m_inv.O -> b13_m_gRst.A;
+        b13_en.O -> b13_m_gRst.B;
+        b13_s_gRst.O -> b13_s_latch_n1_o1.A;
+        b13_s_latch_n2_n1.O -> b13_s_latch_n1_o1.B;
+        b13_s_latch_n1_o1.O -> b13_s_latch_n1_n1.A;
+        b13_s_gSet.O -> b13_s_latch_n2_o1.A;
+        b13_s_latch_n1_n1.O -> b13_s_latch_n2_o1.B;
+        b13_s_latch_n2_o1.O -> b13_s_latch_n2_n1.A;
+        b13_m_latch_n1_n1.O -> b13_s_inv.A;
+        b13_m_latch_n1_n1.O -> b13_s_gSet.A;
+        Phi2 -> b13_s_gSet.B;
+        b13_s_inv.O -> b13_s_gRst.A;
+        Phi2 -> b13_s_gRst.B;
+        LD -> b13_en.A;
+        Phi1 -> b13_en.B;
+        b14_m_gRst.O -> b14_m_latch_n1_o1.A;
+        b14_m_latch_n2_n1.O -> b14_m_latch_n1_o1.B;
+        b14_m_latch_n1_o1.O -> b14_m_latch_n1_n1.A;
+        b14_m_gSet.O -> b14_m_latch_n2_o1.A;
+        b14_m_latch_n1_n1.O -> b14_m_latch_n2_o1.B;
+        b14_m_latch_n2_o1.O -> b14_m_latch_n2_n1.A;
+        D_14_ -> b14_m_inv.A;
+        D_14_ -> b14_m_gSet.A;
+        b14_en.O -> b14_m_gSet.B;
+        b14_m_inv.O -> b14_m_gRst.A;
+        b14_en.O -> b14_m_gRst.B;
+        b14_s_gRst.O -> b14_s_latch_n1_o1.A;
+        b14_s_latch_n2_n1.O -> b14_s_latch_n1_o1.B;
+        b14_s_latch_n1_o1.O -> b14_s_latch_n1_n1.A;
+        b14_s_gSet.O -> b14_s_latch_n2_o1.A;
+        b14_s_latch_n1_n1.O -> b14_s_latch_n2_o1.B;
+        b14_s_latch_n2_o1.O -> b14_s_latch_n2_n1.A;
+        b14_m_latch_n1_n1.O -> b14_s_inv.A;
+        b14_m_latch_n1_n1.O -> b14_s_gSet.A;
+        Phi2 -> b14_s_gSet.B;
+        b14_s_inv.O -> b14_s_gRst.A;
+        Phi2 -> b14_s_gRst.B;
+        LD -> b14_en.A;
+        Phi1 -> b14_en.B;
+        b15_m_gRst.O -> b15_m_latch_n1_o1.A;
+        b15_m_latch_n2_n1.O -> b15_m_latch_n1_o1.B;
+        b15_m_latch_n1_o1.O -> b15_m_latch_n1_n1.A;
+        b15_m_gSet.O -> b15_m_latch_n2_o1.A;
+        b15_m_latch_n1_n1.O -> b15_m_latch_n2_o1.B;
+        b15_m_latch_n2_o1.O -> b15_m_latch_n2_n1.A;
+        D_15_ -> b15_m_inv.A;
+        D_15_ -> b15_m_gSet.A;
+        b15_en.O -> b15_m_gSet.B;
+        b15_m_inv.O -> b15_m_gRst.A;
+        b15_en.O -> b15_m_gRst.B;
+        b15_s_gRst.O -> b15_s_latch_n1_o1.A;
+        b15_s_latch_n2_n1.O -> b15_s_latch_n1_o1.B;
+        b15_s_latch_n1_o1.O -> b15_s_latch_n1_n1.A;
+        b15_s_gSet.O -> b15_s_latch_n2_o1.A;
+        b15_s_latch_n1_n1.O -> b15_s_latch_n2_o1.B;
+        b15_s_latch_n2_o1.O -> b15_s_latch_n2_n1.A;
+        b15_m_latch_n1_n1.O -> b15_s_inv.A;
+        b15_m_latch_n1_n1.O -> b15_s_gSet.A;
+        Phi2 -> b15_s_gSet.B;
+        b15_s_inv.O -> b15_s_gRst.A;
+        Phi2 -> b15_s_gRst.B;
+        LD -> b15_en.A;
+        Phi1 -> b15_en.B;
+        b16_m_gRst.O -> b16_m_latch_n1_o1.A;
+        b16_m_latch_n2_n1.O -> b16_m_latch_n1_o1.B;
+        b16_m_latch_n1_o1.O -> b16_m_latch_n1_n1.A;
+        b16_m_gSet.O -> b16_m_latch_n2_o1.A;
+        b16_m_latch_n1_n1.O -> b16_m_latch_n2_o1.B;
+        b16_m_latch_n2_o1.O -> b16_m_latch_n2_n1.A;
+        D_16_ -> b16_m_inv.A;
+        D_16_ -> b16_m_gSet.A;
+        b16_en.O -> b16_m_gSet.B;
+        b16_m_inv.O -> b16_m_gRst.A;
+        b16_en.O -> b16_m_gRst.B;
+        b16_s_gRst.O -> b16_s_latch_n1_o1.A;
+        b16_s_latch_n2_n1.O -> b16_s_latch_n1_o1.B;
+        b16_s_latch_n1_o1.O -> b16_s_latch_n1_n1.A;
+        b16_s_gSet.O -> b16_s_latch_n2_o1.A;
+        b16_s_latch_n1_n1.O -> b16_s_latch_n2_o1.B;
+        b16_s_latch_n2_o1.O -> b16_s_latch_n2_n1.A;
+        b16_m_latch_n1_n1.O -> b16_s_inv.A;
+        b16_m_latch_n1_n1.O -> b16_s_gSet.A;
+        Phi2 -> b16_s_gSet.B;
+        b16_s_inv.O -> b16_s_gRst.A;
+        Phi2 -> b16_s_gRst.B;
+        LD -> b16_en.A;
+        Phi1 -> b16_en.B;
+        b1_s_latch_n1_n1.O -> Q_1_;
+        b2_s_latch_n1_n1.O -> Q_2_;
+        b3_s_latch_n1_n1.O -> Q_3_;
+        b4_s_latch_n1_n1.O -> Q_4_;
+        b5_s_latch_n1_n1.O -> Q_5_;
+        b6_s_latch_n1_n1.O -> Q_6_;
+        b7_s_latch_n1_n1.O -> Q_7_;
+        b8_s_latch_n1_n1.O -> Q_8_;
+        b9_s_latch_n1_n1.O -> Q_9_;
+        b10_s_latch_n1_n1.O -> Q_10_;
+        b11_s_latch_n1_n1.O -> Q_11_;
+        b12_s_latch_n1_n1.O -> Q_12_;
+        b13_s_latch_n1_n1.O -> Q_13_;
+        b14_s_latch_n1_n1.O -> Q_14_;
+        b15_s_latch_n1_n1.O -> Q_15_;
+        b16_s_latch_n1_n1.O -> Q_16_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "D": [
+        "D_1_",
+        "D_2_",
+        "D_3_",
+        "D_4_",
+        "D_5_",
+        "D_6_",
+        "D_7_",
+        "D_8_",
+        "D_9_",
+        "D_10_",
+        "D_11_",
+        "D_12_",
+        "D_13_",
+        "D_14_",
+        "D_15_",
+        "D_16_"
+      ],
+      "LD": [
+        "LD"
+      ],
+      "Phi1": [
+        "Phi1"
+      ],
+      "Phi2": [
+        "Phi2"
+      ]
+    },
+    "outputs": {
+      "Q": [
+        "Q_1_",
+        "Q_2_",
+        "Q_3_",
+        "Q_4_",
+        "Q_5_",
+        "Q_6_",
+        "Q_7_",
+        "Q_8_",
+        "Q_9_",
+        "Q_10_",
+        "Q_11_",
+        "Q_12_",
+        "Q_13_",
+        "Q_14_",
+        "Q_15_",
+        "Q_16_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "RegE": {
+      "source_file": "circuit.shdl",
+      "source_line": 26,
+      "instances": {
+        "b1": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b1_",
+          "ports": {
+            "D": "D_1_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_1_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b1_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b1_m_",
+              "ports": {
+                "D": "D_1_",
+                "EN": "b1_en.O",
+                "Q": "b1_m_latch_n1_n1.O",
+                "Qn": "b1_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b1_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b1_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b1_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b1_m_latch_",
+                  "ports": {
+                    "S": "b1_m_gSet.O",
+                    "R": "b1_m_gRst.O",
+                    "Q": "b1_m_latch_n1_n1.O",
+                    "Qn": "b1_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b1_m_latch_n1_",
+                      "ports": {
+                        "A": "b1_m_gRst.O",
+                        "B": "b1_m_latch_n2_n1.O",
+                        "O": "b1_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b1_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b1_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b1_m_latch_n2_",
+                      "ports": {
+                        "A": "b1_m_gSet.O",
+                        "B": "b1_m_latch_n1_n1.O",
+                        "O": "b1_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b1_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b1_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b1_s_",
+              "ports": {
+                "D": "b1_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_1_",
+                "Qn": "b1_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b1_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b1_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b1_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b1_s_latch_",
+                  "ports": {
+                    "S": "b1_s_gSet.O",
+                    "R": "b1_s_gRst.O",
+                    "Q": "Q_1_",
+                    "Qn": "b1_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b1_s_latch_n1_",
+                      "ports": {
+                        "A": "b1_s_gRst.O",
+                        "B": "b1_s_latch_n2_n1.O",
+                        "O": "Q_1_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b1_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b1_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b1_s_latch_n2_",
+                      "ports": {
+                        "A": "b1_s_gSet.O",
+                        "B": "Q_1_",
+                        "O": "b1_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b1_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b1_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b2": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b2_",
+          "ports": {
+            "D": "D_2_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_2_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b2_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b2_m_",
+              "ports": {
+                "D": "D_2_",
+                "EN": "b2_en.O",
+                "Q": "b2_m_latch_n1_n1.O",
+                "Qn": "b2_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b2_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b2_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b2_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b2_m_latch_",
+                  "ports": {
+                    "S": "b2_m_gSet.O",
+                    "R": "b2_m_gRst.O",
+                    "Q": "b2_m_latch_n1_n1.O",
+                    "Qn": "b2_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b2_m_latch_n1_",
+                      "ports": {
+                        "A": "b2_m_gRst.O",
+                        "B": "b2_m_latch_n2_n1.O",
+                        "O": "b2_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b2_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b2_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b2_m_latch_n2_",
+                      "ports": {
+                        "A": "b2_m_gSet.O",
+                        "B": "b2_m_latch_n1_n1.O",
+                        "O": "b2_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b2_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b2_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b2_s_",
+              "ports": {
+                "D": "b2_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_2_",
+                "Qn": "b2_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b2_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b2_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b2_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b2_s_latch_",
+                  "ports": {
+                    "S": "b2_s_gSet.O",
+                    "R": "b2_s_gRst.O",
+                    "Q": "Q_2_",
+                    "Qn": "b2_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b2_s_latch_n1_",
+                      "ports": {
+                        "A": "b2_s_gRst.O",
+                        "B": "b2_s_latch_n2_n1.O",
+                        "O": "Q_2_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b2_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b2_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b2_s_latch_n2_",
+                      "ports": {
+                        "A": "b2_s_gSet.O",
+                        "B": "Q_2_",
+                        "O": "b2_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b2_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b2_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b3": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b3_",
+          "ports": {
+            "D": "D_3_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_3_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b3_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b3_m_",
+              "ports": {
+                "D": "D_3_",
+                "EN": "b3_en.O",
+                "Q": "b3_m_latch_n1_n1.O",
+                "Qn": "b3_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b3_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b3_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b3_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b3_m_latch_",
+                  "ports": {
+                    "S": "b3_m_gSet.O",
+                    "R": "b3_m_gRst.O",
+                    "Q": "b3_m_latch_n1_n1.O",
+                    "Qn": "b3_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b3_m_latch_n1_",
+                      "ports": {
+                        "A": "b3_m_gRst.O",
+                        "B": "b3_m_latch_n2_n1.O",
+                        "O": "b3_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b3_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b3_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b3_m_latch_n2_",
+                      "ports": {
+                        "A": "b3_m_gSet.O",
+                        "B": "b3_m_latch_n1_n1.O",
+                        "O": "b3_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b3_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b3_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b3_s_",
+              "ports": {
+                "D": "b3_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_3_",
+                "Qn": "b3_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b3_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b3_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b3_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b3_s_latch_",
+                  "ports": {
+                    "S": "b3_s_gSet.O",
+                    "R": "b3_s_gRst.O",
+                    "Q": "Q_3_",
+                    "Qn": "b3_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b3_s_latch_n1_",
+                      "ports": {
+                        "A": "b3_s_gRst.O",
+                        "B": "b3_s_latch_n2_n1.O",
+                        "O": "Q_3_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b3_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b3_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b3_s_latch_n2_",
+                      "ports": {
+                        "A": "b3_s_gSet.O",
+                        "B": "Q_3_",
+                        "O": "b3_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b3_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b3_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b4": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b4_",
+          "ports": {
+            "D": "D_4_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_4_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b4_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b4_m_",
+              "ports": {
+                "D": "D_4_",
+                "EN": "b4_en.O",
+                "Q": "b4_m_latch_n1_n1.O",
+                "Qn": "b4_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b4_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b4_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b4_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b4_m_latch_",
+                  "ports": {
+                    "S": "b4_m_gSet.O",
+                    "R": "b4_m_gRst.O",
+                    "Q": "b4_m_latch_n1_n1.O",
+                    "Qn": "b4_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b4_m_latch_n1_",
+                      "ports": {
+                        "A": "b4_m_gRst.O",
+                        "B": "b4_m_latch_n2_n1.O",
+                        "O": "b4_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b4_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b4_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b4_m_latch_n2_",
+                      "ports": {
+                        "A": "b4_m_gSet.O",
+                        "B": "b4_m_latch_n1_n1.O",
+                        "O": "b4_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b4_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b4_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b4_s_",
+              "ports": {
+                "D": "b4_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_4_",
+                "Qn": "b4_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b4_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b4_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b4_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b4_s_latch_",
+                  "ports": {
+                    "S": "b4_s_gSet.O",
+                    "R": "b4_s_gRst.O",
+                    "Q": "Q_4_",
+                    "Qn": "b4_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b4_s_latch_n1_",
+                      "ports": {
+                        "A": "b4_s_gRst.O",
+                        "B": "b4_s_latch_n2_n1.O",
+                        "O": "Q_4_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b4_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b4_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b4_s_latch_n2_",
+                      "ports": {
+                        "A": "b4_s_gSet.O",
+                        "B": "Q_4_",
+                        "O": "b4_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b4_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b4_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b5": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b5_",
+          "ports": {
+            "D": "D_5_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_5_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b5_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b5_m_",
+              "ports": {
+                "D": "D_5_",
+                "EN": "b5_en.O",
+                "Q": "b5_m_latch_n1_n1.O",
+                "Qn": "b5_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b5_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b5_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b5_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b5_m_latch_",
+                  "ports": {
+                    "S": "b5_m_gSet.O",
+                    "R": "b5_m_gRst.O",
+                    "Q": "b5_m_latch_n1_n1.O",
+                    "Qn": "b5_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b5_m_latch_n1_",
+                      "ports": {
+                        "A": "b5_m_gRst.O",
+                        "B": "b5_m_latch_n2_n1.O",
+                        "O": "b5_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b5_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b5_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b5_m_latch_n2_",
+                      "ports": {
+                        "A": "b5_m_gSet.O",
+                        "B": "b5_m_latch_n1_n1.O",
+                        "O": "b5_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b5_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b5_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b5_s_",
+              "ports": {
+                "D": "b5_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_5_",
+                "Qn": "b5_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b5_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b5_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b5_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b5_s_latch_",
+                  "ports": {
+                    "S": "b5_s_gSet.O",
+                    "R": "b5_s_gRst.O",
+                    "Q": "Q_5_",
+                    "Qn": "b5_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b5_s_latch_n1_",
+                      "ports": {
+                        "A": "b5_s_gRst.O",
+                        "B": "b5_s_latch_n2_n1.O",
+                        "O": "Q_5_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b5_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b5_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b5_s_latch_n2_",
+                      "ports": {
+                        "A": "b5_s_gSet.O",
+                        "B": "Q_5_",
+                        "O": "b5_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b5_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b5_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b6": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b6_",
+          "ports": {
+            "D": "D_6_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_6_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b6_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b6_m_",
+              "ports": {
+                "D": "D_6_",
+                "EN": "b6_en.O",
+                "Q": "b6_m_latch_n1_n1.O",
+                "Qn": "b6_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b6_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b6_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b6_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b6_m_latch_",
+                  "ports": {
+                    "S": "b6_m_gSet.O",
+                    "R": "b6_m_gRst.O",
+                    "Q": "b6_m_latch_n1_n1.O",
+                    "Qn": "b6_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b6_m_latch_n1_",
+                      "ports": {
+                        "A": "b6_m_gRst.O",
+                        "B": "b6_m_latch_n2_n1.O",
+                        "O": "b6_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b6_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b6_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b6_m_latch_n2_",
+                      "ports": {
+                        "A": "b6_m_gSet.O",
+                        "B": "b6_m_latch_n1_n1.O",
+                        "O": "b6_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b6_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b6_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b6_s_",
+              "ports": {
+                "D": "b6_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_6_",
+                "Qn": "b6_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b6_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b6_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b6_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b6_s_latch_",
+                  "ports": {
+                    "S": "b6_s_gSet.O",
+                    "R": "b6_s_gRst.O",
+                    "Q": "Q_6_",
+                    "Qn": "b6_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b6_s_latch_n1_",
+                      "ports": {
+                        "A": "b6_s_gRst.O",
+                        "B": "b6_s_latch_n2_n1.O",
+                        "O": "Q_6_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b6_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b6_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b6_s_latch_n2_",
+                      "ports": {
+                        "A": "b6_s_gSet.O",
+                        "B": "Q_6_",
+                        "O": "b6_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b6_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b6_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b7": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b7_",
+          "ports": {
+            "D": "D_7_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_7_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b7_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b7_m_",
+              "ports": {
+                "D": "D_7_",
+                "EN": "b7_en.O",
+                "Q": "b7_m_latch_n1_n1.O",
+                "Qn": "b7_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b7_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b7_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b7_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b7_m_latch_",
+                  "ports": {
+                    "S": "b7_m_gSet.O",
+                    "R": "b7_m_gRst.O",
+                    "Q": "b7_m_latch_n1_n1.O",
+                    "Qn": "b7_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b7_m_latch_n1_",
+                      "ports": {
+                        "A": "b7_m_gRst.O",
+                        "B": "b7_m_latch_n2_n1.O",
+                        "O": "b7_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b7_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b7_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b7_m_latch_n2_",
+                      "ports": {
+                        "A": "b7_m_gSet.O",
+                        "B": "b7_m_latch_n1_n1.O",
+                        "O": "b7_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b7_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b7_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b7_s_",
+              "ports": {
+                "D": "b7_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_7_",
+                "Qn": "b7_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b7_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b7_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b7_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b7_s_latch_",
+                  "ports": {
+                    "S": "b7_s_gSet.O",
+                    "R": "b7_s_gRst.O",
+                    "Q": "Q_7_",
+                    "Qn": "b7_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b7_s_latch_n1_",
+                      "ports": {
+                        "A": "b7_s_gRst.O",
+                        "B": "b7_s_latch_n2_n1.O",
+                        "O": "Q_7_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b7_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b7_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b7_s_latch_n2_",
+                      "ports": {
+                        "A": "b7_s_gSet.O",
+                        "B": "Q_7_",
+                        "O": "b7_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b7_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b7_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b8": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b8_",
+          "ports": {
+            "D": "D_8_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_8_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b8_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b8_m_",
+              "ports": {
+                "D": "D_8_",
+                "EN": "b8_en.O",
+                "Q": "b8_m_latch_n1_n1.O",
+                "Qn": "b8_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b8_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b8_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b8_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b8_m_latch_",
+                  "ports": {
+                    "S": "b8_m_gSet.O",
+                    "R": "b8_m_gRst.O",
+                    "Q": "b8_m_latch_n1_n1.O",
+                    "Qn": "b8_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b8_m_latch_n1_",
+                      "ports": {
+                        "A": "b8_m_gRst.O",
+                        "B": "b8_m_latch_n2_n1.O",
+                        "O": "b8_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b8_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b8_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b8_m_latch_n2_",
+                      "ports": {
+                        "A": "b8_m_gSet.O",
+                        "B": "b8_m_latch_n1_n1.O",
+                        "O": "b8_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b8_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b8_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b8_s_",
+              "ports": {
+                "D": "b8_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_8_",
+                "Qn": "b8_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b8_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b8_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b8_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b8_s_latch_",
+                  "ports": {
+                    "S": "b8_s_gSet.O",
+                    "R": "b8_s_gRst.O",
+                    "Q": "Q_8_",
+                    "Qn": "b8_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b8_s_latch_n1_",
+                      "ports": {
+                        "A": "b8_s_gRst.O",
+                        "B": "b8_s_latch_n2_n1.O",
+                        "O": "Q_8_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b8_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b8_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b8_s_latch_n2_",
+                      "ports": {
+                        "A": "b8_s_gSet.O",
+                        "B": "Q_8_",
+                        "O": "b8_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b8_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b8_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b9": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b9_",
+          "ports": {
+            "D": "D_9_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_9_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b9_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b9_m_",
+              "ports": {
+                "D": "D_9_",
+                "EN": "b9_en.O",
+                "Q": "b9_m_latch_n1_n1.O",
+                "Qn": "b9_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b9_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b9_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b9_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b9_m_latch_",
+                  "ports": {
+                    "S": "b9_m_gSet.O",
+                    "R": "b9_m_gRst.O",
+                    "Q": "b9_m_latch_n1_n1.O",
+                    "Qn": "b9_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b9_m_latch_n1_",
+                      "ports": {
+                        "A": "b9_m_gRst.O",
+                        "B": "b9_m_latch_n2_n1.O",
+                        "O": "b9_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b9_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b9_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b9_m_latch_n2_",
+                      "ports": {
+                        "A": "b9_m_gSet.O",
+                        "B": "b9_m_latch_n1_n1.O",
+                        "O": "b9_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b9_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b9_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b9_s_",
+              "ports": {
+                "D": "b9_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_9_",
+                "Qn": "b9_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b9_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b9_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b9_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b9_s_latch_",
+                  "ports": {
+                    "S": "b9_s_gSet.O",
+                    "R": "b9_s_gRst.O",
+                    "Q": "Q_9_",
+                    "Qn": "b9_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b9_s_latch_n1_",
+                      "ports": {
+                        "A": "b9_s_gRst.O",
+                        "B": "b9_s_latch_n2_n1.O",
+                        "O": "Q_9_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b9_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b9_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b9_s_latch_n2_",
+                      "ports": {
+                        "A": "b9_s_gSet.O",
+                        "B": "Q_9_",
+                        "O": "b9_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b9_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b9_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b10": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b10_",
+          "ports": {
+            "D": "D_10_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_10_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b10_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b10_m_",
+              "ports": {
+                "D": "D_10_",
+                "EN": "b10_en.O",
+                "Q": "b10_m_latch_n1_n1.O",
+                "Qn": "b10_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b10_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b10_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b10_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b10_m_latch_",
+                  "ports": {
+                    "S": "b10_m_gSet.O",
+                    "R": "b10_m_gRst.O",
+                    "Q": "b10_m_latch_n1_n1.O",
+                    "Qn": "b10_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b10_m_latch_n1_",
+                      "ports": {
+                        "A": "b10_m_gRst.O",
+                        "B": "b10_m_latch_n2_n1.O",
+                        "O": "b10_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b10_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b10_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b10_m_latch_n2_",
+                      "ports": {
+                        "A": "b10_m_gSet.O",
+                        "B": "b10_m_latch_n1_n1.O",
+                        "O": "b10_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b10_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b10_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b10_s_",
+              "ports": {
+                "D": "b10_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_10_",
+                "Qn": "b10_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b10_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b10_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b10_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b10_s_latch_",
+                  "ports": {
+                    "S": "b10_s_gSet.O",
+                    "R": "b10_s_gRst.O",
+                    "Q": "Q_10_",
+                    "Qn": "b10_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b10_s_latch_n1_",
+                      "ports": {
+                        "A": "b10_s_gRst.O",
+                        "B": "b10_s_latch_n2_n1.O",
+                        "O": "Q_10_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b10_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b10_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b10_s_latch_n2_",
+                      "ports": {
+                        "A": "b10_s_gSet.O",
+                        "B": "Q_10_",
+                        "O": "b10_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b10_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b10_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b11": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b11_",
+          "ports": {
+            "D": "D_11_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_11_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b11_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b11_m_",
+              "ports": {
+                "D": "D_11_",
+                "EN": "b11_en.O",
+                "Q": "b11_m_latch_n1_n1.O",
+                "Qn": "b11_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b11_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b11_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b11_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b11_m_latch_",
+                  "ports": {
+                    "S": "b11_m_gSet.O",
+                    "R": "b11_m_gRst.O",
+                    "Q": "b11_m_latch_n1_n1.O",
+                    "Qn": "b11_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b11_m_latch_n1_",
+                      "ports": {
+                        "A": "b11_m_gRst.O",
+                        "B": "b11_m_latch_n2_n1.O",
+                        "O": "b11_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b11_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b11_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b11_m_latch_n2_",
+                      "ports": {
+                        "A": "b11_m_gSet.O",
+                        "B": "b11_m_latch_n1_n1.O",
+                        "O": "b11_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b11_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b11_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b11_s_",
+              "ports": {
+                "D": "b11_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_11_",
+                "Qn": "b11_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b11_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b11_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b11_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b11_s_latch_",
+                  "ports": {
+                    "S": "b11_s_gSet.O",
+                    "R": "b11_s_gRst.O",
+                    "Q": "Q_11_",
+                    "Qn": "b11_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b11_s_latch_n1_",
+                      "ports": {
+                        "A": "b11_s_gRst.O",
+                        "B": "b11_s_latch_n2_n1.O",
+                        "O": "Q_11_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b11_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b11_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b11_s_latch_n2_",
+                      "ports": {
+                        "A": "b11_s_gSet.O",
+                        "B": "Q_11_",
+                        "O": "b11_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b11_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b11_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b12": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b12_",
+          "ports": {
+            "D": "D_12_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_12_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b12_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b12_m_",
+              "ports": {
+                "D": "D_12_",
+                "EN": "b12_en.O",
+                "Q": "b12_m_latch_n1_n1.O",
+                "Qn": "b12_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b12_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b12_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b12_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b12_m_latch_",
+                  "ports": {
+                    "S": "b12_m_gSet.O",
+                    "R": "b12_m_gRst.O",
+                    "Q": "b12_m_latch_n1_n1.O",
+                    "Qn": "b12_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b12_m_latch_n1_",
+                      "ports": {
+                        "A": "b12_m_gRst.O",
+                        "B": "b12_m_latch_n2_n1.O",
+                        "O": "b12_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b12_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b12_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b12_m_latch_n2_",
+                      "ports": {
+                        "A": "b12_m_gSet.O",
+                        "B": "b12_m_latch_n1_n1.O",
+                        "O": "b12_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b12_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b12_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b12_s_",
+              "ports": {
+                "D": "b12_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_12_",
+                "Qn": "b12_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b12_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b12_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b12_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b12_s_latch_",
+                  "ports": {
+                    "S": "b12_s_gSet.O",
+                    "R": "b12_s_gRst.O",
+                    "Q": "Q_12_",
+                    "Qn": "b12_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b12_s_latch_n1_",
+                      "ports": {
+                        "A": "b12_s_gRst.O",
+                        "B": "b12_s_latch_n2_n1.O",
+                        "O": "Q_12_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b12_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b12_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b12_s_latch_n2_",
+                      "ports": {
+                        "A": "b12_s_gSet.O",
+                        "B": "Q_12_",
+                        "O": "b12_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b12_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b12_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b13": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b13_",
+          "ports": {
+            "D": "D_13_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_13_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b13_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b13_m_",
+              "ports": {
+                "D": "D_13_",
+                "EN": "b13_en.O",
+                "Q": "b13_m_latch_n1_n1.O",
+                "Qn": "b13_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b13_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b13_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b13_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b13_m_latch_",
+                  "ports": {
+                    "S": "b13_m_gSet.O",
+                    "R": "b13_m_gRst.O",
+                    "Q": "b13_m_latch_n1_n1.O",
+                    "Qn": "b13_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b13_m_latch_n1_",
+                      "ports": {
+                        "A": "b13_m_gRst.O",
+                        "B": "b13_m_latch_n2_n1.O",
+                        "O": "b13_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b13_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b13_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b13_m_latch_n2_",
+                      "ports": {
+                        "A": "b13_m_gSet.O",
+                        "B": "b13_m_latch_n1_n1.O",
+                        "O": "b13_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b13_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b13_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b13_s_",
+              "ports": {
+                "D": "b13_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_13_",
+                "Qn": "b13_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b13_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b13_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b13_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b13_s_latch_",
+                  "ports": {
+                    "S": "b13_s_gSet.O",
+                    "R": "b13_s_gRst.O",
+                    "Q": "Q_13_",
+                    "Qn": "b13_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b13_s_latch_n1_",
+                      "ports": {
+                        "A": "b13_s_gRst.O",
+                        "B": "b13_s_latch_n2_n1.O",
+                        "O": "Q_13_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b13_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b13_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b13_s_latch_n2_",
+                      "ports": {
+                        "A": "b13_s_gSet.O",
+                        "B": "Q_13_",
+                        "O": "b13_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b13_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b13_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b14": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b14_",
+          "ports": {
+            "D": "D_14_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_14_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b14_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b14_m_",
+              "ports": {
+                "D": "D_14_",
+                "EN": "b14_en.O",
+                "Q": "b14_m_latch_n1_n1.O",
+                "Qn": "b14_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b14_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b14_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b14_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b14_m_latch_",
+                  "ports": {
+                    "S": "b14_m_gSet.O",
+                    "R": "b14_m_gRst.O",
+                    "Q": "b14_m_latch_n1_n1.O",
+                    "Qn": "b14_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b14_m_latch_n1_",
+                      "ports": {
+                        "A": "b14_m_gRst.O",
+                        "B": "b14_m_latch_n2_n1.O",
+                        "O": "b14_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b14_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b14_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b14_m_latch_n2_",
+                      "ports": {
+                        "A": "b14_m_gSet.O",
+                        "B": "b14_m_latch_n1_n1.O",
+                        "O": "b14_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b14_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b14_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b14_s_",
+              "ports": {
+                "D": "b14_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_14_",
+                "Qn": "b14_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b14_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b14_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b14_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b14_s_latch_",
+                  "ports": {
+                    "S": "b14_s_gSet.O",
+                    "R": "b14_s_gRst.O",
+                    "Q": "Q_14_",
+                    "Qn": "b14_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b14_s_latch_n1_",
+                      "ports": {
+                        "A": "b14_s_gRst.O",
+                        "B": "b14_s_latch_n2_n1.O",
+                        "O": "Q_14_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b14_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b14_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b14_s_latch_n2_",
+                      "ports": {
+                        "A": "b14_s_gSet.O",
+                        "B": "Q_14_",
+                        "O": "b14_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b14_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b14_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b15": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b15_",
+          "ports": {
+            "D": "D_15_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_15_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b15_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b15_m_",
+              "ports": {
+                "D": "D_15_",
+                "EN": "b15_en.O",
+                "Q": "b15_m_latch_n1_n1.O",
+                "Qn": "b15_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b15_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b15_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b15_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b15_m_latch_",
+                  "ports": {
+                    "S": "b15_m_gSet.O",
+                    "R": "b15_m_gRst.O",
+                    "Q": "b15_m_latch_n1_n1.O",
+                    "Qn": "b15_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b15_m_latch_n1_",
+                      "ports": {
+                        "A": "b15_m_gRst.O",
+                        "B": "b15_m_latch_n2_n1.O",
+                        "O": "b15_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b15_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b15_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b15_m_latch_n2_",
+                      "ports": {
+                        "A": "b15_m_gSet.O",
+                        "B": "b15_m_latch_n1_n1.O",
+                        "O": "b15_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b15_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b15_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b15_s_",
+              "ports": {
+                "D": "b15_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_15_",
+                "Qn": "b15_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b15_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b15_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b15_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b15_s_latch_",
+                  "ports": {
+                    "S": "b15_s_gSet.O",
+                    "R": "b15_s_gRst.O",
+                    "Q": "Q_15_",
+                    "Qn": "b15_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b15_s_latch_n1_",
+                      "ports": {
+                        "A": "b15_s_gRst.O",
+                        "B": "b15_s_latch_n2_n1.O",
+                        "O": "Q_15_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b15_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b15_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b15_s_latch_n2_",
+                      "ports": {
+                        "A": "b15_s_gSet.O",
+                        "B": "Q_15_",
+                        "O": "b15_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b15_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b15_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "b16": {
+          "type": "MSFFE",
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "b16_",
+          "ports": {
+            "D": "D_16_",
+            "LD": "LD",
+            "Phi1": "Phi1",
+            "Phi2": "Phi2",
+            "Q": "Q_16_"
+          },
+          "instances": {
+            "en": {
+              "type": "AND",
+              "gate": "b16_en"
+            },
+            "m": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 15,
+              "prefix": "b16_m_",
+              "ports": {
+                "D": "D_16_",
+                "EN": "b16_en.O",
+                "Q": "b16_m_latch_n1_n1.O",
+                "Qn": "b16_m_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b16_m_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b16_m_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b16_m_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b16_m_latch_",
+                  "ports": {
+                    "S": "b16_m_gSet.O",
+                    "R": "b16_m_gRst.O",
+                    "Q": "b16_m_latch_n1_n1.O",
+                    "Qn": "b16_m_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b16_m_latch_n1_",
+                      "ports": {
+                        "A": "b16_m_gRst.O",
+                        "B": "b16_m_latch_n2_n1.O",
+                        "O": "b16_m_latch_n1_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b16_m_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b16_m_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b16_m_latch_n2_",
+                      "ports": {
+                        "A": "b16_m_gSet.O",
+                        "B": "b16_m_latch_n1_n1.O",
+                        "O": "b16_m_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b16_m_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b16_m_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "s": {
+              "type": "DLatch",
+              "source_file": "circuit.shdl",
+              "source_line": 16,
+              "prefix": "b16_s_",
+              "ports": {
+                "D": "b16_m_latch_n1_n1.O",
+                "EN": "Phi2",
+                "Q": "Q_16_",
+                "Qn": "b16_s_latch_n2_n1.O"
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "b16_s_inv"
+                },
+                "gSet": {
+                  "type": "AND",
+                  "gate": "b16_s_gSet"
+                },
+                "gRst": {
+                  "type": "AND",
+                  "gate": "b16_s_gRst"
+                },
+                "latch": {
+                  "type": "SRLatch",
+                  "source_file": "dLatch.shdl",
+                  "source_line": 16,
+                  "prefix": "b16_s_latch_",
+                  "ports": {
+                    "S": "b16_s_gSet.O",
+                    "R": "b16_s_gRst.O",
+                    "Q": "Q_16_",
+                    "Qn": "b16_s_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "n1": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b16_s_latch_n1_",
+                      "ports": {
+                        "A": "b16_s_gRst.O",
+                        "B": "b16_s_latch_n2_n1.O",
+                        "O": "Q_16_"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b16_s_latch_n1_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b16_s_latch_n1_n1"
+                        }
+                      }
+                    },
+                    "n2": {
+                      "type": "NOR",
+                      "source_file": "srLatch.shdl",
+                      "source_line": 18,
+                      "prefix": "b16_s_latch_n2_",
+                      "ports": {
+                        "A": "b16_s_gSet.O",
+                        "B": "Q_16_",
+                        "O": "b16_s_latch_n2_n1.O"
+                      },
+                      "instances": {
+                        "o1": {
+                          "type": "OR",
+                          "gate": "b16_s_latch_n2_o1"
+                        },
+                        "n1": {
+                          "type": "NOT",
+                          "gate": "b16_s_latch_n2_n1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "b1_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b1_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b1_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b1_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b1_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b1_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b1_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b1_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b1_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b1_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b1_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b1_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b1_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b1_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b1_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b2_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b2_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b2_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b2_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b2_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b2_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b2_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b2_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b2_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b2_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b2_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b2_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b2_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b2_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b2_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b3_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b3_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b3_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b3_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b3_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b3_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b3_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b3_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b3_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b3_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b3_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b3_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b3_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b3_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b3_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b4_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b4_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b4_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b4_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b4_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b4_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b4_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b4_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b4_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b4_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b4_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b4_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b4_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b4_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b4_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b5_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b5_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b5_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b5_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b5_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b5_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b5_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b5_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b5_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b5_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b5_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b5_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b5_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b5_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b5_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b6_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b6_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b6_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b6_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b6_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b6_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b6_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b6_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b6_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b6_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b6_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b6_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b6_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b6_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b6_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b7_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b7_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b7_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b7_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b7_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b7_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b7_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b7_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b7_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b7_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b7_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b7_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b7_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b7_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b7_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b8_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b8_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b8_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b8_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b8_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b8_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b8_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b8_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b8_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b8_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b8_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b8_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b8_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b8_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b8_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b9_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b9_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b9_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b9_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b9_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b9_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b9_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b9_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b9_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b9_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b9_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b9_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b9_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b9_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b9_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b10_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b10_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b10_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b10_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b10_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b10_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b10_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b10_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b10_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b10_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b10_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b10_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b10_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b10_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b10_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b11_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b11_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b11_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b11_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b11_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b11_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b11_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b11_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b11_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b11_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b11_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b11_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b11_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b11_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b11_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b12_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b12_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b12_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b12_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b12_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b12_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b12_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b12_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b12_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b12_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b12_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b12_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b12_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b12_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b12_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b13_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b13_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b13_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b13_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b13_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b13_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b13_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b13_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b13_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b13_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b13_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b13_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b13_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b13_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b13_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b14_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b14_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b14_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b14_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b14_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b14_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b14_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b14_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b14_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b14_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b14_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b14_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b14_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b14_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b14_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b15_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b15_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b15_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b15_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b15_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b15_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b15_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b15_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b15_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b15_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b15_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b15_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b15_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b15_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b15_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b16_en": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b16_m_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b16_m_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b16_m_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b16_m_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b16_m_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b16_m_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b16_m_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b16_s_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "b16_s_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "b16_s_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "b16_s_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b16_s_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "b16_s_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "b16_s_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "14": [
+          "b1_en",
+          "b2_en",
+          "b3_en",
+          "b4_en",
+          "b5_en",
+          "b6_en",
+          "b7_en",
+          "b8_en",
+          "b9_en",
+          "b10_en",
+          "b11_en",
+          "b12_en",
+          "b13_en",
+          "b14_en",
+          "b15_en",
+          "b16_en"
+        ],
+        "15": [
+          "b1_m_inv",
+          "b1_m_gSet",
+          "b1_m_gRst",
+          "b1_m_latch_n1_o1",
+          "b1_m_latch_n1_n1",
+          "b1_m_latch_n2_o1",
+          "b1_m_latch_n2_n1",
+          "b2_m_inv",
+          "b2_m_gSet",
+          "b2_m_gRst",
+          "b2_m_latch_n1_o1",
+          "b2_m_latch_n1_n1",
+          "b2_m_latch_n2_o1",
+          "b2_m_latch_n2_n1",
+          "b3_m_inv",
+          "b3_m_gSet",
+          "b3_m_gRst",
+          "b3_m_latch_n1_o1",
+          "b3_m_latch_n1_n1",
+          "b3_m_latch_n2_o1",
+          "b3_m_latch_n2_n1",
+          "b4_m_inv",
+          "b4_m_gSet",
+          "b4_m_gRst",
+          "b4_m_latch_n1_o1",
+          "b4_m_latch_n1_n1",
+          "b4_m_latch_n2_o1",
+          "b4_m_latch_n2_n1",
+          "b5_m_inv",
+          "b5_m_gSet",
+          "b5_m_gRst",
+          "b5_m_latch_n1_o1",
+          "b5_m_latch_n1_n1",
+          "b5_m_latch_n2_o1",
+          "b5_m_latch_n2_n1",
+          "b6_m_inv",
+          "b6_m_gSet",
+          "b6_m_gRst",
+          "b6_m_latch_n1_o1",
+          "b6_m_latch_n1_n1",
+          "b6_m_latch_n2_o1",
+          "b6_m_latch_n2_n1",
+          "b7_m_inv",
+          "b7_m_gSet",
+          "b7_m_gRst",
+          "b7_m_latch_n1_o1",
+          "b7_m_latch_n1_n1",
+          "b7_m_latch_n2_o1",
+          "b7_m_latch_n2_n1",
+          "b8_m_inv",
+          "b8_m_gSet",
+          "b8_m_gRst",
+          "b8_m_latch_n1_o1",
+          "b8_m_latch_n1_n1",
+          "b8_m_latch_n2_o1",
+          "b8_m_latch_n2_n1",
+          "b9_m_inv",
+          "b9_m_gSet",
+          "b9_m_gRst",
+          "b9_m_latch_n1_o1",
+          "b9_m_latch_n1_n1",
+          "b9_m_latch_n2_o1",
+          "b9_m_latch_n2_n1",
+          "b10_m_inv",
+          "b10_m_gSet",
+          "b10_m_gRst",
+          "b10_m_latch_n1_o1",
+          "b10_m_latch_n1_n1",
+          "b10_m_latch_n2_o1",
+          "b10_m_latch_n2_n1",
+          "b11_m_inv",
+          "b11_m_gSet",
+          "b11_m_gRst",
+          "b11_m_latch_n1_o1",
+          "b11_m_latch_n1_n1",
+          "b11_m_latch_n2_o1",
+          "b11_m_latch_n2_n1",
+          "b12_m_inv",
+          "b12_m_gSet",
+          "b12_m_gRst",
+          "b12_m_latch_n1_o1",
+          "b12_m_latch_n1_n1",
+          "b12_m_latch_n2_o1",
+          "b12_m_latch_n2_n1",
+          "b13_m_inv",
+          "b13_m_gSet",
+          "b13_m_gRst",
+          "b13_m_latch_n1_o1",
+          "b13_m_latch_n1_n1",
+          "b13_m_latch_n2_o1",
+          "b13_m_latch_n2_n1",
+          "b14_m_inv",
+          "b14_m_gSet",
+          "b14_m_gRst",
+          "b14_m_latch_n1_o1",
+          "b14_m_latch_n1_n1",
+          "b14_m_latch_n2_o1",
+          "b14_m_latch_n2_n1",
+          "b15_m_inv",
+          "b15_m_gSet",
+          "b15_m_gRst",
+          "b15_m_latch_n1_o1",
+          "b15_m_latch_n1_n1",
+          "b15_m_latch_n2_o1",
+          "b15_m_latch_n2_n1",
+          "b16_m_inv",
+          "b16_m_gSet",
+          "b16_m_gRst",
+          "b16_m_latch_n1_o1",
+          "b16_m_latch_n1_n1",
+          "b16_m_latch_n2_o1",
+          "b16_m_latch_n2_n1"
+        ],
+        "16": [
+          "b1_s_inv",
+          "b1_s_gSet",
+          "b1_s_gRst",
+          "b1_s_latch_n1_o1",
+          "b1_s_latch_n1_n1",
+          "b1_s_latch_n2_o1",
+          "b1_s_latch_n2_n1",
+          "b2_s_inv",
+          "b2_s_gSet",
+          "b2_s_gRst",
+          "b2_s_latch_n1_o1",
+          "b2_s_latch_n1_n1",
+          "b2_s_latch_n2_o1",
+          "b2_s_latch_n2_n1",
+          "b3_s_inv",
+          "b3_s_gSet",
+          "b3_s_gRst",
+          "b3_s_latch_n1_o1",
+          "b3_s_latch_n1_n1",
+          "b3_s_latch_n2_o1",
+          "b3_s_latch_n2_n1",
+          "b4_s_inv",
+          "b4_s_gSet",
+          "b4_s_gRst",
+          "b4_s_latch_n1_o1",
+          "b4_s_latch_n1_n1",
+          "b4_s_latch_n2_o1",
+          "b4_s_latch_n2_n1",
+          "b5_s_inv",
+          "b5_s_gSet",
+          "b5_s_gRst",
+          "b5_s_latch_n1_o1",
+          "b5_s_latch_n1_n1",
+          "b5_s_latch_n2_o1",
+          "b5_s_latch_n2_n1",
+          "b6_s_inv",
+          "b6_s_gSet",
+          "b6_s_gRst",
+          "b6_s_latch_n1_o1",
+          "b6_s_latch_n1_n1",
+          "b6_s_latch_n2_o1",
+          "b6_s_latch_n2_n1",
+          "b7_s_inv",
+          "b7_s_gSet",
+          "b7_s_gRst",
+          "b7_s_latch_n1_o1",
+          "b7_s_latch_n1_n1",
+          "b7_s_latch_n2_o1",
+          "b7_s_latch_n2_n1",
+          "b8_s_inv",
+          "b8_s_gSet",
+          "b8_s_gRst",
+          "b8_s_latch_n1_o1",
+          "b8_s_latch_n1_n1",
+          "b8_s_latch_n2_o1",
+          "b8_s_latch_n2_n1",
+          "b9_s_inv",
+          "b9_s_gSet",
+          "b9_s_gRst",
+          "b9_s_latch_n1_o1",
+          "b9_s_latch_n1_n1",
+          "b9_s_latch_n2_o1",
+          "b9_s_latch_n2_n1",
+          "b10_s_inv",
+          "b10_s_gSet",
+          "b10_s_gRst",
+          "b10_s_latch_n1_o1",
+          "b10_s_latch_n1_n1",
+          "b10_s_latch_n2_o1",
+          "b10_s_latch_n2_n1",
+          "b11_s_inv",
+          "b11_s_gSet",
+          "b11_s_gRst",
+          "b11_s_latch_n1_o1",
+          "b11_s_latch_n1_n1",
+          "b11_s_latch_n2_o1",
+          "b11_s_latch_n2_n1",
+          "b12_s_inv",
+          "b12_s_gSet",
+          "b12_s_gRst",
+          "b12_s_latch_n1_o1",
+          "b12_s_latch_n1_n1",
+          "b12_s_latch_n2_o1",
+          "b12_s_latch_n2_n1",
+          "b13_s_inv",
+          "b13_s_gSet",
+          "b13_s_gRst",
+          "b13_s_latch_n1_o1",
+          "b13_s_latch_n1_n1",
+          "b13_s_latch_n2_o1",
+          "b13_s_latch_n2_n1",
+          "b14_s_inv",
+          "b14_s_gSet",
+          "b14_s_gRst",
+          "b14_s_latch_n1_o1",
+          "b14_s_latch_n1_n1",
+          "b14_s_latch_n2_o1",
+          "b14_s_latch_n2_n1",
+          "b15_s_inv",
+          "b15_s_gSet",
+          "b15_s_gRst",
+          "b15_s_latch_n1_o1",
+          "b15_s_latch_n1_n1",
+          "b15_s_latch_n2_o1",
+          "b15_s_latch_n2_n1",
+          "b16_s_inv",
+          "b16_s_gSet",
+          "b16_s_gRst",
+          "b16_s_latch_n1_o1",
+          "b16_s_latch_n1_n1",
+          "b16_s_latch_n2_o1",
+          "b16_s_latch_n2_n1"
+        ],
+        "27": [
+          "b1_en",
+          "b1_m_inv",
+          "b1_m_gSet",
+          "b1_m_gRst",
+          "b1_m_latch_n1_o1",
+          "b1_m_latch_n1_n1",
+          "b1_m_latch_n2_o1",
+          "b1_m_latch_n2_n1",
+          "b1_s_inv",
+          "b1_s_gSet",
+          "b1_s_gRst",
+          "b1_s_latch_n1_o1",
+          "b1_s_latch_n1_n1",
+          "b1_s_latch_n2_o1",
+          "b1_s_latch_n2_n1",
+          "b2_en",
+          "b2_m_inv",
+          "b2_m_gSet",
+          "b2_m_gRst",
+          "b2_m_latch_n1_o1",
+          "b2_m_latch_n1_n1",
+          "b2_m_latch_n2_o1",
+          "b2_m_latch_n2_n1",
+          "b2_s_inv",
+          "b2_s_gSet",
+          "b2_s_gRst",
+          "b2_s_latch_n1_o1",
+          "b2_s_latch_n1_n1",
+          "b2_s_latch_n2_o1",
+          "b2_s_latch_n2_n1",
+          "b3_en",
+          "b3_m_inv",
+          "b3_m_gSet",
+          "b3_m_gRst",
+          "b3_m_latch_n1_o1",
+          "b3_m_latch_n1_n1",
+          "b3_m_latch_n2_o1",
+          "b3_m_latch_n2_n1",
+          "b3_s_inv",
+          "b3_s_gSet",
+          "b3_s_gRst",
+          "b3_s_latch_n1_o1",
+          "b3_s_latch_n1_n1",
+          "b3_s_latch_n2_o1",
+          "b3_s_latch_n2_n1",
+          "b4_en",
+          "b4_m_inv",
+          "b4_m_gSet",
+          "b4_m_gRst",
+          "b4_m_latch_n1_o1",
+          "b4_m_latch_n1_n1",
+          "b4_m_latch_n2_o1",
+          "b4_m_latch_n2_n1",
+          "b4_s_inv",
+          "b4_s_gSet",
+          "b4_s_gRst",
+          "b4_s_latch_n1_o1",
+          "b4_s_latch_n1_n1",
+          "b4_s_latch_n2_o1",
+          "b4_s_latch_n2_n1",
+          "b5_en",
+          "b5_m_inv",
+          "b5_m_gSet",
+          "b5_m_gRst",
+          "b5_m_latch_n1_o1",
+          "b5_m_latch_n1_n1",
+          "b5_m_latch_n2_o1",
+          "b5_m_latch_n2_n1",
+          "b5_s_inv",
+          "b5_s_gSet",
+          "b5_s_gRst",
+          "b5_s_latch_n1_o1",
+          "b5_s_latch_n1_n1",
+          "b5_s_latch_n2_o1",
+          "b5_s_latch_n2_n1",
+          "b6_en",
+          "b6_m_inv",
+          "b6_m_gSet",
+          "b6_m_gRst",
+          "b6_m_latch_n1_o1",
+          "b6_m_latch_n1_n1",
+          "b6_m_latch_n2_o1",
+          "b6_m_latch_n2_n1",
+          "b6_s_inv",
+          "b6_s_gSet",
+          "b6_s_gRst",
+          "b6_s_latch_n1_o1",
+          "b6_s_latch_n1_n1",
+          "b6_s_latch_n2_o1",
+          "b6_s_latch_n2_n1",
+          "b7_en",
+          "b7_m_inv",
+          "b7_m_gSet",
+          "b7_m_gRst",
+          "b7_m_latch_n1_o1",
+          "b7_m_latch_n1_n1",
+          "b7_m_latch_n2_o1",
+          "b7_m_latch_n2_n1",
+          "b7_s_inv",
+          "b7_s_gSet",
+          "b7_s_gRst",
+          "b7_s_latch_n1_o1",
+          "b7_s_latch_n1_n1",
+          "b7_s_latch_n2_o1",
+          "b7_s_latch_n2_n1",
+          "b8_en",
+          "b8_m_inv",
+          "b8_m_gSet",
+          "b8_m_gRst",
+          "b8_m_latch_n1_o1",
+          "b8_m_latch_n1_n1",
+          "b8_m_latch_n2_o1",
+          "b8_m_latch_n2_n1",
+          "b8_s_inv",
+          "b8_s_gSet",
+          "b8_s_gRst",
+          "b8_s_latch_n1_o1",
+          "b8_s_latch_n1_n1",
+          "b8_s_latch_n2_o1",
+          "b8_s_latch_n2_n1",
+          "b9_en",
+          "b9_m_inv",
+          "b9_m_gSet",
+          "b9_m_gRst",
+          "b9_m_latch_n1_o1",
+          "b9_m_latch_n1_n1",
+          "b9_m_latch_n2_o1",
+          "b9_m_latch_n2_n1",
+          "b9_s_inv",
+          "b9_s_gSet",
+          "b9_s_gRst",
+          "b9_s_latch_n1_o1",
+          "b9_s_latch_n1_n1",
+          "b9_s_latch_n2_o1",
+          "b9_s_latch_n2_n1",
+          "b10_en",
+          "b10_m_inv",
+          "b10_m_gSet",
+          "b10_m_gRst",
+          "b10_m_latch_n1_o1",
+          "b10_m_latch_n1_n1",
+          "b10_m_latch_n2_o1",
+          "b10_m_latch_n2_n1",
+          "b10_s_inv",
+          "b10_s_gSet",
+          "b10_s_gRst",
+          "b10_s_latch_n1_o1",
+          "b10_s_latch_n1_n1",
+          "b10_s_latch_n2_o1",
+          "b10_s_latch_n2_n1",
+          "b11_en",
+          "b11_m_inv",
+          "b11_m_gSet",
+          "b11_m_gRst",
+          "b11_m_latch_n1_o1",
+          "b11_m_latch_n1_n1",
+          "b11_m_latch_n2_o1",
+          "b11_m_latch_n2_n1",
+          "b11_s_inv",
+          "b11_s_gSet",
+          "b11_s_gRst",
+          "b11_s_latch_n1_o1",
+          "b11_s_latch_n1_n1",
+          "b11_s_latch_n2_o1",
+          "b11_s_latch_n2_n1",
+          "b12_en",
+          "b12_m_inv",
+          "b12_m_gSet",
+          "b12_m_gRst",
+          "b12_m_latch_n1_o1",
+          "b12_m_latch_n1_n1",
+          "b12_m_latch_n2_o1",
+          "b12_m_latch_n2_n1",
+          "b12_s_inv",
+          "b12_s_gSet",
+          "b12_s_gRst",
+          "b12_s_latch_n1_o1",
+          "b12_s_latch_n1_n1",
+          "b12_s_latch_n2_o1",
+          "b12_s_latch_n2_n1",
+          "b13_en",
+          "b13_m_inv",
+          "b13_m_gSet",
+          "b13_m_gRst",
+          "b13_m_latch_n1_o1",
+          "b13_m_latch_n1_n1",
+          "b13_m_latch_n2_o1",
+          "b13_m_latch_n2_n1",
+          "b13_s_inv",
+          "b13_s_gSet",
+          "b13_s_gRst",
+          "b13_s_latch_n1_o1",
+          "b13_s_latch_n1_n1",
+          "b13_s_latch_n2_o1",
+          "b13_s_latch_n2_n1",
+          "b14_en",
+          "b14_m_inv",
+          "b14_m_gSet",
+          "b14_m_gRst",
+          "b14_m_latch_n1_o1",
+          "b14_m_latch_n1_n1",
+          "b14_m_latch_n2_o1",
+          "b14_m_latch_n2_n1",
+          "b14_s_inv",
+          "b14_s_gSet",
+          "b14_s_gRst",
+          "b14_s_latch_n1_o1",
+          "b14_s_latch_n1_n1",
+          "b14_s_latch_n2_o1",
+          "b14_s_latch_n2_n1",
+          "b15_en",
+          "b15_m_inv",
+          "b15_m_gSet",
+          "b15_m_gRst",
+          "b15_m_latch_n1_o1",
+          "b15_m_latch_n1_n1",
+          "b15_m_latch_n2_o1",
+          "b15_m_latch_n2_n1",
+          "b15_s_inv",
+          "b15_s_gSet",
+          "b15_s_gRst",
+          "b15_s_latch_n1_o1",
+          "b15_s_latch_n1_n1",
+          "b15_s_latch_n2_o1",
+          "b15_s_latch_n2_n1",
+          "b16_en",
+          "b16_m_inv",
+          "b16_m_gSet",
+          "b16_m_gRst",
+          "b16_m_latch_n1_o1",
+          "b16_m_latch_n1_n1",
+          "b16_m_latch_n2_o1",
+          "b16_m_latch_n2_n1",
+          "b16_s_inv",
+          "b16_s_gSet",
+          "b16_s_gRst",
+          "b16_s_latch_n1_o1",
+          "b16_s_latch_n1_n1",
+          "b16_s_latch_n2_o1",
+          "b16_s_latch_n2_n1"
+        ]
+      },
+      "dLatch.shdl": {
+        "13": [
+          "b1_m_inv",
+          "b1_s_inv",
+          "b2_m_inv",
+          "b2_s_inv",
+          "b3_m_inv",
+          "b3_s_inv",
+          "b4_m_inv",
+          "b4_s_inv",
+          "b5_m_inv",
+          "b5_s_inv",
+          "b6_m_inv",
+          "b6_s_inv",
+          "b7_m_inv",
+          "b7_s_inv",
+          "b8_m_inv",
+          "b8_s_inv",
+          "b9_m_inv",
+          "b9_s_inv",
+          "b10_m_inv",
+          "b10_s_inv",
+          "b11_m_inv",
+          "b11_s_inv",
+          "b12_m_inv",
+          "b12_s_inv",
+          "b13_m_inv",
+          "b13_s_inv",
+          "b14_m_inv",
+          "b14_s_inv",
+          "b15_m_inv",
+          "b15_s_inv",
+          "b16_m_inv",
+          "b16_s_inv"
+        ],
+        "14": [
+          "b1_m_gSet",
+          "b1_s_gSet",
+          "b2_m_gSet",
+          "b2_s_gSet",
+          "b3_m_gSet",
+          "b3_s_gSet",
+          "b4_m_gSet",
+          "b4_s_gSet",
+          "b5_m_gSet",
+          "b5_s_gSet",
+          "b6_m_gSet",
+          "b6_s_gSet",
+          "b7_m_gSet",
+          "b7_s_gSet",
+          "b8_m_gSet",
+          "b8_s_gSet",
+          "b9_m_gSet",
+          "b9_s_gSet",
+          "b10_m_gSet",
+          "b10_s_gSet",
+          "b11_m_gSet",
+          "b11_s_gSet",
+          "b12_m_gSet",
+          "b12_s_gSet",
+          "b13_m_gSet",
+          "b13_s_gSet",
+          "b14_m_gSet",
+          "b14_s_gSet",
+          "b15_m_gSet",
+          "b15_s_gSet",
+          "b16_m_gSet",
+          "b16_s_gSet"
+        ],
+        "15": [
+          "b1_m_gRst",
+          "b1_s_gRst",
+          "b2_m_gRst",
+          "b2_s_gRst",
+          "b3_m_gRst",
+          "b3_s_gRst",
+          "b4_m_gRst",
+          "b4_s_gRst",
+          "b5_m_gRst",
+          "b5_s_gRst",
+          "b6_m_gRst",
+          "b6_s_gRst",
+          "b7_m_gRst",
+          "b7_s_gRst",
+          "b8_m_gRst",
+          "b8_s_gRst",
+          "b9_m_gRst",
+          "b9_s_gRst",
+          "b10_m_gRst",
+          "b10_s_gRst",
+          "b11_m_gRst",
+          "b11_s_gRst",
+          "b12_m_gRst",
+          "b12_s_gRst",
+          "b13_m_gRst",
+          "b13_s_gRst",
+          "b14_m_gRst",
+          "b14_s_gRst",
+          "b15_m_gRst",
+          "b15_s_gRst",
+          "b16_m_gRst",
+          "b16_s_gRst"
+        ],
+        "16": [
+          "b1_m_latch_n1_o1",
+          "b1_m_latch_n1_n1",
+          "b1_m_latch_n2_o1",
+          "b1_m_latch_n2_n1",
+          "b1_s_latch_n1_o1",
+          "b1_s_latch_n1_n1",
+          "b1_s_latch_n2_o1",
+          "b1_s_latch_n2_n1",
+          "b2_m_latch_n1_o1",
+          "b2_m_latch_n1_n1",
+          "b2_m_latch_n2_o1",
+          "b2_m_latch_n2_n1",
+          "b2_s_latch_n1_o1",
+          "b2_s_latch_n1_n1",
+          "b2_s_latch_n2_o1",
+          "b2_s_latch_n2_n1",
+          "b3_m_latch_n1_o1",
+          "b3_m_latch_n1_n1",
+          "b3_m_latch_n2_o1",
+          "b3_m_latch_n2_n1",
+          "b3_s_latch_n1_o1",
+          "b3_s_latch_n1_n1",
+          "b3_s_latch_n2_o1",
+          "b3_s_latch_n2_n1",
+          "b4_m_latch_n1_o1",
+          "b4_m_latch_n1_n1",
+          "b4_m_latch_n2_o1",
+          "b4_m_latch_n2_n1",
+          "b4_s_latch_n1_o1",
+          "b4_s_latch_n1_n1",
+          "b4_s_latch_n2_o1",
+          "b4_s_latch_n2_n1",
+          "b5_m_latch_n1_o1",
+          "b5_m_latch_n1_n1",
+          "b5_m_latch_n2_o1",
+          "b5_m_latch_n2_n1",
+          "b5_s_latch_n1_o1",
+          "b5_s_latch_n1_n1",
+          "b5_s_latch_n2_o1",
+          "b5_s_latch_n2_n1",
+          "b6_m_latch_n1_o1",
+          "b6_m_latch_n1_n1",
+          "b6_m_latch_n2_o1",
+          "b6_m_latch_n2_n1",
+          "b6_s_latch_n1_o1",
+          "b6_s_latch_n1_n1",
+          "b6_s_latch_n2_o1",
+          "b6_s_latch_n2_n1",
+          "b7_m_latch_n1_o1",
+          "b7_m_latch_n1_n1",
+          "b7_m_latch_n2_o1",
+          "b7_m_latch_n2_n1",
+          "b7_s_latch_n1_o1",
+          "b7_s_latch_n1_n1",
+          "b7_s_latch_n2_o1",
+          "b7_s_latch_n2_n1",
+          "b8_m_latch_n1_o1",
+          "b8_m_latch_n1_n1",
+          "b8_m_latch_n2_o1",
+          "b8_m_latch_n2_n1",
+          "b8_s_latch_n1_o1",
+          "b8_s_latch_n1_n1",
+          "b8_s_latch_n2_o1",
+          "b8_s_latch_n2_n1",
+          "b9_m_latch_n1_o1",
+          "b9_m_latch_n1_n1",
+          "b9_m_latch_n2_o1",
+          "b9_m_latch_n2_n1",
+          "b9_s_latch_n1_o1",
+          "b9_s_latch_n1_n1",
+          "b9_s_latch_n2_o1",
+          "b9_s_latch_n2_n1",
+          "b10_m_latch_n1_o1",
+          "b10_m_latch_n1_n1",
+          "b10_m_latch_n2_o1",
+          "b10_m_latch_n2_n1",
+          "b10_s_latch_n1_o1",
+          "b10_s_latch_n1_n1",
+          "b10_s_latch_n2_o1",
+          "b10_s_latch_n2_n1",
+          "b11_m_latch_n1_o1",
+          "b11_m_latch_n1_n1",
+          "b11_m_latch_n2_o1",
+          "b11_m_latch_n2_n1",
+          "b11_s_latch_n1_o1",
+          "b11_s_latch_n1_n1",
+          "b11_s_latch_n2_o1",
+          "b11_s_latch_n2_n1",
+          "b12_m_latch_n1_o1",
+          "b12_m_latch_n1_n1",
+          "b12_m_latch_n2_o1",
+          "b12_m_latch_n2_n1",
+          "b12_s_latch_n1_o1",
+          "b12_s_latch_n1_n1",
+          "b12_s_latch_n2_o1",
+          "b12_s_latch_n2_n1",
+          "b13_m_latch_n1_o1",
+          "b13_m_latch_n1_n1",
+          "b13_m_latch_n2_o1",
+          "b13_m_latch_n2_n1",
+          "b13_s_latch_n1_o1",
+          "b13_s_latch_n1_n1",
+          "b13_s_latch_n2_o1",
+          "b13_s_latch_n2_n1",
+          "b14_m_latch_n1_o1",
+          "b14_m_latch_n1_n1",
+          "b14_m_latch_n2_o1",
+          "b14_m_latch_n2_n1",
+          "b14_s_latch_n1_o1",
+          "b14_s_latch_n1_n1",
+          "b14_s_latch_n2_o1",
+          "b14_s_latch_n2_n1",
+          "b15_m_latch_n1_o1",
+          "b15_m_latch_n1_n1",
+          "b15_m_latch_n2_o1",
+          "b15_m_latch_n2_n1",
+          "b15_s_latch_n1_o1",
+          "b15_s_latch_n1_n1",
+          "b15_s_latch_n2_o1",
+          "b15_s_latch_n2_n1",
+          "b16_m_latch_n1_o1",
+          "b16_m_latch_n1_n1",
+          "b16_m_latch_n2_o1",
+          "b16_m_latch_n2_n1",
+          "b16_s_latch_n1_o1",
+          "b16_s_latch_n1_n1",
+          "b16_s_latch_n2_o1",
+          "b16_s_latch_n2_n1"
+        ]
+      },
+      "srLatch.shdl": {
+        "18": [
+          "b1_m_latch_n1_o1",
+          "b1_m_latch_n1_n1",
+          "b1_m_latch_n2_o1",
+          "b1_m_latch_n2_n1",
+          "b1_s_latch_n1_o1",
+          "b1_s_latch_n1_n1",
+          "b1_s_latch_n2_o1",
+          "b1_s_latch_n2_n1",
+          "b2_m_latch_n1_o1",
+          "b2_m_latch_n1_n1",
+          "b2_m_latch_n2_o1",
+          "b2_m_latch_n2_n1",
+          "b2_s_latch_n1_o1",
+          "b2_s_latch_n1_n1",
+          "b2_s_latch_n2_o1",
+          "b2_s_latch_n2_n1",
+          "b3_m_latch_n1_o1",
+          "b3_m_latch_n1_n1",
+          "b3_m_latch_n2_o1",
+          "b3_m_latch_n2_n1",
+          "b3_s_latch_n1_o1",
+          "b3_s_latch_n1_n1",
+          "b3_s_latch_n2_o1",
+          "b3_s_latch_n2_n1",
+          "b4_m_latch_n1_o1",
+          "b4_m_latch_n1_n1",
+          "b4_m_latch_n2_o1",
+          "b4_m_latch_n2_n1",
+          "b4_s_latch_n1_o1",
+          "b4_s_latch_n1_n1",
+          "b4_s_latch_n2_o1",
+          "b4_s_latch_n2_n1",
+          "b5_m_latch_n1_o1",
+          "b5_m_latch_n1_n1",
+          "b5_m_latch_n2_o1",
+          "b5_m_latch_n2_n1",
+          "b5_s_latch_n1_o1",
+          "b5_s_latch_n1_n1",
+          "b5_s_latch_n2_o1",
+          "b5_s_latch_n2_n1",
+          "b6_m_latch_n1_o1",
+          "b6_m_latch_n1_n1",
+          "b6_m_latch_n2_o1",
+          "b6_m_latch_n2_n1",
+          "b6_s_latch_n1_o1",
+          "b6_s_latch_n1_n1",
+          "b6_s_latch_n2_o1",
+          "b6_s_latch_n2_n1",
+          "b7_m_latch_n1_o1",
+          "b7_m_latch_n1_n1",
+          "b7_m_latch_n2_o1",
+          "b7_m_latch_n2_n1",
+          "b7_s_latch_n1_o1",
+          "b7_s_latch_n1_n1",
+          "b7_s_latch_n2_o1",
+          "b7_s_latch_n2_n1",
+          "b8_m_latch_n1_o1",
+          "b8_m_latch_n1_n1",
+          "b8_m_latch_n2_o1",
+          "b8_m_latch_n2_n1",
+          "b8_s_latch_n1_o1",
+          "b8_s_latch_n1_n1",
+          "b8_s_latch_n2_o1",
+          "b8_s_latch_n2_n1",
+          "b9_m_latch_n1_o1",
+          "b9_m_latch_n1_n1",
+          "b9_m_latch_n2_o1",
+          "b9_m_latch_n2_n1",
+          "b9_s_latch_n1_o1",
+          "b9_s_latch_n1_n1",
+          "b9_s_latch_n2_o1",
+          "b9_s_latch_n2_n1",
+          "b10_m_latch_n1_o1",
+          "b10_m_latch_n1_n1",
+          "b10_m_latch_n2_o1",
+          "b10_m_latch_n2_n1",
+          "b10_s_latch_n1_o1",
+          "b10_s_latch_n1_n1",
+          "b10_s_latch_n2_o1",
+          "b10_s_latch_n2_n1",
+          "b11_m_latch_n1_o1",
+          "b11_m_latch_n1_n1",
+          "b11_m_latch_n2_o1",
+          "b11_m_latch_n2_n1",
+          "b11_s_latch_n1_o1",
+          "b11_s_latch_n1_n1",
+          "b11_s_latch_n2_o1",
+          "b11_s_latch_n2_n1",
+          "b12_m_latch_n1_o1",
+          "b12_m_latch_n1_n1",
+          "b12_m_latch_n2_o1",
+          "b12_m_latch_n2_n1",
+          "b12_s_latch_n1_o1",
+          "b12_s_latch_n1_n1",
+          "b12_s_latch_n2_o1",
+          "b12_s_latch_n2_n1",
+          "b13_m_latch_n1_o1",
+          "b13_m_latch_n1_n1",
+          "b13_m_latch_n2_o1",
+          "b13_m_latch_n2_n1",
+          "b13_s_latch_n1_o1",
+          "b13_s_latch_n1_n1",
+          "b13_s_latch_n2_o1",
+          "b13_s_latch_n2_n1",
+          "b14_m_latch_n1_o1",
+          "b14_m_latch_n1_n1",
+          "b14_m_latch_n2_o1",
+          "b14_m_latch_n2_n1",
+          "b14_s_latch_n1_o1",
+          "b14_s_latch_n1_n1",
+          "b14_s_latch_n2_o1",
+          "b14_s_latch_n2_n1",
+          "b15_m_latch_n1_o1",
+          "b15_m_latch_n1_n1",
+          "b15_m_latch_n2_o1",
+          "b15_m_latch_n2_n1",
+          "b15_s_latch_n1_o1",
+          "b15_s_latch_n1_n1",
+          "b15_s_latch_n2_o1",
+          "b15_s_latch_n2_n1",
+          "b16_m_latch_n1_o1",
+          "b16_m_latch_n1_n1",
+          "b16_m_latch_n2_o1",
+          "b16_m_latch_n2_n1",
+          "b16_s_latch_n1_o1",
+          "b16_s_latch_n1_n1",
+          "b16_s_latch_n2_o1",
+          "b16_s_latch_n2_n1"
+        ]
+      },
+      "stdgates.shdl": {
+        "24": [
+          "b1_m_latch_n1_o1",
+          "b1_m_latch_n1_n1",
+          "b1_m_latch_n2_o1",
+          "b1_m_latch_n2_n1",
+          "b1_s_latch_n1_o1",
+          "b1_s_latch_n1_n1",
+          "b1_s_latch_n2_o1",
+          "b1_s_latch_n2_n1",
+          "b2_m_latch_n1_o1",
+          "b2_m_latch_n1_n1",
+          "b2_m_latch_n2_o1",
+          "b2_m_latch_n2_n1",
+          "b2_s_latch_n1_o1",
+          "b2_s_latch_n1_n1",
+          "b2_s_latch_n2_o1",
+          "b2_s_latch_n2_n1",
+          "b3_m_latch_n1_o1",
+          "b3_m_latch_n1_n1",
+          "b3_m_latch_n2_o1",
+          "b3_m_latch_n2_n1",
+          "b3_s_latch_n1_o1",
+          "b3_s_latch_n1_n1",
+          "b3_s_latch_n2_o1",
+          "b3_s_latch_n2_n1",
+          "b4_m_latch_n1_o1",
+          "b4_m_latch_n1_n1",
+          "b4_m_latch_n2_o1",
+          "b4_m_latch_n2_n1",
+          "b4_s_latch_n1_o1",
+          "b4_s_latch_n1_n1",
+          "b4_s_latch_n2_o1",
+          "b4_s_latch_n2_n1",
+          "b5_m_latch_n1_o1",
+          "b5_m_latch_n1_n1",
+          "b5_m_latch_n2_o1",
+          "b5_m_latch_n2_n1",
+          "b5_s_latch_n1_o1",
+          "b5_s_latch_n1_n1",
+          "b5_s_latch_n2_o1",
+          "b5_s_latch_n2_n1",
+          "b6_m_latch_n1_o1",
+          "b6_m_latch_n1_n1",
+          "b6_m_latch_n2_o1",
+          "b6_m_latch_n2_n1",
+          "b6_s_latch_n1_o1",
+          "b6_s_latch_n1_n1",
+          "b6_s_latch_n2_o1",
+          "b6_s_latch_n2_n1",
+          "b7_m_latch_n1_o1",
+          "b7_m_latch_n1_n1",
+          "b7_m_latch_n2_o1",
+          "b7_m_latch_n2_n1",
+          "b7_s_latch_n1_o1",
+          "b7_s_latch_n1_n1",
+          "b7_s_latch_n2_o1",
+          "b7_s_latch_n2_n1",
+          "b8_m_latch_n1_o1",
+          "b8_m_latch_n1_n1",
+          "b8_m_latch_n2_o1",
+          "b8_m_latch_n2_n1",
+          "b8_s_latch_n1_o1",
+          "b8_s_latch_n1_n1",
+          "b8_s_latch_n2_o1",
+          "b8_s_latch_n2_n1",
+          "b9_m_latch_n1_o1",
+          "b9_m_latch_n1_n1",
+          "b9_m_latch_n2_o1",
+          "b9_m_latch_n2_n1",
+          "b9_s_latch_n1_o1",
+          "b9_s_latch_n1_n1",
+          "b9_s_latch_n2_o1",
+          "b9_s_latch_n2_n1",
+          "b10_m_latch_n1_o1",
+          "b10_m_latch_n1_n1",
+          "b10_m_latch_n2_o1",
+          "b10_m_latch_n2_n1",
+          "b10_s_latch_n1_o1",
+          "b10_s_latch_n1_n1",
+          "b10_s_latch_n2_o1",
+          "b10_s_latch_n2_n1",
+          "b11_m_latch_n1_o1",
+          "b11_m_latch_n1_n1",
+          "b11_m_latch_n2_o1",
+          "b11_m_latch_n2_n1",
+          "b11_s_latch_n1_o1",
+          "b11_s_latch_n1_n1",
+          "b11_s_latch_n2_o1",
+          "b11_s_latch_n2_n1",
+          "b12_m_latch_n1_o1",
+          "b12_m_latch_n1_n1",
+          "b12_m_latch_n2_o1",
+          "b12_m_latch_n2_n1",
+          "b12_s_latch_n1_o1",
+          "b12_s_latch_n1_n1",
+          "b12_s_latch_n2_o1",
+          "b12_s_latch_n2_n1",
+          "b13_m_latch_n1_o1",
+          "b13_m_latch_n1_n1",
+          "b13_m_latch_n2_o1",
+          "b13_m_latch_n2_n1",
+          "b13_s_latch_n1_o1",
+          "b13_s_latch_n1_n1",
+          "b13_s_latch_n2_o1",
+          "b13_s_latch_n2_n1",
+          "b14_m_latch_n1_o1",
+          "b14_m_latch_n1_n1",
+          "b14_m_latch_n2_o1",
+          "b14_m_latch_n2_n1",
+          "b14_s_latch_n1_o1",
+          "b14_s_latch_n1_n1",
+          "b14_s_latch_n2_o1",
+          "b14_s_latch_n2_n1",
+          "b15_m_latch_n1_o1",
+          "b15_m_latch_n1_n1",
+          "b15_m_latch_n2_o1",
+          "b15_m_latch_n2_n1",
+          "b15_s_latch_n1_o1",
+          "b15_s_latch_n1_n1",
+          "b15_s_latch_n2_o1",
+          "b15_s_latch_n2_n1",
+          "b16_m_latch_n1_o1",
+          "b16_m_latch_n1_n1",
+          "b16_m_latch_n2_o1",
+          "b16_m_latch_n2_n1",
+          "b16_s_latch_n1_o1",
+          "b16_s_latch_n1_n1",
+          "b16_s_latch_n2_o1",
+          "b16_s_latch_n2_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Q_1_": 1,
+      "Q_2_": 1,
+      "Q_3_": 1,
+      "Q_4_": 1,
+      "Q_5_": 1,
+      "Q_6_": 1,
+      "Q_7_": 1,
+      "Q_8_": 1,
+      "Q_9_": 1,
+      "Q_10_": 1,
+      "Q_11_": 1,
+      "Q_12_": 1,
+      "Q_13_": 1,
+      "Q_14_": 1,
+      "Q_15_": 1,
+      "Q_16_": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "b1_s_latch_n1_n1",
+      "Q_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 240,
+    "total_connections": 400,
+    "total_ports": 35,
+    "by_type": {
+      "AND": 80,
+      "NOT": 96,
+      "OR": 64
+    }
+  },
+  "doc": {
+    "description": "SR16 sequential building blocks (ISA.md §5).\n\nTwo-phase master-slave discipline: the master latch captures while Phi1 is\nhigh (gated by the load enable), the slave publishes while Phi2 is high.\nWith non-overlapping phases driven by the harness there is no race-through\nwindow: whatever the master holds when Phi1 falls is what the slave exposes\non the next Phi2 — edge-triggered behavior from level-sensitive latches.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {
+    "b1_m_latch_n1_n1.O": 0,
+    "b1_m_latch_n2_n1.O": 1,
+    "Q_1_": 0,
+    "b1_s_latch_n2_n1.O": 1,
+    "b2_m_latch_n1_n1.O": 0,
+    "b2_m_latch_n2_n1.O": 1,
+    "Q_2_": 0,
+    "b2_s_latch_n2_n1.O": 1,
+    "b3_m_latch_n1_n1.O": 0,
+    "b3_m_latch_n2_n1.O": 1,
+    "Q_3_": 0,
+    "b3_s_latch_n2_n1.O": 1,
+    "b4_m_latch_n1_n1.O": 0,
+    "b4_m_latch_n2_n1.O": 1,
+    "Q_4_": 0,
+    "b4_s_latch_n2_n1.O": 1,
+    "b5_m_latch_n1_n1.O": 0,
+    "b5_m_latch_n2_n1.O": 1,
+    "Q_5_": 0,
+    "b5_s_latch_n2_n1.O": 1,
+    "b6_m_latch_n1_n1.O": 0,
+    "b6_m_latch_n2_n1.O": 1,
+    "Q_6_": 0,
+    "b6_s_latch_n2_n1.O": 1,
+    "b7_m_latch_n1_n1.O": 0,
+    "b7_m_latch_n2_n1.O": 1,
+    "Q_7_": 0,
+    "b7_s_latch_n2_n1.O": 1,
+    "b8_m_latch_n1_n1.O": 0,
+    "b8_m_latch_n2_n1.O": 1,
+    "Q_8_": 0,
+    "b8_s_latch_n2_n1.O": 1,
+    "b9_m_latch_n1_n1.O": 0,
+    "b9_m_latch_n2_n1.O": 1,
+    "Q_9_": 0,
+    "b9_s_latch_n2_n1.O": 1,
+    "b10_m_latch_n1_n1.O": 0,
+    "b10_m_latch_n2_n1.O": 1,
+    "Q_10_": 0,
+    "b10_s_latch_n2_n1.O": 1,
+    "b11_m_latch_n1_n1.O": 0,
+    "b11_m_latch_n2_n1.O": 1,
+    "Q_11_": 0,
+    "b11_s_latch_n2_n1.O": 1,
+    "b12_m_latch_n1_n1.O": 0,
+    "b12_m_latch_n2_n1.O": 1,
+    "Q_12_": 0,
+    "b12_s_latch_n2_n1.O": 1,
+    "b13_m_latch_n1_n1.O": 0,
+    "b13_m_latch_n2_n1.O": 1,
+    "Q_13_": 0,
+    "b13_s_latch_n2_n1.O": 1,
+    "b14_m_latch_n1_n1.O": 0,
+    "b14_m_latch_n2_n1.O": 1,
+    "Q_14_": 0,
+    "b14_s_latch_n2_n1.O": 1,
+    "b15_m_latch_n1_n1.O": 0,
+    "b15_m_latch_n2_n1.O": 1,
+    "Q_15_": 0,
+    "b15_s_latch_n2_n1.O": 1,
+    "b16_m_latch_n1_n1.O": 0,
+    "b16_m_latch_n2_n1.O": 1,
+    "Q_16_": 0,
+    "b16_s_latch_n2_n1.O": 1
+  }
+}

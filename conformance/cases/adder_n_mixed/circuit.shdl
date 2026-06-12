@@ -1,0 +1,22 @@
+"""Conformance: one generator-and-conditional component at two bindings.
+
+AdderN's ripple loop uses `>i[N]` with a `when {i == 1} / else` boundary;
+instantiating it at N = 2 and N = 3 in one artifact pins that generators and
+conditionals elaborate correctly per binding.
+"""
+
+use adderN::{AdderN};
+
+top component AdderNMixed(A[2], B[2], C[3], D[3]) -> (SumS[2], CoutS, SumL[3], CoutL) {
+    small: AdderN<N = 2>;
+    large: AdderN<N = 3>;
+    z: __GND__;
+
+    connect {
+        A -> small.A;  B -> small.B;  z.O -> small.Cin;
+        small.Sum -> SumS;  small.Cout -> CoutS;
+
+        C -> large.A;  D -> large.B;  z.O -> large.Cin;
+        large.Sum -> SumL;  large.Cout -> CoutL;
+    }
+}

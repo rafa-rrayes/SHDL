@@ -1,0 +1,216 @@
+{
+  "trace_format": 1,
+  "name": "all_ops",
+  "tier": "B",
+  "description": "Op=0..3 over A=0xCC, B=0xAA: AND 0x88, OR 0xEE, XOR 0x66, ADD 0x76 carry 1; then XOR of equal operands raises Zero, and ADD 0+0 raises Zero with no carry.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 204
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 170
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 136
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 204
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 170
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 238
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 204
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 170
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 102
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 204
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 170
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 118
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 85
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 85
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Op",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 22
+    },
+    {
+      "op": "expect",
+      "signal": "R",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Zero",
+      "value": 1
+    }
+  ]
+}

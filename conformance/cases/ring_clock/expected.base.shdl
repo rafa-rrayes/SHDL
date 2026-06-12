@@ -1,0 +1,194 @@
+component RingClock(seed) -> (out_1_, out_2_, out_3_, out_4_, out_5_, out_6_, out_7_, out_8_) {
+    buf1: OR;
+    buf2: OR;
+    buf3: OR;
+    buf4: OR;
+    buf5: OR;
+    buf6: OR;
+    buf7: OR;
+    buf8: OR;
+
+    connect {
+        seed -> buf1.A;
+        buf1.O -> buf2.A;
+        buf1.O -> buf2.B;
+        buf2.O -> buf3.A;
+        buf2.O -> buf3.B;
+        buf3.O -> buf4.A;
+        buf3.O -> buf4.B;
+        buf4.O -> buf5.A;
+        buf4.O -> buf5.B;
+        buf5.O -> buf6.A;
+        buf5.O -> buf6.B;
+        buf6.O -> buf7.A;
+        buf6.O -> buf7.B;
+        buf7.O -> buf8.A;
+        buf7.O -> buf8.B;
+        buf8.O -> buf1.B;
+        buf1.O -> out_1_;
+        buf2.O -> out_2_;
+        buf3.O -> out_3_;
+        buf4.O -> out_4_;
+        buf5.O -> out_5_;
+        buf6.O -> out_6_;
+        buf7.O -> out_7_;
+        buf8.O -> out_8_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "seed": [
+        "seed"
+      ]
+    },
+    "outputs": {
+      "out": [
+        "out_1_",
+        "out_2_",
+        "out_3_",
+        "out_4_",
+        "out_5_",
+        "out_6_",
+        "out_7_",
+        "out_8_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "RingClock": {
+      "source_file": "circuit.shdl",
+      "source_line": 11,
+      "instances": {
+        "buf1": {
+          "type": "OR",
+          "gate": "buf1"
+        },
+        "buf2": {
+          "type": "OR",
+          "gate": "buf2"
+        },
+        "buf3": {
+          "type": "OR",
+          "gate": "buf3"
+        },
+        "buf4": {
+          "type": "OR",
+          "gate": "buf4"
+        },
+        "buf5": {
+          "type": "OR",
+          "gate": "buf5"
+        },
+        "buf6": {
+          "type": "OR",
+          "gate": "buf6"
+        },
+        "buf7": {
+          "type": "OR",
+          "gate": "buf7"
+        },
+        "buf8": {
+          "type": "OR",
+          "gate": "buf8"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "buf1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "buf8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "12": [
+          "buf1",
+          "buf2",
+          "buf3",
+          "buf4",
+          "buf5",
+          "buf6",
+          "buf7",
+          "buf8"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "out_1_": 1,
+      "out_2_": 1,
+      "out_3_": 1,
+      "out_4_": 1,
+      "out_5_": 1,
+      "out_6_": 1,
+      "out_7_": 1,
+      "out_8_": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "seed",
+      "buf1",
+      "out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 8,
+    "total_connections": 24,
+    "total_ports": 9,
+    "by_type": {
+      "OR": 8
+    }
+  },
+  "doc": {
+    "description": "14 -- RingClock: a ring oscillator / delay line (requires N >= 2).\n\nThe unit-delay model gives every gate one cycle of propagation\ndelay, so a closed ring of N buffers circulates a pulse with period\nN (§11.2).  An OR gate with both inputs tied together is the idiom\nfor a buffer.  Drive `seed` high for one cycle to inject the pulse;\neach `out` bit then taps one stage of the ring.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

@@ -1,0 +1,29 @@
+"""
+05 -- Bus wiring: slices, concatenation, and replication.
+
+A slice S[a:b] wires a contiguous bit range in one statement; braces
+{hi, lo} concatenate signals MSB-first; N{...} replicates a group N
+times.  Bit 1 is always the LSB (§6).  None of these produce gates --
+they are pure wiring shorthand.
+"""
+
+component SplitByte(In[8]) -> (Low[4], High[4]) {
+    connect {
+        In[:4]  -> Low;       # bits 1..4: the low nibble
+        In[5:8] -> High;      # bits 5..8: the high nibble
+    }
+}
+
+component SwapNibbles(In[8]) -> (Out[8]) {
+    connect {
+        # Concatenation is MSB-first, so the low nibble lands on top.
+        {In[:4], In[5:8]} -> Out;
+    }
+}
+
+top component SignExtend(In[8]) -> (Out[16]) {
+    connect {
+        # 8 copies of the sign bit (the MSB), then the value itself.
+        {8{In[8]}, In} -> Out;
+    }
+}

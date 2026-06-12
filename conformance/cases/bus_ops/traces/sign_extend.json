@@ -1,0 +1,82 @@
+{
+  "trace_format": 1,
+  "name": "sign_extend",
+  "tier": "B",
+  "description": "Negative bytes (MSB set) extend with ones, positive with zeros.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 128
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 65408
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 127
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 127
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 165
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 65445
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 255
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 65535
+    }
+  ]
+}

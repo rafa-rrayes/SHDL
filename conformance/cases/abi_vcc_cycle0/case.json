@@ -1,0 +1,26 @@
+{
+  "case_format": 1,
+  "name": "abi_vcc_cycle0",
+  "title": "ABI: __VCC__ reads 0 at cycle 0 and 1 from cycle 1",
+  "description": "VccProbe taps VCC directly (Hi) and through a NOT (HiInv). At cycle 0 both read 0; after one tick Hi=1 and HiInv=1 (the NOT saw the cycle-0 zero); from cycle 2 on HiInv=0. The 0,1,0,... HiInv sequence is reproducible only with faithful cycle-0 semantics.",
+  "tiers": [
+    "A",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/vcc_wave.json"
+  ],
+  "features": [
+    "abi:vcc-cycle0"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

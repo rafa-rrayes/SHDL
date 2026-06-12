@@ -1,0 +1,98 @@
+{
+  "trace_format": 1,
+  "name": "set_hold_reset",
+  "tier": "B",
+  "description": "Power-on seeded Q=0/Qn=1; S sets, inputs drop and the latch holds, R resets.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "R",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "R",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    }
+  ]
+}

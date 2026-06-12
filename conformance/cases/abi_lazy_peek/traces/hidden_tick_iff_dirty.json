@@ -1,0 +1,76 @@
+{
+  "trace_format": 1,
+  "name": "hidden_tick_iff_dirty",
+  "tier": "C",
+  "description": "reset: peek is tickless (0). After poke clk=1: first peek ticks once (1), second peek is clean (still 1). step(1) -> 3. A re-poke of the same value re-arms dirty (7); double-poke still ticks once (15).",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 3
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 3
+    },
+    {
+      "op": "poke",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 7
+    },
+    {
+      "op": "poke",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 15
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 15
+    }
+  ]
+}

@@ -1,0 +1,1324 @@
+component Mux4N(D0_1_, D0_2_, D0_3_, D0_4_, D0_5_, D0_6_, D0_7_, D0_8_, D1_1_, D1_2_, D1_3_, D1_4_, D1_5_, D1_6_, D1_7_, D1_8_, D2_1_, D2_2_, D2_3_, D2_4_, D2_5_, D2_6_, D2_7_, D2_8_, D3_1_, D3_2_, D3_3_, D3_4_, D3_5_, D3_6_, D3_7_, D3_8_, S_1_, S_2_) -> (O_1_, O_2_, O_3_, O_4_, O_5_, O_6_, O_7_, O_8_) {
+    mLow_inv: NOT;
+    mLow_gA1: AND;
+    mLow_gB1: AND;
+    mLow_o1: OR;
+    mLow_gA2: AND;
+    mLow_gB2: AND;
+    mLow_o2: OR;
+    mLow_gA3: AND;
+    mLow_gB3: AND;
+    mLow_o3: OR;
+    mLow_gA4: AND;
+    mLow_gB4: AND;
+    mLow_o4: OR;
+    mLow_gA5: AND;
+    mLow_gB5: AND;
+    mLow_o5: OR;
+    mLow_gA6: AND;
+    mLow_gB6: AND;
+    mLow_o6: OR;
+    mLow_gA7: AND;
+    mLow_gB7: AND;
+    mLow_o7: OR;
+    mLow_gA8: AND;
+    mLow_gB8: AND;
+    mLow_o8: OR;
+    mHigh_inv: NOT;
+    mHigh_gA1: AND;
+    mHigh_gB1: AND;
+    mHigh_o1: OR;
+    mHigh_gA2: AND;
+    mHigh_gB2: AND;
+    mHigh_o2: OR;
+    mHigh_gA3: AND;
+    mHigh_gB3: AND;
+    mHigh_o3: OR;
+    mHigh_gA4: AND;
+    mHigh_gB4: AND;
+    mHigh_o4: OR;
+    mHigh_gA5: AND;
+    mHigh_gB5: AND;
+    mHigh_o5: OR;
+    mHigh_gA6: AND;
+    mHigh_gB6: AND;
+    mHigh_o6: OR;
+    mHigh_gA7: AND;
+    mHigh_gB7: AND;
+    mHigh_o7: OR;
+    mHigh_gA8: AND;
+    mHigh_gB8: AND;
+    mHigh_o8: OR;
+    mOut_inv: NOT;
+    mOut_gA1: AND;
+    mOut_gB1: AND;
+    mOut_o1: OR;
+    mOut_gA2: AND;
+    mOut_gB2: AND;
+    mOut_o2: OR;
+    mOut_gA3: AND;
+    mOut_gB3: AND;
+    mOut_o3: OR;
+    mOut_gA4: AND;
+    mOut_gB4: AND;
+    mOut_o4: OR;
+    mOut_gA5: AND;
+    mOut_gB5: AND;
+    mOut_o5: OR;
+    mOut_gA6: AND;
+    mOut_gB6: AND;
+    mOut_o6: OR;
+    mOut_gA7: AND;
+    mOut_gB7: AND;
+    mOut_o7: OR;
+    mOut_gA8: AND;
+    mOut_gB8: AND;
+    mOut_o8: OR;
+
+    connect {
+        S_1_ -> mLow_inv.A;
+        D0_1_ -> mLow_gA1.A;
+        mLow_inv.O -> mLow_gA1.B;
+        D1_1_ -> mLow_gB1.A;
+        S_1_ -> mLow_gB1.B;
+        mLow_gA1.O -> mLow_o1.A;
+        mLow_gB1.O -> mLow_o1.B;
+        D0_2_ -> mLow_gA2.A;
+        mLow_inv.O -> mLow_gA2.B;
+        D1_2_ -> mLow_gB2.A;
+        S_1_ -> mLow_gB2.B;
+        mLow_gA2.O -> mLow_o2.A;
+        mLow_gB2.O -> mLow_o2.B;
+        D0_3_ -> mLow_gA3.A;
+        mLow_inv.O -> mLow_gA3.B;
+        D1_3_ -> mLow_gB3.A;
+        S_1_ -> mLow_gB3.B;
+        mLow_gA3.O -> mLow_o3.A;
+        mLow_gB3.O -> mLow_o3.B;
+        D0_4_ -> mLow_gA4.A;
+        mLow_inv.O -> mLow_gA4.B;
+        D1_4_ -> mLow_gB4.A;
+        S_1_ -> mLow_gB4.B;
+        mLow_gA4.O -> mLow_o4.A;
+        mLow_gB4.O -> mLow_o4.B;
+        D0_5_ -> mLow_gA5.A;
+        mLow_inv.O -> mLow_gA5.B;
+        D1_5_ -> mLow_gB5.A;
+        S_1_ -> mLow_gB5.B;
+        mLow_gA5.O -> mLow_o5.A;
+        mLow_gB5.O -> mLow_o5.B;
+        D0_6_ -> mLow_gA6.A;
+        mLow_inv.O -> mLow_gA6.B;
+        D1_6_ -> mLow_gB6.A;
+        S_1_ -> mLow_gB6.B;
+        mLow_gA6.O -> mLow_o6.A;
+        mLow_gB6.O -> mLow_o6.B;
+        D0_7_ -> mLow_gA7.A;
+        mLow_inv.O -> mLow_gA7.B;
+        D1_7_ -> mLow_gB7.A;
+        S_1_ -> mLow_gB7.B;
+        mLow_gA7.O -> mLow_o7.A;
+        mLow_gB7.O -> mLow_o7.B;
+        D0_8_ -> mLow_gA8.A;
+        mLow_inv.O -> mLow_gA8.B;
+        D1_8_ -> mLow_gB8.A;
+        S_1_ -> mLow_gB8.B;
+        mLow_gA8.O -> mLow_o8.A;
+        mLow_gB8.O -> mLow_o8.B;
+        S_1_ -> mHigh_inv.A;
+        D2_1_ -> mHigh_gA1.A;
+        mHigh_inv.O -> mHigh_gA1.B;
+        D3_1_ -> mHigh_gB1.A;
+        S_1_ -> mHigh_gB1.B;
+        mHigh_gA1.O -> mHigh_o1.A;
+        mHigh_gB1.O -> mHigh_o1.B;
+        D2_2_ -> mHigh_gA2.A;
+        mHigh_inv.O -> mHigh_gA2.B;
+        D3_2_ -> mHigh_gB2.A;
+        S_1_ -> mHigh_gB2.B;
+        mHigh_gA2.O -> mHigh_o2.A;
+        mHigh_gB2.O -> mHigh_o2.B;
+        D2_3_ -> mHigh_gA3.A;
+        mHigh_inv.O -> mHigh_gA3.B;
+        D3_3_ -> mHigh_gB3.A;
+        S_1_ -> mHigh_gB3.B;
+        mHigh_gA3.O -> mHigh_o3.A;
+        mHigh_gB3.O -> mHigh_o3.B;
+        D2_4_ -> mHigh_gA4.A;
+        mHigh_inv.O -> mHigh_gA4.B;
+        D3_4_ -> mHigh_gB4.A;
+        S_1_ -> mHigh_gB4.B;
+        mHigh_gA4.O -> mHigh_o4.A;
+        mHigh_gB4.O -> mHigh_o4.B;
+        D2_5_ -> mHigh_gA5.A;
+        mHigh_inv.O -> mHigh_gA5.B;
+        D3_5_ -> mHigh_gB5.A;
+        S_1_ -> mHigh_gB5.B;
+        mHigh_gA5.O -> mHigh_o5.A;
+        mHigh_gB5.O -> mHigh_o5.B;
+        D2_6_ -> mHigh_gA6.A;
+        mHigh_inv.O -> mHigh_gA6.B;
+        D3_6_ -> mHigh_gB6.A;
+        S_1_ -> mHigh_gB6.B;
+        mHigh_gA6.O -> mHigh_o6.A;
+        mHigh_gB6.O -> mHigh_o6.B;
+        D2_7_ -> mHigh_gA7.A;
+        mHigh_inv.O -> mHigh_gA7.B;
+        D3_7_ -> mHigh_gB7.A;
+        S_1_ -> mHigh_gB7.B;
+        mHigh_gA7.O -> mHigh_o7.A;
+        mHigh_gB7.O -> mHigh_o7.B;
+        D2_8_ -> mHigh_gA8.A;
+        mHigh_inv.O -> mHigh_gA8.B;
+        D3_8_ -> mHigh_gB8.A;
+        S_1_ -> mHigh_gB8.B;
+        mHigh_gA8.O -> mHigh_o8.A;
+        mHigh_gB8.O -> mHigh_o8.B;
+        S_2_ -> mOut_inv.A;
+        mLow_o1.O -> mOut_gA1.A;
+        mOut_inv.O -> mOut_gA1.B;
+        mHigh_o1.O -> mOut_gB1.A;
+        S_2_ -> mOut_gB1.B;
+        mOut_gA1.O -> mOut_o1.A;
+        mOut_gB1.O -> mOut_o1.B;
+        mLow_o2.O -> mOut_gA2.A;
+        mOut_inv.O -> mOut_gA2.B;
+        mHigh_o2.O -> mOut_gB2.A;
+        S_2_ -> mOut_gB2.B;
+        mOut_gA2.O -> mOut_o2.A;
+        mOut_gB2.O -> mOut_o2.B;
+        mLow_o3.O -> mOut_gA3.A;
+        mOut_inv.O -> mOut_gA3.B;
+        mHigh_o3.O -> mOut_gB3.A;
+        S_2_ -> mOut_gB3.B;
+        mOut_gA3.O -> mOut_o3.A;
+        mOut_gB3.O -> mOut_o3.B;
+        mLow_o4.O -> mOut_gA4.A;
+        mOut_inv.O -> mOut_gA4.B;
+        mHigh_o4.O -> mOut_gB4.A;
+        S_2_ -> mOut_gB4.B;
+        mOut_gA4.O -> mOut_o4.A;
+        mOut_gB4.O -> mOut_o4.B;
+        mLow_o5.O -> mOut_gA5.A;
+        mOut_inv.O -> mOut_gA5.B;
+        mHigh_o5.O -> mOut_gB5.A;
+        S_2_ -> mOut_gB5.B;
+        mOut_gA5.O -> mOut_o5.A;
+        mOut_gB5.O -> mOut_o5.B;
+        mLow_o6.O -> mOut_gA6.A;
+        mOut_inv.O -> mOut_gA6.B;
+        mHigh_o6.O -> mOut_gB6.A;
+        S_2_ -> mOut_gB6.B;
+        mOut_gA6.O -> mOut_o6.A;
+        mOut_gB6.O -> mOut_o6.B;
+        mLow_o7.O -> mOut_gA7.A;
+        mOut_inv.O -> mOut_gA7.B;
+        mHigh_o7.O -> mOut_gB7.A;
+        S_2_ -> mOut_gB7.B;
+        mOut_gA7.O -> mOut_o7.A;
+        mOut_gB7.O -> mOut_o7.B;
+        mLow_o8.O -> mOut_gA8.A;
+        mOut_inv.O -> mOut_gA8.B;
+        mHigh_o8.O -> mOut_gB8.A;
+        S_2_ -> mOut_gB8.B;
+        mOut_gA8.O -> mOut_o8.A;
+        mOut_gB8.O -> mOut_o8.B;
+        mOut_o8.O -> O_8_;
+        mOut_o7.O -> O_7_;
+        mOut_o6.O -> O_6_;
+        mOut_o5.O -> O_5_;
+        mOut_o4.O -> O_4_;
+        mOut_o3.O -> O_3_;
+        mOut_o2.O -> O_2_;
+        mOut_o1.O -> O_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "D0": [
+        "D0_1_",
+        "D0_2_",
+        "D0_3_",
+        "D0_4_",
+        "D0_5_",
+        "D0_6_",
+        "D0_7_",
+        "D0_8_"
+      ],
+      "D1": [
+        "D1_1_",
+        "D1_2_",
+        "D1_3_",
+        "D1_4_",
+        "D1_5_",
+        "D1_6_",
+        "D1_7_",
+        "D1_8_"
+      ],
+      "D2": [
+        "D2_1_",
+        "D2_2_",
+        "D2_3_",
+        "D2_4_",
+        "D2_5_",
+        "D2_6_",
+        "D2_7_",
+        "D2_8_"
+      ],
+      "D3": [
+        "D3_1_",
+        "D3_2_",
+        "D3_3_",
+        "D3_4_",
+        "D3_5_",
+        "D3_6_",
+        "D3_7_",
+        "D3_8_"
+      ],
+      "S": [
+        "S_1_",
+        "S_2_"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O_1_",
+        "O_2_",
+        "O_3_",
+        "O_4_",
+        "O_5_",
+        "O_6_",
+        "O_7_",
+        "O_8_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Mux4N": {
+      "source_file": "circuit.shdl",
+      "source_line": 25,
+      "instances": {
+        "mLow": {
+          "type": "MuxN",
+          "params": {
+            "N": 8
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 26,
+          "prefix": "mLow_",
+          "ports": {
+            "A": [
+              "D0_1_",
+              "D0_2_",
+              "D0_3_",
+              "D0_4_",
+              "D0_5_",
+              "D0_6_",
+              "D0_7_",
+              "D0_8_"
+            ],
+            "B": [
+              "D1_1_",
+              "D1_2_",
+              "D1_3_",
+              "D1_4_",
+              "D1_5_",
+              "D1_6_",
+              "D1_7_",
+              "D1_8_"
+            ],
+            "S": "S_1_",
+            "O": [
+              "mLow_o1.O",
+              "mLow_o2.O",
+              "mLow_o3.O",
+              "mLow_o4.O",
+              "mLow_o5.O",
+              "mLow_o6.O",
+              "mLow_o7.O",
+              "mLow_o8.O"
+            ]
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "mLow_inv"
+            },
+            "gA1": {
+              "type": "AND",
+              "gate": "mLow_gA1"
+            },
+            "gB1": {
+              "type": "AND",
+              "gate": "mLow_gB1"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "mLow_o1"
+            },
+            "gA2": {
+              "type": "AND",
+              "gate": "mLow_gA2"
+            },
+            "gB2": {
+              "type": "AND",
+              "gate": "mLow_gB2"
+            },
+            "o2": {
+              "type": "OR",
+              "gate": "mLow_o2"
+            },
+            "gA3": {
+              "type": "AND",
+              "gate": "mLow_gA3"
+            },
+            "gB3": {
+              "type": "AND",
+              "gate": "mLow_gB3"
+            },
+            "o3": {
+              "type": "OR",
+              "gate": "mLow_o3"
+            },
+            "gA4": {
+              "type": "AND",
+              "gate": "mLow_gA4"
+            },
+            "gB4": {
+              "type": "AND",
+              "gate": "mLow_gB4"
+            },
+            "o4": {
+              "type": "OR",
+              "gate": "mLow_o4"
+            },
+            "gA5": {
+              "type": "AND",
+              "gate": "mLow_gA5"
+            },
+            "gB5": {
+              "type": "AND",
+              "gate": "mLow_gB5"
+            },
+            "o5": {
+              "type": "OR",
+              "gate": "mLow_o5"
+            },
+            "gA6": {
+              "type": "AND",
+              "gate": "mLow_gA6"
+            },
+            "gB6": {
+              "type": "AND",
+              "gate": "mLow_gB6"
+            },
+            "o6": {
+              "type": "OR",
+              "gate": "mLow_o6"
+            },
+            "gA7": {
+              "type": "AND",
+              "gate": "mLow_gA7"
+            },
+            "gB7": {
+              "type": "AND",
+              "gate": "mLow_gB7"
+            },
+            "o7": {
+              "type": "OR",
+              "gate": "mLow_o7"
+            },
+            "gA8": {
+              "type": "AND",
+              "gate": "mLow_gA8"
+            },
+            "gB8": {
+              "type": "AND",
+              "gate": "mLow_gB8"
+            },
+            "o8": {
+              "type": "OR",
+              "gate": "mLow_o8"
+            }
+          }
+        },
+        "mHigh": {
+          "type": "MuxN",
+          "params": {
+            "N": 8
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "mHigh_",
+          "ports": {
+            "A": [
+              "D2_1_",
+              "D2_2_",
+              "D2_3_",
+              "D2_4_",
+              "D2_5_",
+              "D2_6_",
+              "D2_7_",
+              "D2_8_"
+            ],
+            "B": [
+              "D3_1_",
+              "D3_2_",
+              "D3_3_",
+              "D3_4_",
+              "D3_5_",
+              "D3_6_",
+              "D3_7_",
+              "D3_8_"
+            ],
+            "S": "S_1_",
+            "O": [
+              "mHigh_o1.O",
+              "mHigh_o2.O",
+              "mHigh_o3.O",
+              "mHigh_o4.O",
+              "mHigh_o5.O",
+              "mHigh_o6.O",
+              "mHigh_o7.O",
+              "mHigh_o8.O"
+            ]
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "mHigh_inv"
+            },
+            "gA1": {
+              "type": "AND",
+              "gate": "mHigh_gA1"
+            },
+            "gB1": {
+              "type": "AND",
+              "gate": "mHigh_gB1"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "mHigh_o1"
+            },
+            "gA2": {
+              "type": "AND",
+              "gate": "mHigh_gA2"
+            },
+            "gB2": {
+              "type": "AND",
+              "gate": "mHigh_gB2"
+            },
+            "o2": {
+              "type": "OR",
+              "gate": "mHigh_o2"
+            },
+            "gA3": {
+              "type": "AND",
+              "gate": "mHigh_gA3"
+            },
+            "gB3": {
+              "type": "AND",
+              "gate": "mHigh_gB3"
+            },
+            "o3": {
+              "type": "OR",
+              "gate": "mHigh_o3"
+            },
+            "gA4": {
+              "type": "AND",
+              "gate": "mHigh_gA4"
+            },
+            "gB4": {
+              "type": "AND",
+              "gate": "mHigh_gB4"
+            },
+            "o4": {
+              "type": "OR",
+              "gate": "mHigh_o4"
+            },
+            "gA5": {
+              "type": "AND",
+              "gate": "mHigh_gA5"
+            },
+            "gB5": {
+              "type": "AND",
+              "gate": "mHigh_gB5"
+            },
+            "o5": {
+              "type": "OR",
+              "gate": "mHigh_o5"
+            },
+            "gA6": {
+              "type": "AND",
+              "gate": "mHigh_gA6"
+            },
+            "gB6": {
+              "type": "AND",
+              "gate": "mHigh_gB6"
+            },
+            "o6": {
+              "type": "OR",
+              "gate": "mHigh_o6"
+            },
+            "gA7": {
+              "type": "AND",
+              "gate": "mHigh_gA7"
+            },
+            "gB7": {
+              "type": "AND",
+              "gate": "mHigh_gB7"
+            },
+            "o7": {
+              "type": "OR",
+              "gate": "mHigh_o7"
+            },
+            "gA8": {
+              "type": "AND",
+              "gate": "mHigh_gA8"
+            },
+            "gB8": {
+              "type": "AND",
+              "gate": "mHigh_gB8"
+            },
+            "o8": {
+              "type": "OR",
+              "gate": "mHigh_o8"
+            }
+          }
+        },
+        "mOut": {
+          "type": "MuxN",
+          "params": {
+            "N": 8
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 28,
+          "prefix": "mOut_",
+          "ports": {
+            "A": [
+              "mLow_o1.O",
+              "mLow_o2.O",
+              "mLow_o3.O",
+              "mLow_o4.O",
+              "mLow_o5.O",
+              "mLow_o6.O",
+              "mLow_o7.O",
+              "mLow_o8.O"
+            ],
+            "B": [
+              "mHigh_o1.O",
+              "mHigh_o2.O",
+              "mHigh_o3.O",
+              "mHigh_o4.O",
+              "mHigh_o5.O",
+              "mHigh_o6.O",
+              "mHigh_o7.O",
+              "mHigh_o8.O"
+            ],
+            "S": "S_2_",
+            "O": [
+              "O_1_",
+              "O_2_",
+              "O_3_",
+              "O_4_",
+              "O_5_",
+              "O_6_",
+              "O_7_",
+              "O_8_"
+            ]
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "mOut_inv"
+            },
+            "gA1": {
+              "type": "AND",
+              "gate": "mOut_gA1"
+            },
+            "gB1": {
+              "type": "AND",
+              "gate": "mOut_gB1"
+            },
+            "o1": {
+              "type": "OR",
+              "gate": "mOut_o1"
+            },
+            "gA2": {
+              "type": "AND",
+              "gate": "mOut_gA2"
+            },
+            "gB2": {
+              "type": "AND",
+              "gate": "mOut_gB2"
+            },
+            "o2": {
+              "type": "OR",
+              "gate": "mOut_o2"
+            },
+            "gA3": {
+              "type": "AND",
+              "gate": "mOut_gA3"
+            },
+            "gB3": {
+              "type": "AND",
+              "gate": "mOut_gB3"
+            },
+            "o3": {
+              "type": "OR",
+              "gate": "mOut_o3"
+            },
+            "gA4": {
+              "type": "AND",
+              "gate": "mOut_gA4"
+            },
+            "gB4": {
+              "type": "AND",
+              "gate": "mOut_gB4"
+            },
+            "o4": {
+              "type": "OR",
+              "gate": "mOut_o4"
+            },
+            "gA5": {
+              "type": "AND",
+              "gate": "mOut_gA5"
+            },
+            "gB5": {
+              "type": "AND",
+              "gate": "mOut_gB5"
+            },
+            "o5": {
+              "type": "OR",
+              "gate": "mOut_o5"
+            },
+            "gA6": {
+              "type": "AND",
+              "gate": "mOut_gA6"
+            },
+            "gB6": {
+              "type": "AND",
+              "gate": "mOut_gB6"
+            },
+            "o6": {
+              "type": "OR",
+              "gate": "mOut_o6"
+            },
+            "gA7": {
+              "type": "AND",
+              "gate": "mOut_gA7"
+            },
+            "gB7": {
+              "type": "AND",
+              "gate": "mOut_gB7"
+            },
+            "o7": {
+              "type": "OR",
+              "gate": "mOut_o7"
+            },
+            "gA8": {
+              "type": "AND",
+              "gate": "mOut_gA8"
+            },
+            "gB8": {
+              "type": "AND",
+              "gate": "mOut_gB8"
+            },
+            "o8": {
+              "type": "OR",
+              "gate": "mOut_o8"
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "mLow_inv": {
+        "file": "circuit.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "mLow_gA1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mLow_gA8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mLow_gB8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mLow_o8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_inv": {
+        "file": "circuit.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "mHigh_gA1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mHigh_gA8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mHigh_gB8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mHigh_o8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_inv": {
+        "file": "circuit.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "mOut_gA1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o2": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o3": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o4": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o5": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o6": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o7": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "mOut_gA8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "mOut_gB8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "mOut_o8": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 38
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "11": [
+          "mLow_inv",
+          "mHigh_inv",
+          "mOut_inv"
+        ],
+        "12": [
+          "mLow_gA1",
+          "mLow_gB1",
+          "mLow_o1",
+          "mLow_gA2",
+          "mLow_gB2",
+          "mLow_o2",
+          "mLow_gA3",
+          "mLow_gB3",
+          "mLow_o3",
+          "mLow_gA4",
+          "mLow_gB4",
+          "mLow_o4",
+          "mLow_gA5",
+          "mLow_gB5",
+          "mLow_o5",
+          "mLow_gA6",
+          "mLow_gB6",
+          "mLow_o6",
+          "mLow_gA7",
+          "mLow_gB7",
+          "mLow_o7",
+          "mLow_gA8",
+          "mLow_gB8",
+          "mLow_o8",
+          "mHigh_gA1",
+          "mHigh_gB1",
+          "mHigh_o1",
+          "mHigh_gA2",
+          "mHigh_gB2",
+          "mHigh_o2",
+          "mHigh_gA3",
+          "mHigh_gB3",
+          "mHigh_o3",
+          "mHigh_gA4",
+          "mHigh_gB4",
+          "mHigh_o4",
+          "mHigh_gA5",
+          "mHigh_gB5",
+          "mHigh_o5",
+          "mHigh_gA6",
+          "mHigh_gB6",
+          "mHigh_o6",
+          "mHigh_gA7",
+          "mHigh_gB7",
+          "mHigh_o7",
+          "mHigh_gA8",
+          "mHigh_gB8",
+          "mHigh_o8",
+          "mOut_gA1",
+          "mOut_gB1",
+          "mOut_o1",
+          "mOut_gA2",
+          "mOut_gB2",
+          "mOut_o2",
+          "mOut_gA3",
+          "mOut_gB3",
+          "mOut_o3",
+          "mOut_gA4",
+          "mOut_gB4",
+          "mOut_o4",
+          "mOut_gA5",
+          "mOut_gB5",
+          "mOut_o5",
+          "mOut_gA6",
+          "mOut_gB6",
+          "mOut_o6",
+          "mOut_gA7",
+          "mOut_gB7",
+          "mOut_o7",
+          "mOut_gA8",
+          "mOut_gB8",
+          "mOut_o8"
+        ],
+        "26": [
+          "mLow_inv",
+          "mLow_gA1",
+          "mLow_gB1",
+          "mLow_o1",
+          "mLow_gA2",
+          "mLow_gB2",
+          "mLow_o2",
+          "mLow_gA3",
+          "mLow_gB3",
+          "mLow_o3",
+          "mLow_gA4",
+          "mLow_gB4",
+          "mLow_o4",
+          "mLow_gA5",
+          "mLow_gB5",
+          "mLow_o5",
+          "mLow_gA6",
+          "mLow_gB6",
+          "mLow_o6",
+          "mLow_gA7",
+          "mLow_gB7",
+          "mLow_o7",
+          "mLow_gA8",
+          "mLow_gB8",
+          "mLow_o8"
+        ],
+        "27": [
+          "mHigh_inv",
+          "mHigh_gA1",
+          "mHigh_gB1",
+          "mHigh_o1",
+          "mHigh_gA2",
+          "mHigh_gB2",
+          "mHigh_o2",
+          "mHigh_gA3",
+          "mHigh_gB3",
+          "mHigh_o3",
+          "mHigh_gA4",
+          "mHigh_gB4",
+          "mHigh_o4",
+          "mHigh_gA5",
+          "mHigh_gB5",
+          "mHigh_o5",
+          "mHigh_gA6",
+          "mHigh_gB6",
+          "mHigh_o6",
+          "mHigh_gA7",
+          "mHigh_gB7",
+          "mHigh_o7",
+          "mHigh_gA8",
+          "mHigh_gB8",
+          "mHigh_o8"
+        ],
+        "28": [
+          "mOut_inv",
+          "mOut_gA1",
+          "mOut_gB1",
+          "mOut_o1",
+          "mOut_gA2",
+          "mOut_gB2",
+          "mOut_o2",
+          "mOut_gA3",
+          "mOut_gB3",
+          "mOut_o3",
+          "mOut_gA4",
+          "mOut_gB4",
+          "mOut_o4",
+          "mOut_gA5",
+          "mOut_gB5",
+          "mOut_o5",
+          "mOut_gA6",
+          "mOut_gB6",
+          "mOut_o6",
+          "mOut_gA7",
+          "mOut_gB7",
+          "mOut_o7",
+          "mOut_gA8",
+          "mOut_gB8",
+          "mOut_o8"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 5,
+    "output_depths": {
+      "O_1_": 5,
+      "O_2_": 5,
+      "O_3_": 5,
+      "O_4_": 5,
+      "O_5_": 5,
+      "O_6_": 5,
+      "O_7_": 5,
+      "O_8_": 5
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "S_1_",
+      "mLow_inv",
+      "mLow_gA1",
+      "mLow_o1",
+      "mOut_gA1",
+      "mOut_o1",
+      "O_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 75,
+    "total_connections": 155,
+    "total_ports": 42,
+    "by_type": {
+      "NOT": 3,
+      "AND": 48,
+      "OR": 24
+    }
+  },
+  "doc": {
+    "description": "09 -- MuxN / Mux4N: parameterized multiplexers, composed hierarchically.\n\nMuxN selects between two N-bit buses with one select line, one\nAND-OR cell per bit.  Mux4N then composes three MuxN instances into\na 4-way select tree, passing its own parameter N straight through to\nthe children (§5.3).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

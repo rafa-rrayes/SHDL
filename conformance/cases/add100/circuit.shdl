@@ -1,0 +1,18 @@
+use fullAdder::{FullAdder};
+
+component Add100(A[8]) -> (Sum[8], Cout) {
+    Hundred[8] = 100;
+    ZERO = 0;
+    >i[8]{ fa{i}: FullAdder; }
+
+    connect {
+        ZERO -> fa1.Cin;
+        >i[8]{
+            A[{i}]       -> fa{i}.A;
+            Hundred[{i}] -> fa{i}.B;     # each bit of the constant
+            fa{i}.Sum    -> Sum[{i}];
+        }
+        >i[2:8]{ fa{i-1}.Cout -> fa{i}.Cin; }
+        fa8.Cout -> Cout;
+    }
+}

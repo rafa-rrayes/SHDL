@@ -1,0 +1,152 @@
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;
+    a1: AND;
+    x2: XOR;
+    a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A;
+        B -> x1.B;
+        A -> a1.A;
+        B -> a1.B;
+        x1.O -> x2.A;
+        Cin -> x2.B;
+        x1.O -> a2.A;
+        Cin -> a2.B;
+        a1.O -> o1.A;
+        a2.O -> o1.B;
+        x2.O -> Sum;
+        o1.O -> Cout;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ],
+      "Cin": [
+        "Cin"
+      ]
+    },
+    "outputs": {
+      "Sum": [
+        "Sum"
+      ],
+      "Cout": [
+        "Cout"
+      ]
+    }
+  },
+  "hierarchy": {
+    "FullAdder": {
+      "source_file": "circuit.shdl",
+      "source_line": 1,
+      "instances": {
+        "x1": {
+          "type": "XOR",
+          "gate": "x1"
+        },
+        "a1": {
+          "type": "AND",
+          "gate": "a1"
+        },
+        "x2": {
+          "type": "XOR",
+          "gate": "x2"
+        },
+        "a2": {
+          "type": "AND",
+          "gate": "a2"
+        },
+        "o1": {
+          "type": "OR",
+          "gate": "o1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "x1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "a1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 15
+      },
+      "x2": {
+        "file": "circuit.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "a2": {
+        "file": "circuit.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "o1": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "2": [
+          "x1",
+          "a1"
+        ],
+        "3": [
+          "x2",
+          "a2"
+        ],
+        "4": [
+          "o1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "Sum": 2,
+      "Cout": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "x1",
+      "a2",
+      "o1",
+      "Cout"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 5,
+    "total_connections": 12,
+    "total_ports": 5,
+    "by_type": {
+      "XOR": 2,
+      "AND": 2,
+      "OR": 1
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

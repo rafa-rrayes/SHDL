@@ -1,0 +1,168 @@
+{
+  "trace_format": 1,
+  "name": "wiring",
+  "tier": "B",
+  "description": "Word/Ext/High/Low are rewirings of In and Sign; X = In[1] XOR Sign.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 10
+    },
+    {
+      "op": "poke",
+      "signal": "Sign",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Word",
+      "value": 10
+    },
+    {
+      "op": "expect",
+      "signal": "Ext",
+      "value": 62
+    },
+    {
+      "op": "expect",
+      "signal": "High",
+      "value": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Low",
+      "value": 2
+    },
+    {
+      "op": "expect",
+      "signal": "X",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 5
+    },
+    {
+      "op": "poke",
+      "signal": "Sign",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Word",
+      "value": 5
+    },
+    {
+      "op": "expect",
+      "signal": "Ext",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "High",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Low",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "X",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 15
+    },
+    {
+      "op": "poke",
+      "signal": "Sign",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Word",
+      "value": 15
+    },
+    {
+      "op": "expect",
+      "signal": "Ext",
+      "value": 63
+    },
+    {
+      "op": "expect",
+      "signal": "High",
+      "value": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Low",
+      "value": 3
+    },
+    {
+      "op": "expect",
+      "signal": "X",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "In",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Sign",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Word",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Ext",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "High",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Low",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "X",
+      "value": 1
+    }
+  ]
+}

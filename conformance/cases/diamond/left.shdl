@@ -1,0 +1,8 @@
+"""Diamond import — left arm; imports the shared leaf."""
+
+use leaf::{Inv};
+
+component Nand(A, B) -> (O) {
+    a: AND;  i: Inv;
+    connect { A -> a.A;  B -> a.B;  a.O -> i.A;  i.O -> O; }
+}

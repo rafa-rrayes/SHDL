@@ -1,0 +1,2958 @@
+component ALU(A_1_, A_2_, A_3_, A_4_, A_5_, A_6_, A_7_, A_8_, B_1_, B_2_, B_3_, B_4_, B_5_, B_6_, B_7_, B_8_, Op_1_, Op_2_) -> (R_1_, R_2_, R_3_, R_4_, R_5_, R_6_, R_7_, R_8_, Cout, Zero) {
+    lAnd1: AND;
+    lOr1: OR;
+    lXor1: XOR;
+    lAnd2: AND;
+    lOr2: OR;
+    lXor2: XOR;
+    lAnd3: AND;
+    lOr3: OR;
+    lXor3: XOR;
+    lAnd4: AND;
+    lOr4: OR;
+    lXor4: XOR;
+    lAnd5: AND;
+    lOr5: OR;
+    lXor5: XOR;
+    lAnd6: AND;
+    lOr6: OR;
+    lXor6: XOR;
+    lAnd7: AND;
+    lOr7: OR;
+    lXor7: XOR;
+    lAnd8: AND;
+    lOr8: OR;
+    lXor8: XOR;
+    add_fa1_ha1_x1: XOR;
+    add_fa1_ha1_a1: AND;
+    add_fa1_ha2_x1: XOR;
+    add_fa1_ha2_a1: AND;
+    add_fa1_o1: OR;
+    add_fa2_ha1_x1: XOR;
+    add_fa2_ha1_a1: AND;
+    add_fa2_ha2_x1: XOR;
+    add_fa2_ha2_a1: AND;
+    add_fa2_o1: OR;
+    add_fa3_ha1_x1: XOR;
+    add_fa3_ha1_a1: AND;
+    add_fa3_ha2_x1: XOR;
+    add_fa3_ha2_a1: AND;
+    add_fa3_o1: OR;
+    add_fa4_ha1_x1: XOR;
+    add_fa4_ha1_a1: AND;
+    add_fa4_ha2_x1: XOR;
+    add_fa4_ha2_a1: AND;
+    add_fa4_o1: OR;
+    add_fa5_ha1_x1: XOR;
+    add_fa5_ha1_a1: AND;
+    add_fa5_ha2_x1: XOR;
+    add_fa5_ha2_a1: AND;
+    add_fa5_o1: OR;
+    add_fa6_ha1_x1: XOR;
+    add_fa6_ha1_a1: AND;
+    add_fa6_ha2_x1: XOR;
+    add_fa6_ha2_a1: AND;
+    add_fa6_o1: OR;
+    add_fa7_ha1_x1: XOR;
+    add_fa7_ha1_a1: AND;
+    add_fa7_ha2_x1: XOR;
+    add_fa7_ha2_a1: AND;
+    add_fa7_o1: OR;
+    add_fa8_ha1_x1: XOR;
+    add_fa8_ha1_a1: AND;
+    add_fa8_ha2_x1: XOR;
+    add_fa8_ha2_a1: AND;
+    add_fa8_o1: OR;
+    sel_mLow_inv: NOT;
+    sel_mLow_gA1: AND;
+    sel_mLow_gB1: AND;
+    sel_mLow_o1: OR;
+    sel_mLow_gA2: AND;
+    sel_mLow_gB2: AND;
+    sel_mLow_o2: OR;
+    sel_mLow_gA3: AND;
+    sel_mLow_gB3: AND;
+    sel_mLow_o3: OR;
+    sel_mLow_gA4: AND;
+    sel_mLow_gB4: AND;
+    sel_mLow_o4: OR;
+    sel_mLow_gA5: AND;
+    sel_mLow_gB5: AND;
+    sel_mLow_o5: OR;
+    sel_mLow_gA6: AND;
+    sel_mLow_gB6: AND;
+    sel_mLow_o6: OR;
+    sel_mLow_gA7: AND;
+    sel_mLow_gB7: AND;
+    sel_mLow_o7: OR;
+    sel_mLow_gA8: AND;
+    sel_mLow_gB8: AND;
+    sel_mLow_o8: OR;
+    sel_mHigh_inv: NOT;
+    sel_mHigh_gA1: AND;
+    sel_mHigh_gB1: AND;
+    sel_mHigh_o1: OR;
+    sel_mHigh_gA2: AND;
+    sel_mHigh_gB2: AND;
+    sel_mHigh_o2: OR;
+    sel_mHigh_gA3: AND;
+    sel_mHigh_gB3: AND;
+    sel_mHigh_o3: OR;
+    sel_mHigh_gA4: AND;
+    sel_mHigh_gB4: AND;
+    sel_mHigh_o4: OR;
+    sel_mHigh_gA5: AND;
+    sel_mHigh_gB5: AND;
+    sel_mHigh_o5: OR;
+    sel_mHigh_gA6: AND;
+    sel_mHigh_gB6: AND;
+    sel_mHigh_o6: OR;
+    sel_mHigh_gA7: AND;
+    sel_mHigh_gB7: AND;
+    sel_mHigh_o7: OR;
+    sel_mHigh_gA8: AND;
+    sel_mHigh_gB8: AND;
+    sel_mHigh_o8: OR;
+    sel_mOut_inv: NOT;
+    sel_mOut_gA1: AND;
+    sel_mOut_gB1: AND;
+    sel_mOut_o1: OR;
+    sel_mOut_gA2: AND;
+    sel_mOut_gB2: AND;
+    sel_mOut_o2: OR;
+    sel_mOut_gA3: AND;
+    sel_mOut_gB3: AND;
+    sel_mOut_o3: OR;
+    sel_mOut_gA4: AND;
+    sel_mOut_gB4: AND;
+    sel_mOut_o4: OR;
+    sel_mOut_gA5: AND;
+    sel_mOut_gB5: AND;
+    sel_mOut_o5: OR;
+    sel_mOut_gA6: AND;
+    sel_mOut_gB6: AND;
+    sel_mOut_o6: OR;
+    sel_mOut_gA7: AND;
+    sel_mOut_gB7: AND;
+    sel_mOut_o7: OR;
+    sel_mOut_gA8: AND;
+    sel_mOut_gB8: AND;
+    sel_mOut_o8: OR;
+    red2: OR;
+    red3: OR;
+    red4: OR;
+    red5: OR;
+    red6: OR;
+    red7: OR;
+    red8: OR;
+    zInv: NOT;
+    ZERO_bit1: __GND__;
+
+    connect {
+        A_1_ -> add_fa1_ha1_x1.A;
+        B_1_ -> add_fa1_ha1_x1.B;
+        A_1_ -> add_fa1_ha1_a1.A;
+        B_1_ -> add_fa1_ha1_a1.B;
+        add_fa1_ha1_x1.O -> add_fa1_ha2_x1.A;
+        ZERO_bit1.O -> add_fa1_ha2_x1.B;
+        add_fa1_ha1_x1.O -> add_fa1_ha2_a1.A;
+        ZERO_bit1.O -> add_fa1_ha2_a1.B;
+        add_fa1_ha1_a1.O -> add_fa1_o1.A;
+        add_fa1_ha2_a1.O -> add_fa1_o1.B;
+        A_2_ -> add_fa2_ha1_x1.A;
+        B_2_ -> add_fa2_ha1_x1.B;
+        A_2_ -> add_fa2_ha1_a1.A;
+        B_2_ -> add_fa2_ha1_a1.B;
+        add_fa2_ha1_x1.O -> add_fa2_ha2_x1.A;
+        add_fa1_o1.O -> add_fa2_ha2_x1.B;
+        add_fa2_ha1_x1.O -> add_fa2_ha2_a1.A;
+        add_fa1_o1.O -> add_fa2_ha2_a1.B;
+        add_fa2_ha1_a1.O -> add_fa2_o1.A;
+        add_fa2_ha2_a1.O -> add_fa2_o1.B;
+        A_3_ -> add_fa3_ha1_x1.A;
+        B_3_ -> add_fa3_ha1_x1.B;
+        A_3_ -> add_fa3_ha1_a1.A;
+        B_3_ -> add_fa3_ha1_a1.B;
+        add_fa3_ha1_x1.O -> add_fa3_ha2_x1.A;
+        add_fa2_o1.O -> add_fa3_ha2_x1.B;
+        add_fa3_ha1_x1.O -> add_fa3_ha2_a1.A;
+        add_fa2_o1.O -> add_fa3_ha2_a1.B;
+        add_fa3_ha1_a1.O -> add_fa3_o1.A;
+        add_fa3_ha2_a1.O -> add_fa3_o1.B;
+        A_4_ -> add_fa4_ha1_x1.A;
+        B_4_ -> add_fa4_ha1_x1.B;
+        A_4_ -> add_fa4_ha1_a1.A;
+        B_4_ -> add_fa4_ha1_a1.B;
+        add_fa4_ha1_x1.O -> add_fa4_ha2_x1.A;
+        add_fa3_o1.O -> add_fa4_ha2_x1.B;
+        add_fa4_ha1_x1.O -> add_fa4_ha2_a1.A;
+        add_fa3_o1.O -> add_fa4_ha2_a1.B;
+        add_fa4_ha1_a1.O -> add_fa4_o1.A;
+        add_fa4_ha2_a1.O -> add_fa4_o1.B;
+        A_5_ -> add_fa5_ha1_x1.A;
+        B_5_ -> add_fa5_ha1_x1.B;
+        A_5_ -> add_fa5_ha1_a1.A;
+        B_5_ -> add_fa5_ha1_a1.B;
+        add_fa5_ha1_x1.O -> add_fa5_ha2_x1.A;
+        add_fa4_o1.O -> add_fa5_ha2_x1.B;
+        add_fa5_ha1_x1.O -> add_fa5_ha2_a1.A;
+        add_fa4_o1.O -> add_fa5_ha2_a1.B;
+        add_fa5_ha1_a1.O -> add_fa5_o1.A;
+        add_fa5_ha2_a1.O -> add_fa5_o1.B;
+        A_6_ -> add_fa6_ha1_x1.A;
+        B_6_ -> add_fa6_ha1_x1.B;
+        A_6_ -> add_fa6_ha1_a1.A;
+        B_6_ -> add_fa6_ha1_a1.B;
+        add_fa6_ha1_x1.O -> add_fa6_ha2_x1.A;
+        add_fa5_o1.O -> add_fa6_ha2_x1.B;
+        add_fa6_ha1_x1.O -> add_fa6_ha2_a1.A;
+        add_fa5_o1.O -> add_fa6_ha2_a1.B;
+        add_fa6_ha1_a1.O -> add_fa6_o1.A;
+        add_fa6_ha2_a1.O -> add_fa6_o1.B;
+        A_7_ -> add_fa7_ha1_x1.A;
+        B_7_ -> add_fa7_ha1_x1.B;
+        A_7_ -> add_fa7_ha1_a1.A;
+        B_7_ -> add_fa7_ha1_a1.B;
+        add_fa7_ha1_x1.O -> add_fa7_ha2_x1.A;
+        add_fa6_o1.O -> add_fa7_ha2_x1.B;
+        add_fa7_ha1_x1.O -> add_fa7_ha2_a1.A;
+        add_fa6_o1.O -> add_fa7_ha2_a1.B;
+        add_fa7_ha1_a1.O -> add_fa7_o1.A;
+        add_fa7_ha2_a1.O -> add_fa7_o1.B;
+        A_8_ -> add_fa8_ha1_x1.A;
+        B_8_ -> add_fa8_ha1_x1.B;
+        A_8_ -> add_fa8_ha1_a1.A;
+        B_8_ -> add_fa8_ha1_a1.B;
+        add_fa8_ha1_x1.O -> add_fa8_ha2_x1.A;
+        add_fa7_o1.O -> add_fa8_ha2_x1.B;
+        add_fa8_ha1_x1.O -> add_fa8_ha2_a1.A;
+        add_fa7_o1.O -> add_fa8_ha2_a1.B;
+        add_fa8_ha1_a1.O -> add_fa8_o1.A;
+        add_fa8_ha2_a1.O -> add_fa8_o1.B;
+        Op_1_ -> sel_mLow_inv.A;
+        lAnd1.O -> sel_mLow_gA1.A;
+        sel_mLow_inv.O -> sel_mLow_gA1.B;
+        lOr1.O -> sel_mLow_gB1.A;
+        Op_1_ -> sel_mLow_gB1.B;
+        sel_mLow_gA1.O -> sel_mLow_o1.A;
+        sel_mLow_gB1.O -> sel_mLow_o1.B;
+        lAnd2.O -> sel_mLow_gA2.A;
+        sel_mLow_inv.O -> sel_mLow_gA2.B;
+        lOr2.O -> sel_mLow_gB2.A;
+        Op_1_ -> sel_mLow_gB2.B;
+        sel_mLow_gA2.O -> sel_mLow_o2.A;
+        sel_mLow_gB2.O -> sel_mLow_o2.B;
+        lAnd3.O -> sel_mLow_gA3.A;
+        sel_mLow_inv.O -> sel_mLow_gA3.B;
+        lOr3.O -> sel_mLow_gB3.A;
+        Op_1_ -> sel_mLow_gB3.B;
+        sel_mLow_gA3.O -> sel_mLow_o3.A;
+        sel_mLow_gB3.O -> sel_mLow_o3.B;
+        lAnd4.O -> sel_mLow_gA4.A;
+        sel_mLow_inv.O -> sel_mLow_gA4.B;
+        lOr4.O -> sel_mLow_gB4.A;
+        Op_1_ -> sel_mLow_gB4.B;
+        sel_mLow_gA4.O -> sel_mLow_o4.A;
+        sel_mLow_gB4.O -> sel_mLow_o4.B;
+        lAnd5.O -> sel_mLow_gA5.A;
+        sel_mLow_inv.O -> sel_mLow_gA5.B;
+        lOr5.O -> sel_mLow_gB5.A;
+        Op_1_ -> sel_mLow_gB5.B;
+        sel_mLow_gA5.O -> sel_mLow_o5.A;
+        sel_mLow_gB5.O -> sel_mLow_o5.B;
+        lAnd6.O -> sel_mLow_gA6.A;
+        sel_mLow_inv.O -> sel_mLow_gA6.B;
+        lOr6.O -> sel_mLow_gB6.A;
+        Op_1_ -> sel_mLow_gB6.B;
+        sel_mLow_gA6.O -> sel_mLow_o6.A;
+        sel_mLow_gB6.O -> sel_mLow_o6.B;
+        lAnd7.O -> sel_mLow_gA7.A;
+        sel_mLow_inv.O -> sel_mLow_gA7.B;
+        lOr7.O -> sel_mLow_gB7.A;
+        Op_1_ -> sel_mLow_gB7.B;
+        sel_mLow_gA7.O -> sel_mLow_o7.A;
+        sel_mLow_gB7.O -> sel_mLow_o7.B;
+        lAnd8.O -> sel_mLow_gA8.A;
+        sel_mLow_inv.O -> sel_mLow_gA8.B;
+        lOr8.O -> sel_mLow_gB8.A;
+        Op_1_ -> sel_mLow_gB8.B;
+        sel_mLow_gA8.O -> sel_mLow_o8.A;
+        sel_mLow_gB8.O -> sel_mLow_o8.B;
+        Op_1_ -> sel_mHigh_inv.A;
+        lXor1.O -> sel_mHigh_gA1.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA1.B;
+        add_fa1_ha2_x1.O -> sel_mHigh_gB1.A;
+        Op_1_ -> sel_mHigh_gB1.B;
+        sel_mHigh_gA1.O -> sel_mHigh_o1.A;
+        sel_mHigh_gB1.O -> sel_mHigh_o1.B;
+        lXor2.O -> sel_mHigh_gA2.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA2.B;
+        add_fa2_ha2_x1.O -> sel_mHigh_gB2.A;
+        Op_1_ -> sel_mHigh_gB2.B;
+        sel_mHigh_gA2.O -> sel_mHigh_o2.A;
+        sel_mHigh_gB2.O -> sel_mHigh_o2.B;
+        lXor3.O -> sel_mHigh_gA3.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA3.B;
+        add_fa3_ha2_x1.O -> sel_mHigh_gB3.A;
+        Op_1_ -> sel_mHigh_gB3.B;
+        sel_mHigh_gA3.O -> sel_mHigh_o3.A;
+        sel_mHigh_gB3.O -> sel_mHigh_o3.B;
+        lXor4.O -> sel_mHigh_gA4.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA4.B;
+        add_fa4_ha2_x1.O -> sel_mHigh_gB4.A;
+        Op_1_ -> sel_mHigh_gB4.B;
+        sel_mHigh_gA4.O -> sel_mHigh_o4.A;
+        sel_mHigh_gB4.O -> sel_mHigh_o4.B;
+        lXor5.O -> sel_mHigh_gA5.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA5.B;
+        add_fa5_ha2_x1.O -> sel_mHigh_gB5.A;
+        Op_1_ -> sel_mHigh_gB5.B;
+        sel_mHigh_gA5.O -> sel_mHigh_o5.A;
+        sel_mHigh_gB5.O -> sel_mHigh_o5.B;
+        lXor6.O -> sel_mHigh_gA6.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA6.B;
+        add_fa6_ha2_x1.O -> sel_mHigh_gB6.A;
+        Op_1_ -> sel_mHigh_gB6.B;
+        sel_mHigh_gA6.O -> sel_mHigh_o6.A;
+        sel_mHigh_gB6.O -> sel_mHigh_o6.B;
+        lXor7.O -> sel_mHigh_gA7.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA7.B;
+        add_fa7_ha2_x1.O -> sel_mHigh_gB7.A;
+        Op_1_ -> sel_mHigh_gB7.B;
+        sel_mHigh_gA7.O -> sel_mHigh_o7.A;
+        sel_mHigh_gB7.O -> sel_mHigh_o7.B;
+        lXor8.O -> sel_mHigh_gA8.A;
+        sel_mHigh_inv.O -> sel_mHigh_gA8.B;
+        add_fa8_ha2_x1.O -> sel_mHigh_gB8.A;
+        Op_1_ -> sel_mHigh_gB8.B;
+        sel_mHigh_gA8.O -> sel_mHigh_o8.A;
+        sel_mHigh_gB8.O -> sel_mHigh_o8.B;
+        Op_2_ -> sel_mOut_inv.A;
+        sel_mLow_o1.O -> sel_mOut_gA1.A;
+        sel_mOut_inv.O -> sel_mOut_gA1.B;
+        sel_mHigh_o1.O -> sel_mOut_gB1.A;
+        Op_2_ -> sel_mOut_gB1.B;
+        sel_mOut_gA1.O -> sel_mOut_o1.A;
+        sel_mOut_gB1.O -> sel_mOut_o1.B;
+        sel_mLow_o2.O -> sel_mOut_gA2.A;
+        sel_mOut_inv.O -> sel_mOut_gA2.B;
+        sel_mHigh_o2.O -> sel_mOut_gB2.A;
+        Op_2_ -> sel_mOut_gB2.B;
+        sel_mOut_gA2.O -> sel_mOut_o2.A;
+        sel_mOut_gB2.O -> sel_mOut_o2.B;
+        sel_mLow_o3.O -> sel_mOut_gA3.A;
+        sel_mOut_inv.O -> sel_mOut_gA3.B;
+        sel_mHigh_o3.O -> sel_mOut_gB3.A;
+        Op_2_ -> sel_mOut_gB3.B;
+        sel_mOut_gA3.O -> sel_mOut_o3.A;
+        sel_mOut_gB3.O -> sel_mOut_o3.B;
+        sel_mLow_o4.O -> sel_mOut_gA4.A;
+        sel_mOut_inv.O -> sel_mOut_gA4.B;
+        sel_mHigh_o4.O -> sel_mOut_gB4.A;
+        Op_2_ -> sel_mOut_gB4.B;
+        sel_mOut_gA4.O -> sel_mOut_o4.A;
+        sel_mOut_gB4.O -> sel_mOut_o4.B;
+        sel_mLow_o5.O -> sel_mOut_gA5.A;
+        sel_mOut_inv.O -> sel_mOut_gA5.B;
+        sel_mHigh_o5.O -> sel_mOut_gB5.A;
+        Op_2_ -> sel_mOut_gB5.B;
+        sel_mOut_gA5.O -> sel_mOut_o5.A;
+        sel_mOut_gB5.O -> sel_mOut_o5.B;
+        sel_mLow_o6.O -> sel_mOut_gA6.A;
+        sel_mOut_inv.O -> sel_mOut_gA6.B;
+        sel_mHigh_o6.O -> sel_mOut_gB6.A;
+        Op_2_ -> sel_mOut_gB6.B;
+        sel_mOut_gA6.O -> sel_mOut_o6.A;
+        sel_mOut_gB6.O -> sel_mOut_o6.B;
+        sel_mLow_o7.O -> sel_mOut_gA7.A;
+        sel_mOut_inv.O -> sel_mOut_gA7.B;
+        sel_mHigh_o7.O -> sel_mOut_gB7.A;
+        Op_2_ -> sel_mOut_gB7.B;
+        sel_mOut_gA7.O -> sel_mOut_o7.A;
+        sel_mOut_gB7.O -> sel_mOut_o7.B;
+        sel_mLow_o8.O -> sel_mOut_gA8.A;
+        sel_mOut_inv.O -> sel_mOut_gA8.B;
+        sel_mHigh_o8.O -> sel_mOut_gB8.A;
+        Op_2_ -> sel_mOut_gB8.B;
+        sel_mOut_gA8.O -> sel_mOut_o8.A;
+        sel_mOut_gB8.O -> sel_mOut_o8.B;
+        A_1_ -> lAnd1.A;
+        B_1_ -> lAnd1.B;
+        A_1_ -> lOr1.A;
+        B_1_ -> lOr1.B;
+        A_1_ -> lXor1.A;
+        B_1_ -> lXor1.B;
+        A_2_ -> lAnd2.A;
+        B_2_ -> lAnd2.B;
+        A_2_ -> lOr2.A;
+        B_2_ -> lOr2.B;
+        A_2_ -> lXor2.A;
+        B_2_ -> lXor2.B;
+        A_3_ -> lAnd3.A;
+        B_3_ -> lAnd3.B;
+        A_3_ -> lOr3.A;
+        B_3_ -> lOr3.B;
+        A_3_ -> lXor3.A;
+        B_3_ -> lXor3.B;
+        A_4_ -> lAnd4.A;
+        B_4_ -> lAnd4.B;
+        A_4_ -> lOr4.A;
+        B_4_ -> lOr4.B;
+        A_4_ -> lXor4.A;
+        B_4_ -> lXor4.B;
+        A_5_ -> lAnd5.A;
+        B_5_ -> lAnd5.B;
+        A_5_ -> lOr5.A;
+        B_5_ -> lOr5.B;
+        A_5_ -> lXor5.A;
+        B_5_ -> lXor5.B;
+        A_6_ -> lAnd6.A;
+        B_6_ -> lAnd6.B;
+        A_6_ -> lOr6.A;
+        B_6_ -> lOr6.B;
+        A_6_ -> lXor6.A;
+        B_6_ -> lXor6.B;
+        A_7_ -> lAnd7.A;
+        B_7_ -> lAnd7.B;
+        A_7_ -> lOr7.A;
+        B_7_ -> lOr7.B;
+        A_7_ -> lXor7.A;
+        B_7_ -> lXor7.B;
+        A_8_ -> lAnd8.A;
+        B_8_ -> lAnd8.B;
+        A_8_ -> lOr8.A;
+        B_8_ -> lOr8.B;
+        A_8_ -> lXor8.A;
+        B_8_ -> lXor8.B;
+        add_fa8_o1.O -> Cout;
+        sel_mOut_o8.O -> R_8_;
+        sel_mOut_o7.O -> R_7_;
+        sel_mOut_o6.O -> R_6_;
+        sel_mOut_o5.O -> R_5_;
+        sel_mOut_o4.O -> R_4_;
+        sel_mOut_o3.O -> R_3_;
+        sel_mOut_o2.O -> R_2_;
+        sel_mOut_o1.O -> R_1_;
+        sel_mOut_o1.O -> red2.A;
+        sel_mOut_o2.O -> red2.B;
+        red2.O -> red3.A;
+        sel_mOut_o3.O -> red3.B;
+        red3.O -> red4.A;
+        sel_mOut_o4.O -> red4.B;
+        red4.O -> red5.A;
+        sel_mOut_o5.O -> red5.B;
+        red5.O -> red6.A;
+        sel_mOut_o6.O -> red6.B;
+        red6.O -> red7.A;
+        sel_mOut_o7.O -> red7.B;
+        red7.O -> red8.A;
+        sel_mOut_o8.O -> red8.B;
+        red8.O -> zInv.A;
+        zInv.O -> Zero;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A_1_",
+        "A_2_",
+        "A_3_",
+        "A_4_",
+        "A_5_",
+        "A_6_",
+        "A_7_",
+        "A_8_"
+      ],
+      "B": [
+        "B_1_",
+        "B_2_",
+        "B_3_",
+        "B_4_",
+        "B_5_",
+        "B_6_",
+        "B_7_",
+        "B_8_"
+      ],
+      "Op": [
+        "Op_1_",
+        "Op_2_"
+      ]
+    },
+    "outputs": {
+      "R": [
+        "R_1_",
+        "R_2_",
+        "R_3_",
+        "R_4_",
+        "R_5_",
+        "R_6_",
+        "R_7_",
+        "R_8_"
+      ],
+      "Cout": [
+        "Cout"
+      ],
+      "Zero": [
+        "Zero"
+      ]
+    }
+  },
+  "hierarchy": {
+    "ALU": {
+      "source_file": "circuit.shdl",
+      "source_line": 21,
+      "instances": {
+        "lAnd1": {
+          "type": "AND",
+          "gate": "lAnd1"
+        },
+        "lOr1": {
+          "type": "OR",
+          "gate": "lOr1"
+        },
+        "lXor1": {
+          "type": "XOR",
+          "gate": "lXor1"
+        },
+        "lAnd2": {
+          "type": "AND",
+          "gate": "lAnd2"
+        },
+        "lOr2": {
+          "type": "OR",
+          "gate": "lOr2"
+        },
+        "lXor2": {
+          "type": "XOR",
+          "gate": "lXor2"
+        },
+        "lAnd3": {
+          "type": "AND",
+          "gate": "lAnd3"
+        },
+        "lOr3": {
+          "type": "OR",
+          "gate": "lOr3"
+        },
+        "lXor3": {
+          "type": "XOR",
+          "gate": "lXor3"
+        },
+        "lAnd4": {
+          "type": "AND",
+          "gate": "lAnd4"
+        },
+        "lOr4": {
+          "type": "OR",
+          "gate": "lOr4"
+        },
+        "lXor4": {
+          "type": "XOR",
+          "gate": "lXor4"
+        },
+        "lAnd5": {
+          "type": "AND",
+          "gate": "lAnd5"
+        },
+        "lOr5": {
+          "type": "OR",
+          "gate": "lOr5"
+        },
+        "lXor5": {
+          "type": "XOR",
+          "gate": "lXor5"
+        },
+        "lAnd6": {
+          "type": "AND",
+          "gate": "lAnd6"
+        },
+        "lOr6": {
+          "type": "OR",
+          "gate": "lOr6"
+        },
+        "lXor6": {
+          "type": "XOR",
+          "gate": "lXor6"
+        },
+        "lAnd7": {
+          "type": "AND",
+          "gate": "lAnd7"
+        },
+        "lOr7": {
+          "type": "OR",
+          "gate": "lOr7"
+        },
+        "lXor7": {
+          "type": "XOR",
+          "gate": "lXor7"
+        },
+        "lAnd8": {
+          "type": "AND",
+          "gate": "lAnd8"
+        },
+        "lOr8": {
+          "type": "OR",
+          "gate": "lOr8"
+        },
+        "lXor8": {
+          "type": "XOR",
+          "gate": "lXor8"
+        },
+        "add": {
+          "type": "AdderN",
+          "params": {
+            "N": 8
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 27,
+          "prefix": "add_",
+          "ports": {
+            "A": [
+              "A_1_",
+              "A_2_",
+              "A_3_",
+              "A_4_",
+              "A_5_",
+              "A_6_",
+              "A_7_",
+              "A_8_"
+            ],
+            "B": [
+              "B_1_",
+              "B_2_",
+              "B_3_",
+              "B_4_",
+              "B_5_",
+              "B_6_",
+              "B_7_",
+              "B_8_"
+            ],
+            "Cin": "ZERO_bit1.O",
+            "Sum": [
+              "add_fa1_ha2_x1.O",
+              "add_fa2_ha2_x1.O",
+              "add_fa3_ha2_x1.O",
+              "add_fa4_ha2_x1.O",
+              "add_fa5_ha2_x1.O",
+              "add_fa6_ha2_x1.O",
+              "add_fa7_ha2_x1.O",
+              "add_fa8_ha2_x1.O"
+            ],
+            "Cout": "Cout"
+          },
+          "instances": {
+            "fa1": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa1_",
+              "ports": {
+                "A": "A_1_",
+                "B": "B_1_",
+                "Cin": "ZERO_bit1.O",
+                "Sum": "add_fa1_ha2_x1.O",
+                "Cout": "add_fa1_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa1_ha1_",
+                  "ports": {
+                    "A": "A_1_",
+                    "B": "B_1_",
+                    "Sum": "add_fa1_ha1_x1.O",
+                    "Carry": "add_fa1_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa1_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa1_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa1_ha2_",
+                  "ports": {
+                    "A": "add_fa1_ha1_x1.O",
+                    "B": "ZERO_bit1.O",
+                    "Sum": "add_fa1_ha2_x1.O",
+                    "Carry": "add_fa1_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa1_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa1_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa1_o1"
+                }
+              }
+            },
+            "fa2": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa2_",
+              "ports": {
+                "A": "A_2_",
+                "B": "B_2_",
+                "Cin": "add_fa1_o1.O",
+                "Sum": "add_fa2_ha2_x1.O",
+                "Cout": "add_fa2_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa2_ha1_",
+                  "ports": {
+                    "A": "A_2_",
+                    "B": "B_2_",
+                    "Sum": "add_fa2_ha1_x1.O",
+                    "Carry": "add_fa2_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa2_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa2_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa2_ha2_",
+                  "ports": {
+                    "A": "add_fa2_ha1_x1.O",
+                    "B": "add_fa1_o1.O",
+                    "Sum": "add_fa2_ha2_x1.O",
+                    "Carry": "add_fa2_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa2_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa2_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa2_o1"
+                }
+              }
+            },
+            "fa3": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa3_",
+              "ports": {
+                "A": "A_3_",
+                "B": "B_3_",
+                "Cin": "add_fa2_o1.O",
+                "Sum": "add_fa3_ha2_x1.O",
+                "Cout": "add_fa3_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa3_ha1_",
+                  "ports": {
+                    "A": "A_3_",
+                    "B": "B_3_",
+                    "Sum": "add_fa3_ha1_x1.O",
+                    "Carry": "add_fa3_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa3_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa3_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa3_ha2_",
+                  "ports": {
+                    "A": "add_fa3_ha1_x1.O",
+                    "B": "add_fa2_o1.O",
+                    "Sum": "add_fa3_ha2_x1.O",
+                    "Carry": "add_fa3_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa3_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa3_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa3_o1"
+                }
+              }
+            },
+            "fa4": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa4_",
+              "ports": {
+                "A": "A_4_",
+                "B": "B_4_",
+                "Cin": "add_fa3_o1.O",
+                "Sum": "add_fa4_ha2_x1.O",
+                "Cout": "add_fa4_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa4_ha1_",
+                  "ports": {
+                    "A": "A_4_",
+                    "B": "B_4_",
+                    "Sum": "add_fa4_ha1_x1.O",
+                    "Carry": "add_fa4_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa4_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa4_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa4_ha2_",
+                  "ports": {
+                    "A": "add_fa4_ha1_x1.O",
+                    "B": "add_fa3_o1.O",
+                    "Sum": "add_fa4_ha2_x1.O",
+                    "Carry": "add_fa4_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa4_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa4_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa4_o1"
+                }
+              }
+            },
+            "fa5": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa5_",
+              "ports": {
+                "A": "A_5_",
+                "B": "B_5_",
+                "Cin": "add_fa4_o1.O",
+                "Sum": "add_fa5_ha2_x1.O",
+                "Cout": "add_fa5_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa5_ha1_",
+                  "ports": {
+                    "A": "A_5_",
+                    "B": "B_5_",
+                    "Sum": "add_fa5_ha1_x1.O",
+                    "Carry": "add_fa5_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa5_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa5_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa5_ha2_",
+                  "ports": {
+                    "A": "add_fa5_ha1_x1.O",
+                    "B": "add_fa4_o1.O",
+                    "Sum": "add_fa5_ha2_x1.O",
+                    "Carry": "add_fa5_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa5_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa5_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa5_o1"
+                }
+              }
+            },
+            "fa6": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa6_",
+              "ports": {
+                "A": "A_6_",
+                "B": "B_6_",
+                "Cin": "add_fa5_o1.O",
+                "Sum": "add_fa6_ha2_x1.O",
+                "Cout": "add_fa6_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa6_ha1_",
+                  "ports": {
+                    "A": "A_6_",
+                    "B": "B_6_",
+                    "Sum": "add_fa6_ha1_x1.O",
+                    "Carry": "add_fa6_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa6_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa6_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa6_ha2_",
+                  "ports": {
+                    "A": "add_fa6_ha1_x1.O",
+                    "B": "add_fa5_o1.O",
+                    "Sum": "add_fa6_ha2_x1.O",
+                    "Carry": "add_fa6_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa6_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa6_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa6_o1"
+                }
+              }
+            },
+            "fa7": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa7_",
+              "ports": {
+                "A": "A_7_",
+                "B": "B_7_",
+                "Cin": "add_fa6_o1.O",
+                "Sum": "add_fa7_ha2_x1.O",
+                "Cout": "add_fa7_o1.O"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa7_ha1_",
+                  "ports": {
+                    "A": "A_7_",
+                    "B": "B_7_",
+                    "Sum": "add_fa7_ha1_x1.O",
+                    "Carry": "add_fa7_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa7_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa7_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa7_ha2_",
+                  "ports": {
+                    "A": "add_fa7_ha1_x1.O",
+                    "B": "add_fa6_o1.O",
+                    "Sum": "add_fa7_ha2_x1.O",
+                    "Carry": "add_fa7_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa7_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa7_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa7_o1"
+                }
+              }
+            },
+            "fa8": {
+              "type": "FullAdder",
+              "source_file": "adderN.shdl",
+              "source_line": 15,
+              "prefix": "add_fa8_",
+              "ports": {
+                "A": "A_8_",
+                "B": "B_8_",
+                "Cin": "add_fa7_o1.O",
+                "Sum": "add_fa8_ha2_x1.O",
+                "Cout": "Cout"
+              },
+              "instances": {
+                "ha1": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 22,
+                  "prefix": "add_fa8_ha1_",
+                  "ports": {
+                    "A": "A_8_",
+                    "B": "B_8_",
+                    "Sum": "add_fa8_ha1_x1.O",
+                    "Carry": "add_fa8_ha1_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa8_ha1_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa8_ha1_a1"
+                    }
+                  }
+                },
+                "ha2": {
+                  "type": "HalfAdder",
+                  "source_file": "fullAdder.shdl",
+                  "source_line": 23,
+                  "prefix": "add_fa8_ha2_",
+                  "ports": {
+                    "A": "add_fa8_ha1_x1.O",
+                    "B": "add_fa7_o1.O",
+                    "Sum": "add_fa8_ha2_x1.O",
+                    "Carry": "add_fa8_ha2_a1.O"
+                  },
+                  "instances": {
+                    "x1": {
+                      "type": "XOR",
+                      "gate": "add_fa8_ha2_x1"
+                    },
+                    "a1": {
+                      "type": "AND",
+                      "gate": "add_fa8_ha2_a1"
+                    }
+                  }
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "add_fa8_o1"
+                }
+              }
+            }
+          }
+        },
+        "sel": {
+          "type": "Mux4N",
+          "params": {
+            "N": 8
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 28,
+          "prefix": "sel_",
+          "ports": {
+            "D0": [
+              "lAnd1.O",
+              "lAnd2.O",
+              "lAnd3.O",
+              "lAnd4.O",
+              "lAnd5.O",
+              "lAnd6.O",
+              "lAnd7.O",
+              "lAnd8.O"
+            ],
+            "D1": [
+              "lOr1.O",
+              "lOr2.O",
+              "lOr3.O",
+              "lOr4.O",
+              "lOr5.O",
+              "lOr6.O",
+              "lOr7.O",
+              "lOr8.O"
+            ],
+            "D2": [
+              "lXor1.O",
+              "lXor2.O",
+              "lXor3.O",
+              "lXor4.O",
+              "lXor5.O",
+              "lXor6.O",
+              "lXor7.O",
+              "lXor8.O"
+            ],
+            "D3": [
+              "add_fa1_ha2_x1.O",
+              "add_fa2_ha2_x1.O",
+              "add_fa3_ha2_x1.O",
+              "add_fa4_ha2_x1.O",
+              "add_fa5_ha2_x1.O",
+              "add_fa6_ha2_x1.O",
+              "add_fa7_ha2_x1.O",
+              "add_fa8_ha2_x1.O"
+            ],
+            "S": [
+              "Op_1_",
+              "Op_2_"
+            ],
+            "O": [
+              "R_1_",
+              "R_2_",
+              "R_3_",
+              "R_4_",
+              "R_5_",
+              "R_6_",
+              "R_7_",
+              "R_8_"
+            ]
+          },
+          "instances": {
+            "mLow": {
+              "type": "MuxN",
+              "params": {
+                "N": 8
+              },
+              "source_file": "muxN.shdl",
+              "source_line": 26,
+              "prefix": "sel_mLow_",
+              "ports": {
+                "A": [
+                  "lAnd1.O",
+                  "lAnd2.O",
+                  "lAnd3.O",
+                  "lAnd4.O",
+                  "lAnd5.O",
+                  "lAnd6.O",
+                  "lAnd7.O",
+                  "lAnd8.O"
+                ],
+                "B": [
+                  "lOr1.O",
+                  "lOr2.O",
+                  "lOr3.O",
+                  "lOr4.O",
+                  "lOr5.O",
+                  "lOr6.O",
+                  "lOr7.O",
+                  "lOr8.O"
+                ],
+                "S": "Op_1_",
+                "O": [
+                  "sel_mLow_o1.O",
+                  "sel_mLow_o2.O",
+                  "sel_mLow_o3.O",
+                  "sel_mLow_o4.O",
+                  "sel_mLow_o5.O",
+                  "sel_mLow_o6.O",
+                  "sel_mLow_o7.O",
+                  "sel_mLow_o8.O"
+                ]
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "sel_mLow_inv"
+                },
+                "gA1": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA1"
+                },
+                "gB1": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB1"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o1"
+                },
+                "gA2": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA2"
+                },
+                "gB2": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB2"
+                },
+                "o2": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o2"
+                },
+                "gA3": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA3"
+                },
+                "gB3": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB3"
+                },
+                "o3": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o3"
+                },
+                "gA4": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA4"
+                },
+                "gB4": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB4"
+                },
+                "o4": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o4"
+                },
+                "gA5": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA5"
+                },
+                "gB5": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB5"
+                },
+                "o5": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o5"
+                },
+                "gA6": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA6"
+                },
+                "gB6": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB6"
+                },
+                "o6": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o6"
+                },
+                "gA7": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA7"
+                },
+                "gB7": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB7"
+                },
+                "o7": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o7"
+                },
+                "gA8": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gA8"
+                },
+                "gB8": {
+                  "type": "AND",
+                  "gate": "sel_mLow_gB8"
+                },
+                "o8": {
+                  "type": "OR",
+                  "gate": "sel_mLow_o8"
+                }
+              }
+            },
+            "mHigh": {
+              "type": "MuxN",
+              "params": {
+                "N": 8
+              },
+              "source_file": "muxN.shdl",
+              "source_line": 27,
+              "prefix": "sel_mHigh_",
+              "ports": {
+                "A": [
+                  "lXor1.O",
+                  "lXor2.O",
+                  "lXor3.O",
+                  "lXor4.O",
+                  "lXor5.O",
+                  "lXor6.O",
+                  "lXor7.O",
+                  "lXor8.O"
+                ],
+                "B": [
+                  "add_fa1_ha2_x1.O",
+                  "add_fa2_ha2_x1.O",
+                  "add_fa3_ha2_x1.O",
+                  "add_fa4_ha2_x1.O",
+                  "add_fa5_ha2_x1.O",
+                  "add_fa6_ha2_x1.O",
+                  "add_fa7_ha2_x1.O",
+                  "add_fa8_ha2_x1.O"
+                ],
+                "S": "Op_1_",
+                "O": [
+                  "sel_mHigh_o1.O",
+                  "sel_mHigh_o2.O",
+                  "sel_mHigh_o3.O",
+                  "sel_mHigh_o4.O",
+                  "sel_mHigh_o5.O",
+                  "sel_mHigh_o6.O",
+                  "sel_mHigh_o7.O",
+                  "sel_mHigh_o8.O"
+                ]
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "sel_mHigh_inv"
+                },
+                "gA1": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA1"
+                },
+                "gB1": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB1"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o1"
+                },
+                "gA2": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA2"
+                },
+                "gB2": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB2"
+                },
+                "o2": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o2"
+                },
+                "gA3": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA3"
+                },
+                "gB3": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB3"
+                },
+                "o3": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o3"
+                },
+                "gA4": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA4"
+                },
+                "gB4": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB4"
+                },
+                "o4": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o4"
+                },
+                "gA5": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA5"
+                },
+                "gB5": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB5"
+                },
+                "o5": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o5"
+                },
+                "gA6": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA6"
+                },
+                "gB6": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB6"
+                },
+                "o6": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o6"
+                },
+                "gA7": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA7"
+                },
+                "gB7": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB7"
+                },
+                "o7": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o7"
+                },
+                "gA8": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gA8"
+                },
+                "gB8": {
+                  "type": "AND",
+                  "gate": "sel_mHigh_gB8"
+                },
+                "o8": {
+                  "type": "OR",
+                  "gate": "sel_mHigh_o8"
+                }
+              }
+            },
+            "mOut": {
+              "type": "MuxN",
+              "params": {
+                "N": 8
+              },
+              "source_file": "muxN.shdl",
+              "source_line": 28,
+              "prefix": "sel_mOut_",
+              "ports": {
+                "A": [
+                  "sel_mLow_o1.O",
+                  "sel_mLow_o2.O",
+                  "sel_mLow_o3.O",
+                  "sel_mLow_o4.O",
+                  "sel_mLow_o5.O",
+                  "sel_mLow_o6.O",
+                  "sel_mLow_o7.O",
+                  "sel_mLow_o8.O"
+                ],
+                "B": [
+                  "sel_mHigh_o1.O",
+                  "sel_mHigh_o2.O",
+                  "sel_mHigh_o3.O",
+                  "sel_mHigh_o4.O",
+                  "sel_mHigh_o5.O",
+                  "sel_mHigh_o6.O",
+                  "sel_mHigh_o7.O",
+                  "sel_mHigh_o8.O"
+                ],
+                "S": "Op_2_",
+                "O": [
+                  "R_1_",
+                  "R_2_",
+                  "R_3_",
+                  "R_4_",
+                  "R_5_",
+                  "R_6_",
+                  "R_7_",
+                  "R_8_"
+                ]
+              },
+              "instances": {
+                "inv": {
+                  "type": "NOT",
+                  "gate": "sel_mOut_inv"
+                },
+                "gA1": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA1"
+                },
+                "gB1": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB1"
+                },
+                "o1": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o1"
+                },
+                "gA2": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA2"
+                },
+                "gB2": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB2"
+                },
+                "o2": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o2"
+                },
+                "gA3": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA3"
+                },
+                "gB3": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB3"
+                },
+                "o3": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o3"
+                },
+                "gA4": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA4"
+                },
+                "gB4": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB4"
+                },
+                "o4": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o4"
+                },
+                "gA5": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA5"
+                },
+                "gB5": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB5"
+                },
+                "o5": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o5"
+                },
+                "gA6": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA6"
+                },
+                "gB6": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB6"
+                },
+                "o6": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o6"
+                },
+                "gA7": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA7"
+                },
+                "gB7": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB7"
+                },
+                "o7": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o7"
+                },
+                "gA8": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gA8"
+                },
+                "gB8": {
+                  "type": "AND",
+                  "gate": "sel_mOut_gB8"
+                },
+                "o8": {
+                  "type": "OR",
+                  "gate": "sel_mOut_o8"
+                }
+              }
+            }
+          }
+        },
+        "red2": {
+          "type": "OR",
+          "gate": "red2"
+        },
+        "red3": {
+          "type": "OR",
+          "gate": "red3"
+        },
+        "red4": {
+          "type": "OR",
+          "gate": "red4"
+        },
+        "red5": {
+          "type": "OR",
+          "gate": "red5"
+        },
+        "red6": {
+          "type": "OR",
+          "gate": "red6"
+        },
+        "red7": {
+          "type": "OR",
+          "gate": "red7"
+        },
+        "red8": {
+          "type": "OR",
+          "gate": "red8"
+        },
+        "zInv": {
+          "type": "NOT",
+          "gate": "zInv"
+        },
+        "ZERO_bit1": {
+          "type": "__GND__",
+          "gate": "ZERO_bit1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "lAnd1": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr1": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor1": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd2": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr2": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor2": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd3": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr3": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor3": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd4": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr4": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor4": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd5": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr5": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor5": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd6": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr6": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor6": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd7": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr7": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor7": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "lAnd8": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 12
+      },
+      "lOr8": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 27
+      },
+      "lXor8": {
+        "file": "circuit.shdl",
+        "line": 25,
+        "column": 40
+      },
+      "add_fa1_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa1_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa1_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa1_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa1_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa2_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa2_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa2_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa2_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa2_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa3_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa3_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa3_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa3_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa3_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa4_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa4_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa4_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa4_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa4_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa5_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa5_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa5_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa5_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa5_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa6_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa6_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa6_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa6_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa6_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa7_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa7_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa7_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa7_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa7_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "add_fa8_ha1_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa8_ha1_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa8_ha2_x1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "add_fa8_ha2_a1": {
+        "file": "fullAdder.shdl",
+        "line": 13,
+        "column": 15
+      },
+      "add_fa8_o1": {
+        "file": "fullAdder.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "sel_mLow_inv": {
+        "file": "muxN.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "sel_mLow_gA1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mLow_gA8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mLow_gB8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mLow_o8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_inv": {
+        "file": "muxN.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "sel_mHigh_gA1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mHigh_gA8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mHigh_gB8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mHigh_o8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_inv": {
+        "file": "muxN.shdl",
+        "line": 11,
+        "column": 5
+      },
+      "sel_mOut_gA1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o1": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o2": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o3": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o4": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o5": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o6": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o7": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "sel_mOut_gA8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 12
+      },
+      "sel_mOut_gB8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 25
+      },
+      "sel_mOut_o8": {
+        "file": "muxN.shdl",
+        "line": 12,
+        "column": 38
+      },
+      "red2": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red3": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red4": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red5": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red6": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red7": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "red8": {
+        "file": "circuit.shdl",
+        "line": 30,
+        "column": 14
+      },
+      "zInv": {
+        "file": "circuit.shdl",
+        "line": 31,
+        "column": 5
+      },
+      "ZERO_bit1": {
+        "file": "circuit.shdl",
+        "line": 22,
+        "column": 5
+      }
+    },
+    "lines": {
+      "adderN.shdl": {
+        "15": [
+          "add_fa1_ha1_x1",
+          "add_fa1_ha1_a1",
+          "add_fa1_ha2_x1",
+          "add_fa1_ha2_a1",
+          "add_fa1_o1",
+          "add_fa2_ha1_x1",
+          "add_fa2_ha1_a1",
+          "add_fa2_ha2_x1",
+          "add_fa2_ha2_a1",
+          "add_fa2_o1",
+          "add_fa3_ha1_x1",
+          "add_fa3_ha1_a1",
+          "add_fa3_ha2_x1",
+          "add_fa3_ha2_a1",
+          "add_fa3_o1",
+          "add_fa4_ha1_x1",
+          "add_fa4_ha1_a1",
+          "add_fa4_ha2_x1",
+          "add_fa4_ha2_a1",
+          "add_fa4_o1",
+          "add_fa5_ha1_x1",
+          "add_fa5_ha1_a1",
+          "add_fa5_ha2_x1",
+          "add_fa5_ha2_a1",
+          "add_fa5_o1",
+          "add_fa6_ha1_x1",
+          "add_fa6_ha1_a1",
+          "add_fa6_ha2_x1",
+          "add_fa6_ha2_a1",
+          "add_fa6_o1",
+          "add_fa7_ha1_x1",
+          "add_fa7_ha1_a1",
+          "add_fa7_ha2_x1",
+          "add_fa7_ha2_a1",
+          "add_fa7_o1",
+          "add_fa8_ha1_x1",
+          "add_fa8_ha1_a1",
+          "add_fa8_ha2_x1",
+          "add_fa8_ha2_a1",
+          "add_fa8_o1"
+        ]
+      },
+      "circuit.shdl": {
+        "22": [
+          "ZERO_bit1"
+        ],
+        "25": [
+          "lAnd1",
+          "lOr1",
+          "lXor1",
+          "lAnd2",
+          "lOr2",
+          "lXor2",
+          "lAnd3",
+          "lOr3",
+          "lXor3",
+          "lAnd4",
+          "lOr4",
+          "lXor4",
+          "lAnd5",
+          "lOr5",
+          "lXor5",
+          "lAnd6",
+          "lOr6",
+          "lXor6",
+          "lAnd7",
+          "lOr7",
+          "lXor7",
+          "lAnd8",
+          "lOr8",
+          "lXor8"
+        ],
+        "27": [
+          "add_fa1_ha1_x1",
+          "add_fa1_ha1_a1",
+          "add_fa1_ha2_x1",
+          "add_fa1_ha2_a1",
+          "add_fa1_o1",
+          "add_fa2_ha1_x1",
+          "add_fa2_ha1_a1",
+          "add_fa2_ha2_x1",
+          "add_fa2_ha2_a1",
+          "add_fa2_o1",
+          "add_fa3_ha1_x1",
+          "add_fa3_ha1_a1",
+          "add_fa3_ha2_x1",
+          "add_fa3_ha2_a1",
+          "add_fa3_o1",
+          "add_fa4_ha1_x1",
+          "add_fa4_ha1_a1",
+          "add_fa4_ha2_x1",
+          "add_fa4_ha2_a1",
+          "add_fa4_o1",
+          "add_fa5_ha1_x1",
+          "add_fa5_ha1_a1",
+          "add_fa5_ha2_x1",
+          "add_fa5_ha2_a1",
+          "add_fa5_o1",
+          "add_fa6_ha1_x1",
+          "add_fa6_ha1_a1",
+          "add_fa6_ha2_x1",
+          "add_fa6_ha2_a1",
+          "add_fa6_o1",
+          "add_fa7_ha1_x1",
+          "add_fa7_ha1_a1",
+          "add_fa7_ha2_x1",
+          "add_fa7_ha2_a1",
+          "add_fa7_o1",
+          "add_fa8_ha1_x1",
+          "add_fa8_ha1_a1",
+          "add_fa8_ha2_x1",
+          "add_fa8_ha2_a1",
+          "add_fa8_o1"
+        ],
+        "28": [
+          "sel_mLow_inv",
+          "sel_mLow_gA1",
+          "sel_mLow_gB1",
+          "sel_mLow_o1",
+          "sel_mLow_gA2",
+          "sel_mLow_gB2",
+          "sel_mLow_o2",
+          "sel_mLow_gA3",
+          "sel_mLow_gB3",
+          "sel_mLow_o3",
+          "sel_mLow_gA4",
+          "sel_mLow_gB4",
+          "sel_mLow_o4",
+          "sel_mLow_gA5",
+          "sel_mLow_gB5",
+          "sel_mLow_o5",
+          "sel_mLow_gA6",
+          "sel_mLow_gB6",
+          "sel_mLow_o6",
+          "sel_mLow_gA7",
+          "sel_mLow_gB7",
+          "sel_mLow_o7",
+          "sel_mLow_gA8",
+          "sel_mLow_gB8",
+          "sel_mLow_o8",
+          "sel_mHigh_inv",
+          "sel_mHigh_gA1",
+          "sel_mHigh_gB1",
+          "sel_mHigh_o1",
+          "sel_mHigh_gA2",
+          "sel_mHigh_gB2",
+          "sel_mHigh_o2",
+          "sel_mHigh_gA3",
+          "sel_mHigh_gB3",
+          "sel_mHigh_o3",
+          "sel_mHigh_gA4",
+          "sel_mHigh_gB4",
+          "sel_mHigh_o4",
+          "sel_mHigh_gA5",
+          "sel_mHigh_gB5",
+          "sel_mHigh_o5",
+          "sel_mHigh_gA6",
+          "sel_mHigh_gB6",
+          "sel_mHigh_o6",
+          "sel_mHigh_gA7",
+          "sel_mHigh_gB7",
+          "sel_mHigh_o7",
+          "sel_mHigh_gA8",
+          "sel_mHigh_gB8",
+          "sel_mHigh_o8",
+          "sel_mOut_inv",
+          "sel_mOut_gA1",
+          "sel_mOut_gB1",
+          "sel_mOut_o1",
+          "sel_mOut_gA2",
+          "sel_mOut_gB2",
+          "sel_mOut_o2",
+          "sel_mOut_gA3",
+          "sel_mOut_gB3",
+          "sel_mOut_o3",
+          "sel_mOut_gA4",
+          "sel_mOut_gB4",
+          "sel_mOut_o4",
+          "sel_mOut_gA5",
+          "sel_mOut_gB5",
+          "sel_mOut_o5",
+          "sel_mOut_gA6",
+          "sel_mOut_gB6",
+          "sel_mOut_o6",
+          "sel_mOut_gA7",
+          "sel_mOut_gB7",
+          "sel_mOut_o7",
+          "sel_mOut_gA8",
+          "sel_mOut_gB8",
+          "sel_mOut_o8"
+        ],
+        "30": [
+          "red2",
+          "red3",
+          "red4",
+          "red5",
+          "red6",
+          "red7",
+          "red8"
+        ],
+        "31": [
+          "zInv"
+        ]
+      },
+      "fullAdder.shdl": {
+        "13": [
+          "add_fa1_ha1_x1",
+          "add_fa1_ha1_a1",
+          "add_fa1_ha2_x1",
+          "add_fa1_ha2_a1",
+          "add_fa2_ha1_x1",
+          "add_fa2_ha1_a1",
+          "add_fa2_ha2_x1",
+          "add_fa2_ha2_a1",
+          "add_fa3_ha1_x1",
+          "add_fa3_ha1_a1",
+          "add_fa3_ha2_x1",
+          "add_fa3_ha2_a1",
+          "add_fa4_ha1_x1",
+          "add_fa4_ha1_a1",
+          "add_fa4_ha2_x1",
+          "add_fa4_ha2_a1",
+          "add_fa5_ha1_x1",
+          "add_fa5_ha1_a1",
+          "add_fa5_ha2_x1",
+          "add_fa5_ha2_a1",
+          "add_fa6_ha1_x1",
+          "add_fa6_ha1_a1",
+          "add_fa6_ha2_x1",
+          "add_fa6_ha2_a1",
+          "add_fa7_ha1_x1",
+          "add_fa7_ha1_a1",
+          "add_fa7_ha2_x1",
+          "add_fa7_ha2_a1",
+          "add_fa8_ha1_x1",
+          "add_fa8_ha1_a1",
+          "add_fa8_ha2_x1",
+          "add_fa8_ha2_a1"
+        ],
+        "22": [
+          "add_fa1_ha1_x1",
+          "add_fa1_ha1_a1",
+          "add_fa2_ha1_x1",
+          "add_fa2_ha1_a1",
+          "add_fa3_ha1_x1",
+          "add_fa3_ha1_a1",
+          "add_fa4_ha1_x1",
+          "add_fa4_ha1_a1",
+          "add_fa5_ha1_x1",
+          "add_fa5_ha1_a1",
+          "add_fa6_ha1_x1",
+          "add_fa6_ha1_a1",
+          "add_fa7_ha1_x1",
+          "add_fa7_ha1_a1",
+          "add_fa8_ha1_x1",
+          "add_fa8_ha1_a1"
+        ],
+        "23": [
+          "add_fa1_ha2_x1",
+          "add_fa1_ha2_a1",
+          "add_fa2_ha2_x1",
+          "add_fa2_ha2_a1",
+          "add_fa3_ha2_x1",
+          "add_fa3_ha2_a1",
+          "add_fa4_ha2_x1",
+          "add_fa4_ha2_a1",
+          "add_fa5_ha2_x1",
+          "add_fa5_ha2_a1",
+          "add_fa6_ha2_x1",
+          "add_fa6_ha2_a1",
+          "add_fa7_ha2_x1",
+          "add_fa7_ha2_a1",
+          "add_fa8_ha2_x1",
+          "add_fa8_ha2_a1"
+        ],
+        "24": [
+          "add_fa1_o1",
+          "add_fa2_o1",
+          "add_fa3_o1",
+          "add_fa4_o1",
+          "add_fa5_o1",
+          "add_fa6_o1",
+          "add_fa7_o1",
+          "add_fa8_o1"
+        ]
+      },
+      "muxN.shdl": {
+        "11": [
+          "sel_mLow_inv",
+          "sel_mHigh_inv",
+          "sel_mOut_inv"
+        ],
+        "12": [
+          "sel_mLow_gA1",
+          "sel_mLow_gB1",
+          "sel_mLow_o1",
+          "sel_mLow_gA2",
+          "sel_mLow_gB2",
+          "sel_mLow_o2",
+          "sel_mLow_gA3",
+          "sel_mLow_gB3",
+          "sel_mLow_o3",
+          "sel_mLow_gA4",
+          "sel_mLow_gB4",
+          "sel_mLow_o4",
+          "sel_mLow_gA5",
+          "sel_mLow_gB5",
+          "sel_mLow_o5",
+          "sel_mLow_gA6",
+          "sel_mLow_gB6",
+          "sel_mLow_o6",
+          "sel_mLow_gA7",
+          "sel_mLow_gB7",
+          "sel_mLow_o7",
+          "sel_mLow_gA8",
+          "sel_mLow_gB8",
+          "sel_mLow_o8",
+          "sel_mHigh_gA1",
+          "sel_mHigh_gB1",
+          "sel_mHigh_o1",
+          "sel_mHigh_gA2",
+          "sel_mHigh_gB2",
+          "sel_mHigh_o2",
+          "sel_mHigh_gA3",
+          "sel_mHigh_gB3",
+          "sel_mHigh_o3",
+          "sel_mHigh_gA4",
+          "sel_mHigh_gB4",
+          "sel_mHigh_o4",
+          "sel_mHigh_gA5",
+          "sel_mHigh_gB5",
+          "sel_mHigh_o5",
+          "sel_mHigh_gA6",
+          "sel_mHigh_gB6",
+          "sel_mHigh_o6",
+          "sel_mHigh_gA7",
+          "sel_mHigh_gB7",
+          "sel_mHigh_o7",
+          "sel_mHigh_gA8",
+          "sel_mHigh_gB8",
+          "sel_mHigh_o8",
+          "sel_mOut_gA1",
+          "sel_mOut_gB1",
+          "sel_mOut_o1",
+          "sel_mOut_gA2",
+          "sel_mOut_gB2",
+          "sel_mOut_o2",
+          "sel_mOut_gA3",
+          "sel_mOut_gB3",
+          "sel_mOut_o3",
+          "sel_mOut_gA4",
+          "sel_mOut_gB4",
+          "sel_mOut_o4",
+          "sel_mOut_gA5",
+          "sel_mOut_gB5",
+          "sel_mOut_o5",
+          "sel_mOut_gA6",
+          "sel_mOut_gB6",
+          "sel_mOut_o6",
+          "sel_mOut_gA7",
+          "sel_mOut_gB7",
+          "sel_mOut_o7",
+          "sel_mOut_gA8",
+          "sel_mOut_gB8",
+          "sel_mOut_o8"
+        ],
+        "26": [
+          "sel_mLow_inv",
+          "sel_mLow_gA1",
+          "sel_mLow_gB1",
+          "sel_mLow_o1",
+          "sel_mLow_gA2",
+          "sel_mLow_gB2",
+          "sel_mLow_o2",
+          "sel_mLow_gA3",
+          "sel_mLow_gB3",
+          "sel_mLow_o3",
+          "sel_mLow_gA4",
+          "sel_mLow_gB4",
+          "sel_mLow_o4",
+          "sel_mLow_gA5",
+          "sel_mLow_gB5",
+          "sel_mLow_o5",
+          "sel_mLow_gA6",
+          "sel_mLow_gB6",
+          "sel_mLow_o6",
+          "sel_mLow_gA7",
+          "sel_mLow_gB7",
+          "sel_mLow_o7",
+          "sel_mLow_gA8",
+          "sel_mLow_gB8",
+          "sel_mLow_o8"
+        ],
+        "27": [
+          "sel_mHigh_inv",
+          "sel_mHigh_gA1",
+          "sel_mHigh_gB1",
+          "sel_mHigh_o1",
+          "sel_mHigh_gA2",
+          "sel_mHigh_gB2",
+          "sel_mHigh_o2",
+          "sel_mHigh_gA3",
+          "sel_mHigh_gB3",
+          "sel_mHigh_o3",
+          "sel_mHigh_gA4",
+          "sel_mHigh_gB4",
+          "sel_mHigh_o4",
+          "sel_mHigh_gA5",
+          "sel_mHigh_gB5",
+          "sel_mHigh_o5",
+          "sel_mHigh_gA6",
+          "sel_mHigh_gB6",
+          "sel_mHigh_o6",
+          "sel_mHigh_gA7",
+          "sel_mHigh_gB7",
+          "sel_mHigh_o7",
+          "sel_mHigh_gA8",
+          "sel_mHigh_gB8",
+          "sel_mHigh_o8"
+        ],
+        "28": [
+          "sel_mOut_inv",
+          "sel_mOut_gA1",
+          "sel_mOut_gB1",
+          "sel_mOut_o1",
+          "sel_mOut_gA2",
+          "sel_mOut_gB2",
+          "sel_mOut_o2",
+          "sel_mOut_gA3",
+          "sel_mOut_gB3",
+          "sel_mOut_o3",
+          "sel_mOut_gA4",
+          "sel_mOut_gB4",
+          "sel_mOut_o4",
+          "sel_mOut_gA5",
+          "sel_mOut_gB5",
+          "sel_mOut_o5",
+          "sel_mOut_gA6",
+          "sel_mOut_gB6",
+          "sel_mOut_o6",
+          "sel_mOut_gA7",
+          "sel_mOut_gB7",
+          "sel_mOut_o7",
+          "sel_mOut_gA8",
+          "sel_mOut_gB8",
+          "sel_mOut_o8"
+        ]
+      }
+    }
+  },
+  "constants": {
+    "ZERO": {
+      "value": 0,
+      "width": 1,
+      "bits": {
+        "1": "ZERO_bit1"
+      }
+    }
+  },
+  "timing": {
+    "max_depth": 22,
+    "output_depths": {
+      "R_1_": 6,
+      "R_2_": 8,
+      "R_3_": 10,
+      "R_4_": 12,
+      "R_5_": 14,
+      "R_6_": 16,
+      "R_7_": 18,
+      "R_8_": 20,
+      "Cout": 17,
+      "Zero": 22
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A_1_",
+      "add_fa1_ha1_x1",
+      "add_fa1_ha2_a1",
+      "add_fa1_o1",
+      "add_fa2_ha2_a1",
+      "add_fa2_o1",
+      "add_fa3_ha2_a1",
+      "add_fa3_o1",
+      "add_fa4_ha2_a1",
+      "add_fa4_o1",
+      "add_fa5_ha2_a1",
+      "add_fa5_o1",
+      "add_fa6_ha2_a1",
+      "add_fa6_o1",
+      "add_fa7_ha2_a1",
+      "add_fa7_o1",
+      "add_fa8_ha2_x1",
+      "sel_mHigh_gB8",
+      "sel_mHigh_o8",
+      "sel_mOut_gB8",
+      "sel_mOut_o8",
+      "red8",
+      "zInv",
+      "Zero"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 148,
+    "total_connections": 300,
+    "total_ports": 28,
+    "by_type": {
+      "AND": 72,
+      "OR": 47,
+      "XOR": 24,
+      "NOT": 4,
+      "__GND__": 1
+    }
+  },
+  "doc": {
+    "description": "15 -- ALU: a parameterized arithmetic-logic unit (capstone).\n\nCombines most of the language in one design: imports, a parameter\npassed down the hierarchy, generators for the bitwise lanes, a\nconstant for the adder carry-in, a 4-way mux on the result, `when`\nboundary folding, and an OR-reduction for the Zero flag.\n\n    Op = 0b00  ->  R = A AND B\n    Op = 0b01  ->  R = A OR  B\n    Op = 0b10  ->  R = A XOR B\n    Op = 0b11  ->  R = A +   B\n\nCout is the adder's carry and is meaningful only when Op = 0b11.\nRequires N >= 2 (the Zero-flag reduction chain).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

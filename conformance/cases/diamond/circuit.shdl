@@ -1,0 +1,21 @@
+"""Diamond import: top imports two arms that both import one shared leaf.
+
+    circuit ─┬─ left  (Nand) ─┐
+             └─ right (Nor)  ─┴─ leaf (Inv)
+
+`Inv` is reachable through two distinct import paths (via left and via
+right). Pins that the loader binds the shared module once by name and
+that the diamond flattens — every Inv instance inlines the same NOT
+(shdl.md §9.1, AMB-27 program-global module identity).
+"""
+
+use left::{Nand};
+use right::{Nor};
+
+top component Diamond(A, B) -> (Na, No) {
+    g1: Nand;  g2: Nor;
+    connect {
+        A -> g1.A;  B -> g1.B;  g1.O -> Na;
+        A -> g2.A;  B -> g2.B;  g2.O -> No;
+    }
+}

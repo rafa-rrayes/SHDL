@@ -1,0 +1,31 @@
+{
+  "case_format": 1,
+  "name": "adder8_ripple",
+  "title": "8-bit ripple-carry adder with a per-cycle carry-wave trace",
+  "description": "Adder8 chains eight FullAdders with a generator. Besides settled sums, the carry_wave trace pokes A=0xFF then Cin=1 and observes Sum/Cout after every single cycle while the carry ripples down the chain \u2014 the unit-delay fidelity centerpiece.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "fullAdder.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/carry_wave.json",
+    "traces/sums.json"
+  ],
+  "features": [
+    "adder:ripple-carry-per-cycle",
+    "lang:hierarchy",
+    "lang:imports",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

@@ -1,0 +1,30 @@
+"""
+12 -- DLatch: a gated (level-sensitive) D latch built on SRLatch.
+
+While EN is high, Q follows D; while EN is low, the latch holds its
+last value.  Composing a sequential component is no different from a
+combinational one -- the state is just feedback inside the instance,
+and SRLatch's init seeds carry through flattening.
+"""
+
+use srLatch::{SRLatch};
+
+top component DLatch(D, EN) -> (Q, Qn) {
+    inv:   NOT;
+    gSet:  AND;        # S = D AND EN
+    gRst:  AND;        # R = (NOT D) AND EN
+    latch: SRLatch;
+
+    connect {
+        D -> inv.A;
+
+        D     -> gSet.A;   EN -> gSet.B;
+        inv.O -> gRst.A;   EN -> gRst.B;
+
+        gSet.O -> latch.S;
+        gRst.O -> latch.R;
+
+        latch.Q  -> Q;
+        latch.Qn -> Qn;
+    }
+}

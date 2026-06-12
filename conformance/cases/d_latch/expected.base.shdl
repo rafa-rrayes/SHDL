@@ -1,0 +1,231 @@
+component DLatch(D, EN) -> (Q, Qn) {
+    inv: NOT;
+    gSet: AND;
+    gRst: AND;
+    latch_n1_o1: OR;
+    latch_n1_n1: NOT;
+    latch_n2_o1: OR;
+    latch_n2_n1: NOT;
+
+    connect {
+        gRst.O -> latch_n1_o1.A;
+        latch_n2_n1.O -> latch_n1_o1.B;
+        latch_n1_o1.O -> latch_n1_n1.A;
+        gSet.O -> latch_n2_o1.A;
+        latch_n1_n1.O -> latch_n2_o1.B;
+        latch_n2_o1.O -> latch_n2_n1.A;
+        D -> inv.A;
+        D -> gSet.A;
+        EN -> gSet.B;
+        inv.O -> gRst.A;
+        EN -> gRst.B;
+        latch_n1_n1.O -> Q;
+        latch_n2_n1.O -> Qn;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "D": [
+        "D"
+      ],
+      "EN": [
+        "EN"
+      ]
+    },
+    "outputs": {
+      "Q": [
+        "Q"
+      ],
+      "Qn": [
+        "Qn"
+      ]
+    }
+  },
+  "hierarchy": {
+    "DLatch": {
+      "source_file": "circuit.shdl",
+      "source_line": 12,
+      "instances": {
+        "inv": {
+          "type": "NOT",
+          "gate": "inv"
+        },
+        "gSet": {
+          "type": "AND",
+          "gate": "gSet"
+        },
+        "gRst": {
+          "type": "AND",
+          "gate": "gRst"
+        },
+        "latch": {
+          "type": "SRLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 16,
+          "prefix": "latch_",
+          "ports": {
+            "S": "gSet.O",
+            "R": "gRst.O",
+            "Q": "Q",
+            "Qn": "Qn"
+          },
+          "instances": {
+            "n1": {
+              "type": "NOR",
+              "source_file": "srLatch.shdl",
+              "source_line": 18,
+              "prefix": "latch_n1_",
+              "ports": {
+                "A": "gRst.O",
+                "B": "Qn",
+                "O": "Q"
+              },
+              "instances": {
+                "o1": {
+                  "type": "OR",
+                  "gate": "latch_n1_o1"
+                },
+                "n1": {
+                  "type": "NOT",
+                  "gate": "latch_n1_n1"
+                }
+              }
+            },
+            "n2": {
+              "type": "NOR",
+              "source_file": "srLatch.shdl",
+              "source_line": 18,
+              "prefix": "latch_n2_",
+              "ports": {
+                "A": "gSet.O",
+                "B": "Q",
+                "O": "Qn"
+              },
+              "instances": {
+                "o1": {
+                  "type": "OR",
+                  "gate": "latch_n2_o1"
+                },
+                "n1": {
+                  "type": "NOT",
+                  "gate": "latch_n2_n1"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "inv": {
+        "file": "circuit.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "gSet": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "gRst": {
+        "file": "circuit.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "13": [
+          "inv"
+        ],
+        "14": [
+          "gSet"
+        ],
+        "15": [
+          "gRst"
+        ],
+        "16": [
+          "latch_n1_o1",
+          "latch_n1_n1",
+          "latch_n2_o1",
+          "latch_n2_n1"
+        ]
+      },
+      "srLatch.shdl": {
+        "18": [
+          "latch_n1_o1",
+          "latch_n1_n1",
+          "latch_n2_o1",
+          "latch_n2_n1"
+        ]
+      },
+      "stdgates.shdl": {
+        "24": [
+          "latch_n1_o1",
+          "latch_n1_n1",
+          "latch_n2_o1",
+          "latch_n2_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Q": 1,
+      "Qn": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "latch_n1_n1",
+      "Q"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 7,
+    "total_connections": 13,
+    "total_ports": 4,
+    "by_type": {
+      "NOT": 3,
+      "AND": 2,
+      "OR": 2
+    }
+  },
+  "doc": {
+    "description": "12 -- DLatch: a gated (level-sensitive) D latch built on SRLatch.\n\nWhile EN is high, Q follows D; while EN is low, the latch holds its\nlast value.  Composing a sequential component is no different from a\ncombinational one -- the state is just feedback inside the instance,\nand SRLatch's init seeds carry through flattening.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {
+    "Q": 0,
+    "Qn": 1
+  }
+}

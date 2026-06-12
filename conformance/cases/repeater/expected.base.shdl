@@ -1,0 +1,162 @@
+component Repeater(In_1_, In_2_) -> (Out_1_, Out_2_, Out_3_, Out_4_, Out_5_, Out_6_) {
+    buf1_1: OR;
+    buf1_2: OR;
+    buf1_3: OR;
+    buf2_1: OR;
+    buf2_2: OR;
+    buf2_3: OR;
+
+    connect {
+        In_1_ -> buf1_1.A;
+        In_1_ -> buf1_1.B;
+        buf1_1.O -> Out_1_;
+        In_1_ -> buf1_2.A;
+        In_1_ -> buf1_2.B;
+        buf1_2.O -> Out_2_;
+        In_1_ -> buf1_3.A;
+        In_1_ -> buf1_3.B;
+        buf1_3.O -> Out_3_;
+        In_2_ -> buf2_1.A;
+        In_2_ -> buf2_1.B;
+        buf2_1.O -> Out_4_;
+        In_2_ -> buf2_2.A;
+        In_2_ -> buf2_2.B;
+        buf2_2.O -> Out_5_;
+        In_2_ -> buf2_3.A;
+        In_2_ -> buf2_3.B;
+        buf2_3.O -> Out_6_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_"
+      ]
+    },
+    "outputs": {
+      "Out": [
+        "Out_1_",
+        "Out_2_",
+        "Out_3_",
+        "Out_4_",
+        "Out_5_",
+        "Out_6_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Repeater": {
+      "source_file": "circuit.shdl",
+      "source_line": 1,
+      "instances": {
+        "buf1_1": {
+          "type": "OR",
+          "gate": "buf1_1"
+        },
+        "buf1_2": {
+          "type": "OR",
+          "gate": "buf1_2"
+        },
+        "buf1_3": {
+          "type": "OR",
+          "gate": "buf1_3"
+        },
+        "buf2_1": {
+          "type": "OR",
+          "gate": "buf2_1"
+        },
+        "buf2_2": {
+          "type": "OR",
+          "gate": "buf2_2"
+        },
+        "buf2_3": {
+          "type": "OR",
+          "gate": "buf2_3"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "buf1_1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      },
+      "buf1_2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      },
+      "buf1_3": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      },
+      "buf2_1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      },
+      "buf2_2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      },
+      "buf2_3": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 19
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "2": [
+          "buf1_1",
+          "buf1_2",
+          "buf1_3",
+          "buf2_1",
+          "buf2_2",
+          "buf2_3"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Out_1_": 1,
+      "Out_2_": 1,
+      "Out_3_": 1,
+      "Out_4_": 1,
+      "Out_5_": 1,
+      "Out_6_": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "buf1_1",
+      "Out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 6,
+    "total_connections": 18,
+    "total_ports": 8,
+    "by_type": {
+      "OR": 6
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

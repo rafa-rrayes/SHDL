@@ -1,0 +1,164 @@
+component SRLatch(S, R) -> (Q, Qn) {
+    n1_o1: OR;
+    n1_n1: NOT;
+    n2_o1: OR;
+    n2_n1: NOT;
+
+    connect {
+        R -> n1_o1.A;
+        n2_n1.O -> n1_o1.B;
+        n1_o1.O -> n1_n1.A;
+        S -> n2_o1.A;
+        n1_n1.O -> n2_o1.B;
+        n2_o1.O -> n2_n1.A;
+        n1_n1.O -> Q;
+        n2_n1.O -> Qn;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "S": [
+        "S"
+      ],
+      "R": [
+        "R"
+      ]
+    },
+    "outputs": {
+      "Q": [
+        "Q"
+      ],
+      "Qn": [
+        "Qn"
+      ]
+    }
+  },
+  "hierarchy": {
+    "SRLatch": {
+      "source_file": "circuit.shdl",
+      "source_line": 17,
+      "instances": {
+        "n1": {
+          "type": "NOR",
+          "source_file": "circuit.shdl",
+          "source_line": 18,
+          "prefix": "n1_",
+          "ports": {
+            "A": "R",
+            "B": "Qn",
+            "O": "Q"
+          },
+          "instances": {
+            "o1": {
+              "type": "OR",
+              "gate": "n1_o1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "n1_n1"
+            }
+          }
+        },
+        "n2": {
+          "type": "NOR",
+          "source_file": "circuit.shdl",
+          "source_line": 18,
+          "prefix": "n2_",
+          "ports": {
+            "A": "S",
+            "B": "Q",
+            "O": "Qn"
+          },
+          "instances": {
+            "o1": {
+              "type": "OR",
+              "gate": "n2_o1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "n2_n1"
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "18": [
+          "n1_o1",
+          "n1_n1",
+          "n2_o1",
+          "n2_n1"
+        ]
+      },
+      "stdgates.shdl": {
+        "24": [
+          "n1_o1",
+          "n1_n1",
+          "n2_o1",
+          "n2_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Q": 1,
+      "Qn": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "n1_n1",
+      "Q"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 4,
+    "total_connections": 8,
+    "total_ports": 4,
+    "by_type": {
+      "OR": 2,
+      "NOT": 2
+    }
+  },
+  "doc": {
+    "description": "11 -- SRLatch: state from cross-coupled gates, with defined power-on.\n\nFeedback is well-defined in SHDL's unit-delay model (§11.2): every\ngate recomputes once per cycle from last cycle's values, so a wire\nmay depend on its own previous value.  Cross-coupled NORs therefore\nhold state with no special syntax.\n\nThe init block seeds chosen nets at cycle 0 (§11.4) -- it produces no\ngates, only power-on metadata.  Here the latch comes up reset (Q = 0)\ninstead of relying on the all-zeros default, which would briefly be\ninconsistent (Q = Qn = 0) until the loop settles.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {
+    "Q": 0,
+    "Qn": 1
+  }
+}

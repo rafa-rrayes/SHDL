@@ -1,0 +1,136 @@
+component PassThru(A_1_, A_2_) -> (B_1_, B_2_, C) {
+    x1: XOR;
+
+    connect {
+        A_1_ -> B_1_;
+        A_2_ -> B_2_;
+        A_1_ -> x1.A;
+        A_2_ -> x1.B;
+        x1.O -> C;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A_1_",
+        "A_2_"
+      ]
+    },
+    "outputs": {
+      "B": [
+        "B_1_",
+        "B_2_"
+      ],
+      "C": [
+        "C"
+      ]
+    }
+  },
+  "hierarchy": {
+    "PassThru": {
+      "source_file": "circuit.shdl",
+      "source_line": 10,
+      "instances": {
+        "w1": {
+          "type": "Wire2",
+          "source_file": "circuit.shdl",
+          "source_line": 11,
+          "prefix": "w1_",
+          "ports": {
+            "In": "A_1_",
+            "Out": "A_1_"
+          },
+          "instances": {
+            "w": {
+              "type": "Wire1",
+              "source_file": "circuit.shdl",
+              "source_line": 6,
+              "prefix": "w1_w_",
+              "ports": {
+                "In": "A_1_",
+                "Out": "A_1_"
+              },
+              "instances": {}
+            }
+          }
+        },
+        "w2": {
+          "type": "Wire2",
+          "source_file": "circuit.shdl",
+          "source_line": 11,
+          "prefix": "w2_",
+          "ports": {
+            "In": "A_2_",
+            "Out": "A_2_"
+          },
+          "instances": {
+            "w": {
+              "type": "Wire1",
+              "source_file": "circuit.shdl",
+              "source_line": 6,
+              "prefix": "w2_w_",
+              "ports": {
+                "In": "A_2_",
+                "Out": "A_2_"
+              },
+              "instances": {}
+            }
+          }
+        },
+        "x1": {
+          "type": "XOR",
+          "gate": "x1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "x1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "12": [
+          "x1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "B_1_": 0,
+      "B_2_": 0,
+      "C": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A_1_",
+      "x1",
+      "C"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 1,
+    "total_connections": 5,
+    "total_ports": 5,
+    "by_type": {
+      "XOR": 1
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

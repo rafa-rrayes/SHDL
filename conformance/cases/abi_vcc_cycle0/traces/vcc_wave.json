@@ -1,0 +1,64 @@
+{
+  "trace_format": 1,
+  "name": "vcc_wave",
+  "tier": "C",
+  "description": "Hi: 0 then 1 forever. HiInv: 0, 1, 0, then stable 0.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "Hi",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "HiInv",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Hi",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "HiInv",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Hi",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "HiInv",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Hi",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "HiInv",
+      "value": 0
+    }
+  ]
+}

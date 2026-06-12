@@ -1,0 +1,385 @@
+component Clock(clk) -> (out_1_, out_2_, out_3_, out_4_, out_5_, out_6_, out_7_, out_8_, out_9_, out_10_, out_11_, out_12_, out_13_, out_14_, out_15_, out_16_, out_17_, out_18_, out_19_, out_20_) {
+    o1: OR;
+    o2: OR;
+    o3: OR;
+    o4: OR;
+    o5: OR;
+    o6: OR;
+    o7: OR;
+    o8: OR;
+    o9: OR;
+    o10: OR;
+    o11: OR;
+    o12: OR;
+    o13: OR;
+    o14: OR;
+    o15: OR;
+    o16: OR;
+    o17: OR;
+    o18: OR;
+    o19: OR;
+    o20: OR;
+
+    connect {
+        clk -> o1.A;
+        o1.O -> o2.A;
+        o1.O -> o2.B;
+        o1.O -> out_1_;
+        o2.O -> o3.A;
+        o2.O -> o3.B;
+        o2.O -> out_2_;
+        o3.O -> o4.A;
+        o3.O -> o4.B;
+        o3.O -> out_3_;
+        o4.O -> o5.A;
+        o4.O -> o5.B;
+        o4.O -> out_4_;
+        o5.O -> o6.A;
+        o5.O -> o6.B;
+        o5.O -> out_5_;
+        o6.O -> o7.A;
+        o6.O -> o7.B;
+        o6.O -> out_6_;
+        o7.O -> o8.A;
+        o7.O -> o8.B;
+        o7.O -> out_7_;
+        o8.O -> o9.A;
+        o8.O -> o9.B;
+        o8.O -> out_8_;
+        o9.O -> o10.A;
+        o9.O -> o10.B;
+        o9.O -> out_9_;
+        o10.O -> o11.A;
+        o10.O -> o11.B;
+        o10.O -> out_10_;
+        o11.O -> o12.A;
+        o11.O -> o12.B;
+        o11.O -> out_11_;
+        o12.O -> o13.A;
+        o12.O -> o13.B;
+        o12.O -> out_12_;
+        o13.O -> o14.A;
+        o13.O -> o14.B;
+        o13.O -> out_13_;
+        o14.O -> o15.A;
+        o14.O -> o15.B;
+        o14.O -> out_14_;
+        o15.O -> o16.A;
+        o15.O -> o16.B;
+        o15.O -> out_15_;
+        o16.O -> o17.A;
+        o16.O -> o17.B;
+        o16.O -> out_16_;
+        o17.O -> o18.A;
+        o17.O -> o18.B;
+        o17.O -> out_17_;
+        o18.O -> o19.A;
+        o18.O -> o19.B;
+        o18.O -> out_18_;
+        o19.O -> o20.A;
+        o19.O -> o20.B;
+        o19.O -> out_19_;
+        o20.O -> o1.B;
+        o20.O -> out_20_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "clk": [
+        "clk"
+      ]
+    },
+    "outputs": {
+      "out": [
+        "out_1_",
+        "out_2_",
+        "out_3_",
+        "out_4_",
+        "out_5_",
+        "out_6_",
+        "out_7_",
+        "out_8_",
+        "out_9_",
+        "out_10_",
+        "out_11_",
+        "out_12_",
+        "out_13_",
+        "out_14_",
+        "out_15_",
+        "out_16_",
+        "out_17_",
+        "out_18_",
+        "out_19_",
+        "out_20_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Clock": {
+      "source_file": "circuit.shdl",
+      "source_line": 3,
+      "instances": {
+        "o1": {
+          "type": "OR",
+          "gate": "o1"
+        },
+        "o2": {
+          "type": "OR",
+          "gate": "o2"
+        },
+        "o3": {
+          "type": "OR",
+          "gate": "o3"
+        },
+        "o4": {
+          "type": "OR",
+          "gate": "o4"
+        },
+        "o5": {
+          "type": "OR",
+          "gate": "o5"
+        },
+        "o6": {
+          "type": "OR",
+          "gate": "o6"
+        },
+        "o7": {
+          "type": "OR",
+          "gate": "o7"
+        },
+        "o8": {
+          "type": "OR",
+          "gate": "o8"
+        },
+        "o9": {
+          "type": "OR",
+          "gate": "o9"
+        },
+        "o10": {
+          "type": "OR",
+          "gate": "o10"
+        },
+        "o11": {
+          "type": "OR",
+          "gate": "o11"
+        },
+        "o12": {
+          "type": "OR",
+          "gate": "o12"
+        },
+        "o13": {
+          "type": "OR",
+          "gate": "o13"
+        },
+        "o14": {
+          "type": "OR",
+          "gate": "o14"
+        },
+        "o15": {
+          "type": "OR",
+          "gate": "o15"
+        },
+        "o16": {
+          "type": "OR",
+          "gate": "o16"
+        },
+        "o17": {
+          "type": "OR",
+          "gate": "o17"
+        },
+        "o18": {
+          "type": "OR",
+          "gate": "o18"
+        },
+        "o19": {
+          "type": "OR",
+          "gate": "o19"
+        },
+        "o20": {
+          "type": "OR",
+          "gate": "o20"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "o1": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o2": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o3": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o4": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o5": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o6": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o7": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o8": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o9": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o10": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o11": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o12": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o13": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o14": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o15": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o16": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o17": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o18": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o19": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      },
+      "o20": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 13
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "4": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6",
+          "o7",
+          "o8",
+          "o9",
+          "o10",
+          "o11",
+          "o12",
+          "o13",
+          "o14",
+          "o15",
+          "o16",
+          "o17",
+          "o18",
+          "o19",
+          "o20"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "out_1_": 1,
+      "out_2_": 1,
+      "out_3_": 1,
+      "out_4_": 1,
+      "out_5_": 1,
+      "out_6_": 1,
+      "out_7_": 1,
+      "out_8_": 1,
+      "out_9_": 1,
+      "out_10_": 1,
+      "out_11_": 1,
+      "out_12_": 1,
+      "out_13_": 1,
+      "out_14_": 1,
+      "out_15_": 1,
+      "out_16_": 1,
+      "out_17_": 1,
+      "out_18_": 1,
+      "out_19_": 1,
+      "out_20_": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "clk",
+      "o1",
+      "out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 20,
+    "total_connections": 60,
+    "total_ports": 21,
+    "by_type": {
+      "OR": 20
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

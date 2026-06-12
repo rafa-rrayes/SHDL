@@ -1,0 +1,164 @@
+component ConstDemo(A) -> (O1, O2, O3) {
+    a1: AND;
+    a2: AND;
+    a3: AND;
+    FIVE_bit1: __VCC__;
+    FIVE_bit2: __GND__;
+    FIVE_bit9: __GND__;
+
+    connect {
+        FIVE_bit1.O -> a1.A;
+        A -> a1.B;
+        a1.O -> O1;
+        FIVE_bit2.O -> a2.A;
+        A -> a2.B;
+        a2.O -> O2;
+        FIVE_bit9.O -> a3.A;
+        A -> a3.B;
+        a3.O -> O3;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ]
+    },
+    "outputs": {
+      "O1": [
+        "O1"
+      ],
+      "O2": [
+        "O2"
+      ],
+      "O3": [
+        "O3"
+      ]
+    }
+  },
+  "hierarchy": {
+    "ConstDemo": {
+      "source_file": "circuit.shdl",
+      "source_line": 1,
+      "instances": {
+        "a1": {
+          "type": "AND",
+          "gate": "a1"
+        },
+        "a2": {
+          "type": "AND",
+          "gate": "a2"
+        },
+        "a3": {
+          "type": "AND",
+          "gate": "a3"
+        },
+        "FIVE_bit1": {
+          "type": "__VCC__",
+          "gate": "FIVE_bit1"
+        },
+        "FIVE_bit2": {
+          "type": "__GND__",
+          "gate": "FIVE_bit2"
+        },
+        "FIVE_bit9": {
+          "type": "__GND__",
+          "gate": "FIVE_bit9"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "a1": {
+        "file": "circuit.shdl",
+        "line": 3,
+        "column": 5
+      },
+      "a2": {
+        "file": "circuit.shdl",
+        "line": 3,
+        "column": 15
+      },
+      "a3": {
+        "file": "circuit.shdl",
+        "line": 3,
+        "column": 25
+      },
+      "FIVE_bit1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "FIVE_bit2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "FIVE_bit9": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "2": [
+          "FIVE_bit1",
+          "FIVE_bit2",
+          "FIVE_bit9"
+        ],
+        "3": [
+          "a1",
+          "a2",
+          "a3"
+        ]
+      }
+    }
+  },
+  "constants": {
+    "FIVE": {
+      "value": 5,
+      "width": 3,
+      "bits": {
+        "1": "FIVE_bit1",
+        "2": "FIVE_bit2",
+        "9": "FIVE_bit9"
+      }
+    }
+  },
+  "timing": {
+    "max_depth": 2,
+    "output_depths": {
+      "O1": 2,
+      "O2": 2,
+      "O3": 2
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "FIVE_bit1",
+      "a1",
+      "O1"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 6,
+    "total_connections": 9,
+    "total_ports": 4,
+    "by_type": {
+      "AND": 3,
+      "__VCC__": 1,
+      "__GND__": 2
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

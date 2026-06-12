@@ -1,0 +1,5 @@
+"""Conformance: pure 2-bit passthrough; the ABI poke-masking probe."""
+
+top component MaskProbe(In[2]) -> (Out[2]) {
+    connect { In -> Out; }
+}

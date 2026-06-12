@@ -1,0 +1,68 @@
+{
+  "trace_format": 1,
+  "name": "invert",
+  "tier": "B",
+  "description": "O = NOT A through the five wire-only frames, observed after the single gate-cycle of delay.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 0
+    }
+  ]
+}

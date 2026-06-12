@@ -1,0 +1,326 @@
+{
+  "trace_format": 1,
+  "name": "carry_wave",
+  "tier": "B",
+  "description": "Settle A=0xFF + 0, then poke Cin=1 and observe Sum/Cout after every cycle: the carry advances one full-adder stage at a time (never instantly), ending at Sum=0, Cout=1.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 255
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 17
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 255
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 254
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 254
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 252
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 252
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 248
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 248
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 240
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 240
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 224
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 224
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 192
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 192
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 128
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 128
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    }
+  ]
+}

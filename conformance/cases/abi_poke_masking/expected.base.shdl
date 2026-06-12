@@ -1,0 +1,62 @@
+component MaskProbe(In_1_, In_2_) -> (Out_1_, Out_2_) {
+    connect {
+        In_2_ -> Out_2_;
+        In_1_ -> Out_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_"
+      ]
+    },
+    "outputs": {
+      "Out": [
+        "Out_1_",
+        "Out_2_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "MaskProbe": {
+      "source_file": "circuit.shdl",
+      "source_line": 3,
+      "instances": {}
+    }
+  },
+  "source_map": {
+    "gates": {},
+    "lines": {}
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 0,
+    "output_depths": {
+      "Out_1_": 0,
+      "Out_2_": 0
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "Out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 0,
+    "total_connections": 2,
+    "total_ports": 4,
+    "by_type": {}
+  },
+  "doc": {
+    "description": "Conformance: pure 2-bit passthrough; the ABI poke-masking probe.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

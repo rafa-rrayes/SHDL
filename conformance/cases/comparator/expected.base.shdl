@@ -1,0 +1,513 @@
+component EqualN(A_1_, A_2_, A_3_, A_4_, A_5_, A_6_, A_7_, A_8_, B_1_, B_2_, B_3_, B_4_, B_5_, B_6_, B_7_, B_8_) -> (EQ) {
+    eq1_x1: XOR;
+    eq1_n1: NOT;
+    eq2_x1: XOR;
+    eq2_n1: NOT;
+    eq3_x1: XOR;
+    eq3_n1: NOT;
+    eq4_x1: XOR;
+    eq4_n1: NOT;
+    eq5_x1: XOR;
+    eq5_n1: NOT;
+    eq6_x1: XOR;
+    eq6_n1: NOT;
+    eq7_x1: XOR;
+    eq7_n1: NOT;
+    eq8_x1: XOR;
+    eq8_n1: NOT;
+    red2: AND;
+    red3: AND;
+    red4: AND;
+    red5: AND;
+    red6: AND;
+    red7: AND;
+    red8: AND;
+
+    connect {
+        A_1_ -> eq1_x1.A;
+        B_1_ -> eq1_x1.B;
+        eq1_x1.O -> eq1_n1.A;
+        A_2_ -> eq2_x1.A;
+        B_2_ -> eq2_x1.B;
+        eq2_x1.O -> eq2_n1.A;
+        A_3_ -> eq3_x1.A;
+        B_3_ -> eq3_x1.B;
+        eq3_x1.O -> eq3_n1.A;
+        A_4_ -> eq4_x1.A;
+        B_4_ -> eq4_x1.B;
+        eq4_x1.O -> eq4_n1.A;
+        A_5_ -> eq5_x1.A;
+        B_5_ -> eq5_x1.B;
+        eq5_x1.O -> eq5_n1.A;
+        A_6_ -> eq6_x1.A;
+        B_6_ -> eq6_x1.B;
+        eq6_x1.O -> eq6_n1.A;
+        A_7_ -> eq7_x1.A;
+        B_7_ -> eq7_x1.B;
+        eq7_x1.O -> eq7_n1.A;
+        A_8_ -> eq8_x1.A;
+        B_8_ -> eq8_x1.B;
+        eq8_x1.O -> eq8_n1.A;
+        eq1_n1.O -> red2.A;
+        eq2_n1.O -> red2.B;
+        red2.O -> red3.A;
+        eq3_n1.O -> red3.B;
+        red3.O -> red4.A;
+        eq4_n1.O -> red4.B;
+        red4.O -> red5.A;
+        eq5_n1.O -> red5.B;
+        red5.O -> red6.A;
+        eq6_n1.O -> red6.B;
+        red6.O -> red7.A;
+        eq7_n1.O -> red7.B;
+        red7.O -> red8.A;
+        eq8_n1.O -> red8.B;
+        red8.O -> EQ;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A_1_",
+        "A_2_",
+        "A_3_",
+        "A_4_",
+        "A_5_",
+        "A_6_",
+        "A_7_",
+        "A_8_"
+      ],
+      "B": [
+        "B_1_",
+        "B_2_",
+        "B_3_",
+        "B_4_",
+        "B_5_",
+        "B_6_",
+        "B_7_",
+        "B_8_"
+      ]
+    },
+    "outputs": {
+      "EQ": [
+        "EQ"
+      ]
+    }
+  },
+  "hierarchy": {
+    "EqualN": {
+      "source_file": "circuit.shdl",
+      "source_line": 12,
+      "instances": {
+        "eq1": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq1_",
+          "ports": {
+            "A": "A_1_",
+            "B": "B_1_",
+            "O": "eq1_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq1_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq1_n1"
+            }
+          }
+        },
+        "eq2": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq2_",
+          "ports": {
+            "A": "A_2_",
+            "B": "B_2_",
+            "O": "eq2_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq2_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq2_n1"
+            }
+          }
+        },
+        "eq3": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq3_",
+          "ports": {
+            "A": "A_3_",
+            "B": "B_3_",
+            "O": "eq3_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq3_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq3_n1"
+            }
+          }
+        },
+        "eq4": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq4_",
+          "ports": {
+            "A": "A_4_",
+            "B": "B_4_",
+            "O": "eq4_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq4_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq4_n1"
+            }
+          }
+        },
+        "eq5": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq5_",
+          "ports": {
+            "A": "A_5_",
+            "B": "B_5_",
+            "O": "eq5_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq5_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq5_n1"
+            }
+          }
+        },
+        "eq6": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq6_",
+          "ports": {
+            "A": "A_6_",
+            "B": "B_6_",
+            "O": "eq6_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq6_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq6_n1"
+            }
+          }
+        },
+        "eq7": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq7_",
+          "ports": {
+            "A": "A_7_",
+            "B": "B_7_",
+            "O": "eq7_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq7_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq7_n1"
+            }
+          }
+        },
+        "eq8": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "eq8_",
+          "ports": {
+            "A": "A_8_",
+            "B": "B_8_",
+            "O": "eq8_n1.O"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "eq8_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "eq8_n1"
+            }
+          }
+        },
+        "red2": {
+          "type": "AND",
+          "gate": "red2"
+        },
+        "red3": {
+          "type": "AND",
+          "gate": "red3"
+        },
+        "red4": {
+          "type": "AND",
+          "gate": "red4"
+        },
+        "red5": {
+          "type": "AND",
+          "gate": "red5"
+        },
+        "red6": {
+          "type": "AND",
+          "gate": "red6"
+        },
+        "red7": {
+          "type": "AND",
+          "gate": "red7"
+        },
+        "red8": {
+          "type": "AND",
+          "gate": "red8"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "eq1_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq1_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq2_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq2_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq3_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq3_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq4_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq4_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq5_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq5_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq6_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq6_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq7_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq7_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "eq8_x1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 5
+      },
+      "eq8_n1": {
+        "file": "stdgates.shdl",
+        "line": 29,
+        "column": 15
+      },
+      "red2": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red3": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red4": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red5": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red6": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red7": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      },
+      "red8": {
+        "file": "circuit.shdl",
+        "line": 14,
+        "column": 14
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "13": [
+          "eq1_x1",
+          "eq1_n1",
+          "eq2_x1",
+          "eq2_n1",
+          "eq3_x1",
+          "eq3_n1",
+          "eq4_x1",
+          "eq4_n1",
+          "eq5_x1",
+          "eq5_n1",
+          "eq6_x1",
+          "eq6_n1",
+          "eq7_x1",
+          "eq7_n1",
+          "eq8_x1",
+          "eq8_n1"
+        ],
+        "14": [
+          "red2",
+          "red3",
+          "red4",
+          "red5",
+          "red6",
+          "red7",
+          "red8"
+        ]
+      },
+      "stdgates.shdl": {
+        "29": [
+          "eq1_x1",
+          "eq1_n1",
+          "eq2_x1",
+          "eq2_n1",
+          "eq3_x1",
+          "eq3_n1",
+          "eq4_x1",
+          "eq4_n1",
+          "eq5_x1",
+          "eq5_n1",
+          "eq6_x1",
+          "eq6_n1",
+          "eq7_x1",
+          "eq7_n1",
+          "eq8_x1",
+          "eq8_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 9,
+    "output_depths": {
+      "EQ": 9
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A_1_",
+      "eq1_x1",
+      "eq1_n1",
+      "red2",
+      "red3",
+      "red4",
+      "red5",
+      "red6",
+      "red7",
+      "red8",
+      "EQ"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 23,
+    "total_connections": 39,
+    "total_ports": 17,
+    "by_type": {
+      "XOR": 8,
+      "NOT": 8,
+      "AND": 7
+    }
+  },
+  "doc": {
+    "description": "10 -- EqualN: an N-bit equality comparator (requires N >= 2).\n\nXNOR each bit pair, then AND-reduce the per-bit results with a\nchained generator -- the standard reduction pattern.  `when` handles\nthe first link of the chain, the same boundary-folding idiom as\nadderN.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

@@ -1,0 +1,83 @@
+component NestedRepl(In_1_, In_2_, Sign) -> (Word_1_, Word_2_, Word_3_, Word_4_, Word_5_, Word_6_, Word_7_, Word_8_) {
+    connect {
+        Sign -> Word_8_;
+        Sign -> Word_7_;
+        Sign -> Word_6_;
+        Sign -> Word_5_;
+        Sign -> Word_4_;
+        Sign -> Word_3_;
+        In_2_ -> Word_2_;
+        In_1_ -> Word_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_"
+      ],
+      "Sign": [
+        "Sign"
+      ]
+    },
+    "outputs": {
+      "Word": [
+        "Word_1_",
+        "Word_2_",
+        "Word_3_",
+        "Word_4_",
+        "Word_5_",
+        "Word_6_",
+        "Word_7_",
+        "Word_8_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "NestedRepl": {
+      "source_file": "circuit.shdl",
+      "source_line": 10,
+      "instances": {}
+    }
+  },
+  "source_map": {
+    "gates": {},
+    "lines": {}
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 0,
+    "output_depths": {
+      "Word_1_": 0,
+      "Word_2_": 0,
+      "Word_3_": 0,
+      "Word_4_": 0,
+      "Word_5_": 0,
+      "Word_6_": 0,
+      "Word_7_": 0,
+      "Word_8_": 0
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "Word_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 0,
+    "total_connections": 8,
+    "total_ports": 11,
+    "by_type": {}
+  },
+  "doc": {
+    "description": "Nested replication inside a concatenation source.\n\nThe concatenation {2{3{Sign}}, In} nests a replication inside a\nreplication (2*3 = 6 copies of Sign) and appends the 2-bit payload,\nforming an 8-bit word wired straight to the output. Pins that\nreplication composes with itself and with a plain item in one `{ }`\nconcat (shdl.md §6.5.1, §13). Bits 1-2 are In, bits 3-8 are Sign.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

@@ -1,0 +1,34 @@
+"""Deep hierarchy: a five-level instantiation chain over one NOT.
+
+L5 -> L4 -> L3 -> L2 -> L1 -> NOT. Each level instantiates exactly the
+level below, so flattening must inline five composite frames before it
+reaches the single primitive. Pins multi-level hierarchy flattening and
+uniquification of the per-level instance names (shdl.md §10, FLT).
+The output is NOT A, observed after one cycle (depth 1; the wire-only
+frames add no gate delay).
+"""
+
+component L1(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A;  n.O -> O; }
+}
+
+component L2(A) -> (O) {
+    inner: L1;
+    connect { A -> inner.A;  inner.O -> O; }
+}
+
+component L3(A) -> (O) {
+    inner: L2;
+    connect { A -> inner.A;  inner.O -> O; }
+}
+
+component L4(A) -> (O) {
+    inner: L3;
+    connect { A -> inner.A;  inner.O -> O; }
+}
+
+top component L5(A) -> (O) {
+    inner: L4;
+    connect { A -> inner.A;  inner.O -> O; }
+}

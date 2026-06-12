@@ -1,0 +1,30 @@
+{
+  "case_format": 1,
+  "name": "sr_latch",
+  "title": "SR latch: feedback state with init-block power-on",
+  "description": "Cross-coupled NORs hold state under the unit-delay model; the init block seeds Q=0, Qn=1 at cycle 0 instead of the inconsistent all-zeros.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "stdgates.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/set_hold_reset.json"
+  ],
+  "features": [
+    "state:sr-latch",
+    "lang:init-block",
+    "derived:nor",
+    "lang:imports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

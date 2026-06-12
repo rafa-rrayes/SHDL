@@ -1,0 +1,29 @@
+{
+  "case_format": 1,
+  "name": "deep_hier",
+  "title": "Deep hierarchy: a five-level instantiation chain over one NOT",
+  "description": "L5 -> L4 -> L3 -> L2 -> L1 -> NOT. Flattening inlines five composite frames (uniquifying the repeated 'inner' instance name) down to a single primitive; O = NOT A at depth 1.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/invert.json"
+  ],
+  "features": [
+    "lang:hierarchy",
+    "lang:deep-hierarchy",
+    "degenerate:repeated-names",
+    "primitive:not"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.1.0 addition (2026-06-12); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

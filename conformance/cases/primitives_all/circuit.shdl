@@ -1,0 +1,15 @@
+"""Conformance: every primitive gate type observable in one circuit."""
+
+top component AllGates(A, B) -> (AndO, OrO, XorO, NotO, Hi, Lo) {
+    g1: AND;  g2: OR;  g3: XOR;  g4: NOT;
+    hi: __VCC__;  lo: __GND__;
+
+    connect {
+        A -> g1.A;  B -> g1.B;  g1.O -> AndO;
+        A -> g2.A;  B -> g2.B;  g2.O -> OrO;
+        A -> g3.A;  B -> g3.B;  g3.O -> XorO;
+        A -> g4.A;  g4.O -> NotO;
+        hi.O -> Hi;
+        lo.O -> Lo;
+    }
+}

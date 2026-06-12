@@ -1,0 +1,141 @@
+component L5(A) -> (O) {
+    inner_inner_inner_inner_n: NOT;
+
+    connect {
+        A -> inner_inner_inner_inner_n.A;
+        inner_inner_inner_inner_n.O -> O;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O"
+      ]
+    }
+  },
+  "hierarchy": {
+    "L5": {
+      "source_file": "circuit.shdl",
+      "source_line": 31,
+      "instances": {
+        "inner": {
+          "type": "L4",
+          "source_file": "circuit.shdl",
+          "source_line": 32,
+          "prefix": "inner_",
+          "ports": {
+            "A": "A",
+            "O": "O"
+          },
+          "instances": {
+            "inner": {
+              "type": "L3",
+              "source_file": "circuit.shdl",
+              "source_line": 27,
+              "prefix": "inner_inner_",
+              "ports": {
+                "A": "A",
+                "O": "O"
+              },
+              "instances": {
+                "inner": {
+                  "type": "L2",
+                  "source_file": "circuit.shdl",
+                  "source_line": 22,
+                  "prefix": "inner_inner_inner_",
+                  "ports": {
+                    "A": "A",
+                    "O": "O"
+                  },
+                  "instances": {
+                    "inner": {
+                      "type": "L1",
+                      "source_file": "circuit.shdl",
+                      "source_line": 17,
+                      "prefix": "inner_inner_inner_inner_",
+                      "ports": {
+                        "A": "A",
+                        "O": "O"
+                      },
+                      "instances": {
+                        "n": {
+                          "type": "NOT",
+                          "gate": "inner_inner_inner_inner_n"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "inner_inner_inner_inner_n": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "12": [
+          "inner_inner_inner_inner_n"
+        ],
+        "17": [
+          "inner_inner_inner_inner_n"
+        ],
+        "22": [
+          "inner_inner_inner_inner_n"
+        ],
+        "27": [
+          "inner_inner_inner_inner_n"
+        ],
+        "32": [
+          "inner_inner_inner_inner_n"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "O": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "inner_inner_inner_inner_n",
+      "O"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 1,
+    "total_connections": 2,
+    "total_ports": 2,
+    "by_type": {
+      "NOT": 1
+    }
+  },
+  "doc": {
+    "description": "Deep hierarchy: a five-level instantiation chain over one NOT.\n\nL5 -> L4 -> L3 -> L2 -> L1 -> NOT. Each level instantiates exactly the\nlevel below, so flattening must inline five composite frames before it\nreaches the single primitive. Pins multi-level hierarchy flattening and\nuniquification of the per-level instance names (shdl.md §10, FLT).\nThe output is NOT A, observed after one cycle (depth 1; the wire-only\nframes add no gate delay).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

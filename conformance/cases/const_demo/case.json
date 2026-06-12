@@ -1,0 +1,28 @@
+{
+  "case_format": 1,
+  "name": "const_demo",
+  "title": "Named constant bits become __VCC__/__GND__ drivers",
+  "description": "ConstDemo declares FIVE[3] = 5 and reads bits 1, 2 and 9: set bit, clear bit, and beyond-width bit (reads as 0).",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/const_bits.json"
+  ],
+  "features": [
+    "lang:named-constants",
+    "primitive:vcc",
+    "primitive:gnd"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

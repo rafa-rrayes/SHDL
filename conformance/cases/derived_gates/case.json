@@ -1,0 +1,30 @@
+{
+  "case_format": 1,
+  "name": "derived_gates",
+  "title": "Derived gates NAND/NOR/XNOR from the stdgates library",
+  "description": "GatesDemo imports NAND, NOR, XNOR (each a primitive plus a NOT); the trace runs their full truth tables.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "stdgates.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/truth_tables.json"
+  ],
+  "features": [
+    "derived:nand",
+    "derived:nor",
+    "derived:xnor",
+    "lang:imports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

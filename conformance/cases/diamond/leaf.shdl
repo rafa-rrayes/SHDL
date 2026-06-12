@@ -1,0 +1,6 @@
+"""Diamond import — shared leaf module (the diamond's bottom vertex)."""
+
+component Inv(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A;  n.O -> O; }
+}

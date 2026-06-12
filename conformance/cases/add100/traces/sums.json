@@ -1,0 +1,88 @@
+{
+  "trace_format": 1,
+  "name": "sums",
+  "tier": "B",
+  "description": "A + 100: 0->100, 100->200, 156->0 carry 1, 255->99 carry 1.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 18
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 100
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 100
+    },
+    {
+      "op": "step",
+      "cycles": 18
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 200
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 156
+    },
+    {
+      "op": "step",
+      "cycles": 18
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 255
+    },
+    {
+      "op": "step",
+      "cycles": 18
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 99
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    }
+  ]
+}

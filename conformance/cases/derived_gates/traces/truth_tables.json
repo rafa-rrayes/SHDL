@@ -1,0 +1,128 @@
+{
+  "trace_format": 1,
+  "name": "truth_tables",
+  "tier": "B",
+  "description": "All four (A, B) combinations; Na/No/Xn are NAND/NOR/XNOR of A, B.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Na",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "No",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Xn",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Na",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "No",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Xn",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Na",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "No",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Xn",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Na",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "No",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Xn",
+      "value": 1
+    }
+  ]
+}

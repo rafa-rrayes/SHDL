@@ -1,0 +1,16 @@
+"""2-bit ripple-carry adder"""
+use fullAdder::{FullAdder};
+
+top component Add2(A[2], B[2], Cin) -> (Sum[2], Cout) {
+    fa1: FullAdder;
+    fa2: FullAdder;
+
+    connect {
+        A[1] -> fa1.A;  B[1] -> fa1.B;  Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+
+        A[2] -> fa2.A;  B[2] -> fa2.B;  fa1.Cout -> fa2.Cin;
+        fa2.Sum -> Sum[2];
+        fa2.Cout -> Cout;
+    }
+}

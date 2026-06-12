@@ -1,0 +1,177 @@
+component AllGates(A, B) -> (AndO, OrO, XorO, NotO, Hi, Lo) {
+    g1: AND;
+    g2: OR;
+    g3: XOR;
+    g4: NOT;
+    hi: __VCC__;
+    lo: __GND__;
+
+    connect {
+        A -> g1.A;
+        B -> g1.B;
+        g1.O -> AndO;
+        A -> g2.A;
+        B -> g2.B;
+        g2.O -> OrO;
+        A -> g3.A;
+        B -> g3.B;
+        g3.O -> XorO;
+        A -> g4.A;
+        g4.O -> NotO;
+        hi.O -> Hi;
+        lo.O -> Lo;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ]
+    },
+    "outputs": {
+      "AndO": [
+        "AndO"
+      ],
+      "OrO": [
+        "OrO"
+      ],
+      "XorO": [
+        "XorO"
+      ],
+      "NotO": [
+        "NotO"
+      ],
+      "Hi": [
+        "Hi"
+      ],
+      "Lo": [
+        "Lo"
+      ]
+    }
+  },
+  "hierarchy": {
+    "AllGates": {
+      "source_file": "circuit.shdl",
+      "source_line": 3,
+      "instances": {
+        "g1": {
+          "type": "AND",
+          "gate": "g1"
+        },
+        "g2": {
+          "type": "OR",
+          "gate": "g2"
+        },
+        "g3": {
+          "type": "XOR",
+          "gate": "g3"
+        },
+        "g4": {
+          "type": "NOT",
+          "gate": "g4"
+        },
+        "hi": {
+          "type": "__VCC__",
+          "gate": "hi"
+        },
+        "lo": {
+          "type": "__GND__",
+          "gate": "lo"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "g1": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "g2": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 15
+      },
+      "g3": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 24
+      },
+      "g4": {
+        "file": "circuit.shdl",
+        "line": 4,
+        "column": 34
+      },
+      "hi": {
+        "file": "circuit.shdl",
+        "line": 5,
+        "column": 5
+      },
+      "lo": {
+        "file": "circuit.shdl",
+        "line": 5,
+        "column": 19
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "4": [
+          "g1",
+          "g2",
+          "g3",
+          "g4"
+        ],
+        "5": [
+          "hi",
+          "lo"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "AndO": 1,
+      "OrO": 1,
+      "XorO": 1,
+      "NotO": 1,
+      "Hi": 1,
+      "Lo": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "g1",
+      "AndO"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 6,
+    "total_connections": 13,
+    "total_ports": 8,
+    "by_type": {
+      "AND": 1,
+      "OR": 1,
+      "XOR": 1,
+      "NOT": 1,
+      "__VCC__": 1,
+      "__GND__": 1
+    }
+  },
+  "doc": {
+    "description": "Conformance: every primitive gate type observable in one circuit.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

@@ -1,0 +1,25 @@
+"""
+14 -- RingClock: a ring oscillator / delay line (requires N >= 2).
+
+The unit-delay model gives every gate one cycle of propagation
+delay, so a closed ring of N buffers circulates a pulse with period
+N (§11.2).  An OR gate with both inputs tied together is the idiom
+for a buffer.  Drive `seed` high for one cycle to inject the pulse;
+each `out` bit then taps one stage of the ring.
+"""
+
+top component RingClock<N = 8>(seed) -> (out[N]) {
+    >i[N]{ buf{i}: OR; }
+
+    connect {
+        seed -> buf1.A;                # pulse injection point
+
+        >i[2:N]{                       # forward chain: stage i-1 feeds stage i
+            buf{i-1}.O -> buf{i}.A;
+            buf{i-1}.O -> buf{i}.B;
+        }
+        buf{N}.O -> buf1.B;            # close the ring
+
+        >i[N]{ buf{i}.O -> out[{i}]; }
+    }
+}

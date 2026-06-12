@@ -1,0 +1,137 @@
+component ConcatDemo(In_1_, In_2_, In_3_, In_4_, Sign) -> (Word_1_, Word_2_, Word_3_, Word_4_, Ext_1_, Ext_2_, Ext_3_, Ext_4_, Ext_5_, Ext_6_, High_1_, High_2_, Low_1_, Low_2_, X) {
+    x1: XOR;
+
+    connect {
+        In_4_ -> Word_4_;
+        In_3_ -> Word_3_;
+        In_2_ -> Word_2_;
+        In_1_ -> Word_1_;
+        Sign -> Ext_6_;
+        Sign -> Ext_5_;
+        Sign -> Ext_4_;
+        Sign -> Ext_3_;
+        In_2_ -> Ext_2_;
+        In_1_ -> Ext_1_;
+        In_4_ -> High_2_;
+        In_3_ -> High_1_;
+        In_2_ -> Low_2_;
+        In_1_ -> Low_1_;
+        In_1_ -> x1.A;
+        Sign -> x1.B;
+        x1.O -> X;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_",
+        "In_3_",
+        "In_4_"
+      ],
+      "Sign": [
+        "Sign"
+      ]
+    },
+    "outputs": {
+      "Word": [
+        "Word_1_",
+        "Word_2_",
+        "Word_3_",
+        "Word_4_"
+      ],
+      "Ext": [
+        "Ext_1_",
+        "Ext_2_",
+        "Ext_3_",
+        "Ext_4_",
+        "Ext_5_",
+        "Ext_6_"
+      ],
+      "High": [
+        "High_1_",
+        "High_2_"
+      ],
+      "Low": [
+        "Low_1_",
+        "Low_2_"
+      ],
+      "X": [
+        "X"
+      ]
+    }
+  },
+  "hierarchy": {
+    "ConcatDemo": {
+      "source_file": "circuit.shdl",
+      "source_line": 1,
+      "instances": {
+        "x1": {
+          "type": "XOR",
+          "gate": "x1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "x1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "2": [
+          "x1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Word_1_": 0,
+      "Word_2_": 0,
+      "Word_3_": 0,
+      "Word_4_": 0,
+      "Ext_1_": 0,
+      "Ext_2_": 0,
+      "Ext_3_": 0,
+      "Ext_4_": 0,
+      "Ext_5_": 0,
+      "Ext_6_": 0,
+      "High_1_": 0,
+      "High_2_": 0,
+      "Low_1_": 0,
+      "Low_2_": 0,
+      "X": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "x1",
+      "X"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 1,
+    "total_connections": 17,
+    "total_ports": 20,
+    "by_type": {
+      "XOR": 1
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

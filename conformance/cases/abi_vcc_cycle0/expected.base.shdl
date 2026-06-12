@@ -1,0 +1,96 @@
+component VccProbe() -> (Hi, HiInv) {
+    v: __VCC__;
+    n: NOT;
+
+    connect {
+        v.O -> Hi;
+        v.O -> n.A;
+        n.O -> HiInv;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {},
+    "outputs": {
+      "Hi": [
+        "Hi"
+      ],
+      "HiInv": [
+        "HiInv"
+      ]
+    }
+  },
+  "hierarchy": {
+    "VccProbe": {
+      "source_file": "circuit.shdl",
+      "source_line": 7,
+      "instances": {
+        "v": {
+          "type": "__VCC__",
+          "gate": "v"
+        },
+        "n": {
+          "type": "NOT",
+          "gate": "n"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "v": {
+        "file": "circuit.shdl",
+        "line": 8,
+        "column": 5
+      },
+      "n": {
+        "file": "circuit.shdl",
+        "line": 9,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "8": [
+          "v"
+        ],
+        "9": [
+          "n"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 2,
+    "output_depths": {
+      "Hi": 1,
+      "HiInv": 2
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "v",
+      "n",
+      "HiInv"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 2,
+    "total_connections": 3,
+    "total_ports": 2,
+    "by_type": {
+      "__VCC__": 1,
+      "NOT": 1
+    }
+  },
+  "doc": {
+    "description": "Conformance: __VCC__ reads 0 at cycle 0 and 1 from cycle 1 on.\n\nThe NOT tap sees the cycle-0 zero exactly once, so HiInv goes 0, 1, 0, ...\n— a trace only a faithful unit-delay implementation reproduces.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

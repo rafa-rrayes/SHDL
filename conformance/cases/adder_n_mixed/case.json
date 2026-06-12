@@ -1,0 +1,31 @@
+{
+  "case_format": 1,
+  "name": "adder_n_mixed",
+  "title": "One generator/conditional component at two parameter bindings",
+  "description": "Hand-authored wrapper instantiating AdderN<N=2> and AdderN<N=3> side by side: the same `>i[N]` loop and `when {i == 1}/else` conditional elaborate twice with different shapes in a single artifact.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "adderN.shdl",
+    "circuit.shdl",
+    "fullAdder.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/both_widths.json"
+  ],
+  "features": [
+    "lang:generators-multi-binding",
+    "lang:conditionals-multi-binding",
+    "lang:hierarchy",
+    "lang:imports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

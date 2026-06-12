@@ -1,0 +1,42 @@
+{
+  "trace_format": 1,
+  "name": "input_peek_tickless",
+  "tier": "C",
+  "description": "Input peeks return 1 with no ticks; the later output peek shows exactly one hidden tick happened in total.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "clk",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "out",
+      "value": 1
+    }
+  ]
+}

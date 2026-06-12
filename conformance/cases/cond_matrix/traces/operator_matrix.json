@@ -1,0 +1,88 @@
+{
+  "trace_format": 1,
+  "name": "operator_matrix",
+  "tier": "B",
+  "description": "Out is the lane-selection vector [P,Q,P,P,Q,Q] (LSB-first): P=1,Q=0 -> 13 (0b001101); P=0,Q=1 -> 50 (0b110010); P=Q=1 -> 63; P=Q=0 -> 0. Depth 2 (GND driver then the lane OR).",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "P",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 13
+    },
+    {
+      "op": "poke",
+      "signal": "P",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Q",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 50
+    },
+    {
+      "op": "poke",
+      "signal": "P",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Q",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 63
+    },
+    {
+      "op": "poke",
+      "signal": "P",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "Out",
+      "value": 0
+    }
+  ]
+}

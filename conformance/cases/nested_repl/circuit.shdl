@@ -1,0 +1,14 @@
+"""Nested replication inside a concatenation source.
+
+The concatenation {2{3{Sign}}, In} nests a replication inside a
+replication (2*3 = 6 copies of Sign) and appends the 2-bit payload,
+forming an 8-bit word wired straight to the output. Pins that
+replication composes with itself and with a plain item in one `{ }`
+concat (shdl.md §6.5.1, §13). Bits 1-2 are In, bits 3-8 are Sign.
+"""
+
+top component NestedRepl(In[2], Sign) -> (Word[8]) {
+    connect {
+        {2{3{Sign}}, In} -> Word;
+    }
+}

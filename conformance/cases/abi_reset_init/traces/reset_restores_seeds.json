@@ -1,0 +1,84 @@
+{
+  "trace_format": 1,
+  "name": "reset_restores_seeds",
+  "tier": "C",
+  "description": "Seeds visible at cycle 0; double reset identical; after S=1 set and reset, stepping shows S was cleared (latch stays Q=0).",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    },
+    {
+      "op": "reset"
+    },
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 0
+    },
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 4
+    },
+    {
+      "op": "expect",
+      "signal": "Q",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Qn",
+      "value": 1
+    }
+  ]
+}

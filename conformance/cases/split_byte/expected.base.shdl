@@ -1,0 +1,87 @@
+component SplitByte(In_1_, In_2_, In_3_, In_4_, In_5_, In_6_, In_7_, In_8_) -> (Low_1_, Low_2_, Low_3_, Low_4_, High_1_, High_2_, High_3_, High_4_) {
+    connect {
+        In_4_ -> Low_4_;
+        In_3_ -> Low_3_;
+        In_2_ -> Low_2_;
+        In_1_ -> Low_1_;
+        In_8_ -> High_4_;
+        In_7_ -> High_3_;
+        In_6_ -> High_2_;
+        In_5_ -> High_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_",
+        "In_3_",
+        "In_4_",
+        "In_5_",
+        "In_6_",
+        "In_7_",
+        "In_8_"
+      ]
+    },
+    "outputs": {
+      "Low": [
+        "Low_1_",
+        "Low_2_",
+        "Low_3_",
+        "Low_4_"
+      ],
+      "High": [
+        "High_1_",
+        "High_2_",
+        "High_3_",
+        "High_4_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "SplitByte": {
+      "source_file": "circuit.shdl",
+      "source_line": 1,
+      "instances": {}
+    }
+  },
+  "source_map": {
+    "gates": {},
+    "lines": {}
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 0,
+    "output_depths": {
+      "Low_1_": 0,
+      "Low_2_": 0,
+      "Low_3_": 0,
+      "Low_4_": 0,
+      "High_1_": 0,
+      "High_2_": 0,
+      "High_3_": 0,
+      "High_4_": 0
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "Low_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 0,
+    "total_connections": 8,
+    "total_ports": 16,
+    "by_type": {}
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

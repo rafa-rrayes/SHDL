@@ -1,0 +1,135 @@
+component RepeatedNames(A) -> (O) {
+    c1_g: NOT;
+    c2_g: NOT;
+    g: NOT;
+
+    connect {
+        A -> c1_g.A;
+        c1_g.O -> c2_g.A;
+        c2_g.O -> g.A;
+        g.O -> O;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O"
+      ]
+    }
+  },
+  "hierarchy": {
+    "RepeatedNames": {
+      "source_file": "circuit.shdl",
+      "source_line": 12,
+      "instances": {
+        "c1": {
+          "type": "Cell",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "c1_",
+          "ports": {
+            "In": "A",
+            "Out": "c1_g.O"
+          },
+          "instances": {
+            "g": {
+              "type": "NOT",
+              "gate": "c1_g"
+            }
+          }
+        },
+        "c2": {
+          "type": "Cell",
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "c2_",
+          "ports": {
+            "In": "c1_g.O",
+            "Out": "c2_g.O"
+          },
+          "instances": {
+            "g": {
+              "type": "NOT",
+              "gate": "c2_g"
+            }
+          }
+        },
+        "g": {
+          "type": "NOT",
+          "gate": "g"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "c1_g": {
+        "file": "circuit.shdl",
+        "line": 8,
+        "column": 5
+      },
+      "c2_g": {
+        "file": "circuit.shdl",
+        "line": 8,
+        "column": 5
+      },
+      "g": {
+        "file": "circuit.shdl",
+        "line": 13,
+        "column": 27
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "8": [
+          "c1_g",
+          "c2_g"
+        ],
+        "13": [
+          "c1_g",
+          "c2_g",
+          "g"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "O": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "c1_g",
+      "c2_g",
+      "g",
+      "O"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 3,
+    "total_connections": 4,
+    "total_ports": 2,
+    "by_type": {
+      "NOT": 3
+    }
+  },
+  "doc": {
+    "description": "Conformance: the same instance name in sibling scopes must uniquify.\n\nEach Cell owns a gate named `g`, and the top level declares its own `g`;\nafter flattening, three distinct NOT gates must survive (O = NOT^3(A)).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

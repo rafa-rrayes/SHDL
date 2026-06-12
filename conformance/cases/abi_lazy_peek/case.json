@@ -1,0 +1,26 @@
+{
+  "case_format": 1,
+  "name": "abi_lazy_peek",
+  "title": "ABI: peek of an output ticks exactly once iff dirty",
+  "description": "The 20-stage thermometer (out reads 2^n - 1 after n total ticks with clk held high) makes every hidden tick countable. Each poke arms the dirty flag; the first output peek after it must advance exactly one cycle, and further peeks none.",
+  "tiers": [
+    "A",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/hidden_tick_iff_dirty.json"
+  ],
+  "features": [
+    "abi:lazy-peek"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

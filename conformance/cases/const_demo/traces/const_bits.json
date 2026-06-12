@@ -1,0 +1,64 @@
+{
+  "trace_format": 1,
+  "name": "const_bits",
+  "tier": "B",
+  "description": "With A=1: O1=FIVE[1]=1, O2=FIVE[2]=0, O3=FIVE[9]=0 (beyond width); all 0 when A=0.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "O1",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "O2",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "O3",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 2
+    },
+    {
+      "op": "expect",
+      "signal": "O1",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "O2",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "O3",
+      "value": 0
+    }
+  ]
+}

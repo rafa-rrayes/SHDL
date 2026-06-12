@@ -1,0 +1,29 @@
+{
+  "case_format": 1,
+  "name": "nested_repl",
+  "title": "Nested replication inside a concatenation source",
+  "description": "{2{3{Sign}}, In} nests a replication inside a replication (6 copies of Sign) and appends the 2-bit In payload, wiring an 8-bit Word straight to the output. Word bits 1-2 are In, bits 3-8 are Sign; e.g. In=2,Sign=1 gives 254 and In=3,Sign=1 gives 255.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/word.json"
+  ],
+  "features": [
+    "lang:replication",
+    "lang:nested-replication",
+    "lang:concatenation",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.1.0 addition (2026-06-12); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

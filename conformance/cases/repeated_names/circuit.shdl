@@ -1,0 +1,21 @@
+"""Conformance: the same instance name in sibling scopes must uniquify.
+
+Each Cell owns a gate named `g`, and the top level declares its own `g`;
+after flattening, three distinct NOT gates must survive (O = NOT^3(A)).
+"""
+
+component Cell(In) -> (Out) {
+    g: NOT;
+    connect { In -> g.A;  g.O -> Out; }
+}
+
+top component RepeatedNames(A) -> (O) {
+    c1: Cell;  c2: Cell;  g: NOT;
+
+    connect {
+        A -> c1.In;
+        c1.Out -> c2.In;
+        c2.Out -> g.A;
+        g.O -> O;
+    }
+}

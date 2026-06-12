@@ -1,0 +1,18 @@
+"""Degenerate single-element slice In[k:k].
+
+A slice whose endpoints coincide selects exactly one bit and is
+equivalent to In[k]. Here three degenerate slices reorder a 3-bit input
+onto the output (bit 3, bit 1, bit 2) through buffers, pinning that
+In[k:k] is a legal one-wide slice (shdl.md §6.5, §7.1 range value
+domain — a single-value range iterates once).
+"""
+
+top component DegenSlice(In[3]) -> (Out[3]) {
+    b1: OR;  b2: OR;  b3: OR;
+
+    connect {
+        In[3:3] -> b1.A;  In[3:3] -> b1.B;  b1.O -> Out[1];
+        In[1:1] -> b2.A;  In[1:1] -> b2.B;  b2.O -> Out[2];
+        In[2:2] -> b3.A;  In[2:2] -> b3.B;  b3.O -> Out[3];
+    }
+}

@@ -1,0 +1,16 @@
+"""Standard library: common gates composed from the primitives (shdl.md §9.2)."""
+
+component NAND(A, B) -> (O) {
+    a1: AND;  n1: NOT;
+    connect { A -> a1.A;  B -> a1.B;  a1.O -> n1.A;  n1.O -> O; }
+}
+
+component NOR(A, B) -> (O) {
+    o1: OR;  n1: NOT;
+    connect { A -> o1.A;  B -> o1.B;  o1.O -> n1.A;  n1.O -> O; }
+}
+
+component XNOR(A, B) -> (O) {
+    x1: XOR;  n1: NOT;
+    connect { A -> x1.A;  B -> x1.B;  x1.O -> n1.A;  n1.O -> O; }
+}

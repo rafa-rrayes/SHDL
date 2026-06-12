@@ -1,0 +1,8 @@
+"""Diamond import — right arm; imports the same shared leaf."""
+
+use leaf::{Inv};
+
+component Nor(A, B) -> (O) {
+    o: OR;  i: Inv;
+    connect { A -> o.A;  B -> o.B;  o.O -> i.A;  i.O -> O; }
+}

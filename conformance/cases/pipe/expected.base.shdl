@@ -1,0 +1,226 @@
+component Pipe(In_1_, In_2_) -> (Out_1_, Out_2_) {
+    stage1_b1: OR;
+    stage1_b2: OR;
+    stage2_b1: OR;
+    stage2_b2: OR;
+    stage3_b1: OR;
+    stage3_b2: OR;
+
+    connect {
+        In_1_ -> stage1_b1.A;
+        In_1_ -> stage1_b1.B;
+        In_2_ -> stage1_b2.A;
+        In_2_ -> stage1_b2.B;
+        stage1_b1.O -> stage2_b1.A;
+        stage1_b1.O -> stage2_b1.B;
+        stage1_b2.O -> stage2_b2.A;
+        stage1_b2.O -> stage2_b2.B;
+        stage2_b1.O -> stage3_b1.A;
+        stage2_b1.O -> stage3_b1.B;
+        stage2_b2.O -> stage3_b2.A;
+        stage2_b2.O -> stage3_b2.B;
+        stage3_b2.O -> Out_2_;
+        stage3_b1.O -> Out_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_"
+      ]
+    },
+    "outputs": {
+      "Out": [
+        "Out_1_",
+        "Out_2_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Pipe": {
+      "source_file": "circuit.shdl",
+      "source_line": 12,
+      "instances": {
+        "stage1": {
+          "type": "Stage",
+          "params": {
+            "W": 2,
+            "ID": 1
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "stage1_",
+          "ports": {
+            "In": [
+              "In_1_",
+              "In_2_"
+            ],
+            "Out": [
+              "stage1_b1.O",
+              "stage1_b2.O"
+            ]
+          },
+          "instances": {
+            "b1": {
+              "type": "OR",
+              "gate": "stage1_b1"
+            },
+            "b2": {
+              "type": "OR",
+              "gate": "stage1_b2"
+            }
+          }
+        },
+        "stage2": {
+          "type": "Stage",
+          "params": {
+            "W": 2,
+            "ID": 2
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "stage2_",
+          "ports": {
+            "In": [
+              "stage1_b1.O",
+              "stage1_b2.O"
+            ],
+            "Out": [
+              "stage2_b1.O",
+              "stage2_b2.O"
+            ]
+          },
+          "instances": {
+            "b1": {
+              "type": "OR",
+              "gate": "stage2_b1"
+            },
+            "b2": {
+              "type": "OR",
+              "gate": "stage2_b2"
+            }
+          }
+        },
+        "stage3": {
+          "type": "Stage",
+          "params": {
+            "W": 2,
+            "ID": 3
+          },
+          "source_file": "circuit.shdl",
+          "source_line": 13,
+          "prefix": "stage3_",
+          "ports": {
+            "In": [
+              "stage2_b1.O",
+              "stage2_b2.O"
+            ],
+            "Out": [
+              "Out_1_",
+              "Out_2_"
+            ]
+          },
+          "instances": {
+            "b1": {
+              "type": "OR",
+              "gate": "stage3_b1"
+            },
+            "b2": {
+              "type": "OR",
+              "gate": "stage3_b2"
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "stage1_b1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      },
+      "stage1_b2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      },
+      "stage2_b1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      },
+      "stage2_b2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      },
+      "stage3_b1": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      },
+      "stage3_b2": {
+        "file": "circuit.shdl",
+        "line": 2,
+        "column": 12
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "2": [
+          "stage1_b1",
+          "stage1_b2",
+          "stage2_b1",
+          "stage2_b2",
+          "stage3_b1",
+          "stage3_b2"
+        ],
+        "13": [
+          "stage1_b1",
+          "stage1_b2",
+          "stage2_b1",
+          "stage2_b2",
+          "stage3_b1",
+          "stage3_b2"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "Out_1_": 3,
+      "Out_2_": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "stage1_b1",
+      "stage2_b1",
+      "stage3_b1",
+      "Out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 6,
+    "total_connections": 14,
+    "total_ports": 4,
+    "by_type": {
+      "OR": 6
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

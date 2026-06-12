@@ -1,0 +1,1392 @@
+component RegisterN(D_1_, D_2_, D_3_, D_4_, D_5_, D_6_, D_7_, D_8_, LD) -> (Q_1_, Q_2_, Q_3_, Q_4_, Q_5_, Q_6_, Q_7_, Q_8_) {
+    bit1_inv: NOT;
+    bit1_gSet: AND;
+    bit1_gRst: AND;
+    bit1_latch_n1_o1: OR;
+    bit1_latch_n1_n1: NOT;
+    bit1_latch_n2_o1: OR;
+    bit1_latch_n2_n1: NOT;
+    bit2_inv: NOT;
+    bit2_gSet: AND;
+    bit2_gRst: AND;
+    bit2_latch_n1_o1: OR;
+    bit2_latch_n1_n1: NOT;
+    bit2_latch_n2_o1: OR;
+    bit2_latch_n2_n1: NOT;
+    bit3_inv: NOT;
+    bit3_gSet: AND;
+    bit3_gRst: AND;
+    bit3_latch_n1_o1: OR;
+    bit3_latch_n1_n1: NOT;
+    bit3_latch_n2_o1: OR;
+    bit3_latch_n2_n1: NOT;
+    bit4_inv: NOT;
+    bit4_gSet: AND;
+    bit4_gRst: AND;
+    bit4_latch_n1_o1: OR;
+    bit4_latch_n1_n1: NOT;
+    bit4_latch_n2_o1: OR;
+    bit4_latch_n2_n1: NOT;
+    bit5_inv: NOT;
+    bit5_gSet: AND;
+    bit5_gRst: AND;
+    bit5_latch_n1_o1: OR;
+    bit5_latch_n1_n1: NOT;
+    bit5_latch_n2_o1: OR;
+    bit5_latch_n2_n1: NOT;
+    bit6_inv: NOT;
+    bit6_gSet: AND;
+    bit6_gRst: AND;
+    bit6_latch_n1_o1: OR;
+    bit6_latch_n1_n1: NOT;
+    bit6_latch_n2_o1: OR;
+    bit6_latch_n2_n1: NOT;
+    bit7_inv: NOT;
+    bit7_gSet: AND;
+    bit7_gRst: AND;
+    bit7_latch_n1_o1: OR;
+    bit7_latch_n1_n1: NOT;
+    bit7_latch_n2_o1: OR;
+    bit7_latch_n2_n1: NOT;
+    bit8_inv: NOT;
+    bit8_gSet: AND;
+    bit8_gRst: AND;
+    bit8_latch_n1_o1: OR;
+    bit8_latch_n1_n1: NOT;
+    bit8_latch_n2_o1: OR;
+    bit8_latch_n2_n1: NOT;
+
+    connect {
+        bit1_gRst.O -> bit1_latch_n1_o1.A;
+        bit1_latch_n2_n1.O -> bit1_latch_n1_o1.B;
+        bit1_latch_n1_o1.O -> bit1_latch_n1_n1.A;
+        bit1_gSet.O -> bit1_latch_n2_o1.A;
+        bit1_latch_n1_n1.O -> bit1_latch_n2_o1.B;
+        bit1_latch_n2_o1.O -> bit1_latch_n2_n1.A;
+        D_1_ -> bit1_inv.A;
+        D_1_ -> bit1_gSet.A;
+        LD -> bit1_gSet.B;
+        bit1_inv.O -> bit1_gRst.A;
+        LD -> bit1_gRst.B;
+        bit2_gRst.O -> bit2_latch_n1_o1.A;
+        bit2_latch_n2_n1.O -> bit2_latch_n1_o1.B;
+        bit2_latch_n1_o1.O -> bit2_latch_n1_n1.A;
+        bit2_gSet.O -> bit2_latch_n2_o1.A;
+        bit2_latch_n1_n1.O -> bit2_latch_n2_o1.B;
+        bit2_latch_n2_o1.O -> bit2_latch_n2_n1.A;
+        D_2_ -> bit2_inv.A;
+        D_2_ -> bit2_gSet.A;
+        LD -> bit2_gSet.B;
+        bit2_inv.O -> bit2_gRst.A;
+        LD -> bit2_gRst.B;
+        bit3_gRst.O -> bit3_latch_n1_o1.A;
+        bit3_latch_n2_n1.O -> bit3_latch_n1_o1.B;
+        bit3_latch_n1_o1.O -> bit3_latch_n1_n1.A;
+        bit3_gSet.O -> bit3_latch_n2_o1.A;
+        bit3_latch_n1_n1.O -> bit3_latch_n2_o1.B;
+        bit3_latch_n2_o1.O -> bit3_latch_n2_n1.A;
+        D_3_ -> bit3_inv.A;
+        D_3_ -> bit3_gSet.A;
+        LD -> bit3_gSet.B;
+        bit3_inv.O -> bit3_gRst.A;
+        LD -> bit3_gRst.B;
+        bit4_gRst.O -> bit4_latch_n1_o1.A;
+        bit4_latch_n2_n1.O -> bit4_latch_n1_o1.B;
+        bit4_latch_n1_o1.O -> bit4_latch_n1_n1.A;
+        bit4_gSet.O -> bit4_latch_n2_o1.A;
+        bit4_latch_n1_n1.O -> bit4_latch_n2_o1.B;
+        bit4_latch_n2_o1.O -> bit4_latch_n2_n1.A;
+        D_4_ -> bit4_inv.A;
+        D_4_ -> bit4_gSet.A;
+        LD -> bit4_gSet.B;
+        bit4_inv.O -> bit4_gRst.A;
+        LD -> bit4_gRst.B;
+        bit5_gRst.O -> bit5_latch_n1_o1.A;
+        bit5_latch_n2_n1.O -> bit5_latch_n1_o1.B;
+        bit5_latch_n1_o1.O -> bit5_latch_n1_n1.A;
+        bit5_gSet.O -> bit5_latch_n2_o1.A;
+        bit5_latch_n1_n1.O -> bit5_latch_n2_o1.B;
+        bit5_latch_n2_o1.O -> bit5_latch_n2_n1.A;
+        D_5_ -> bit5_inv.A;
+        D_5_ -> bit5_gSet.A;
+        LD -> bit5_gSet.B;
+        bit5_inv.O -> bit5_gRst.A;
+        LD -> bit5_gRst.B;
+        bit6_gRst.O -> bit6_latch_n1_o1.A;
+        bit6_latch_n2_n1.O -> bit6_latch_n1_o1.B;
+        bit6_latch_n1_o1.O -> bit6_latch_n1_n1.A;
+        bit6_gSet.O -> bit6_latch_n2_o1.A;
+        bit6_latch_n1_n1.O -> bit6_latch_n2_o1.B;
+        bit6_latch_n2_o1.O -> bit6_latch_n2_n1.A;
+        D_6_ -> bit6_inv.A;
+        D_6_ -> bit6_gSet.A;
+        LD -> bit6_gSet.B;
+        bit6_inv.O -> bit6_gRst.A;
+        LD -> bit6_gRst.B;
+        bit7_gRst.O -> bit7_latch_n1_o1.A;
+        bit7_latch_n2_n1.O -> bit7_latch_n1_o1.B;
+        bit7_latch_n1_o1.O -> bit7_latch_n1_n1.A;
+        bit7_gSet.O -> bit7_latch_n2_o1.A;
+        bit7_latch_n1_n1.O -> bit7_latch_n2_o1.B;
+        bit7_latch_n2_o1.O -> bit7_latch_n2_n1.A;
+        D_7_ -> bit7_inv.A;
+        D_7_ -> bit7_gSet.A;
+        LD -> bit7_gSet.B;
+        bit7_inv.O -> bit7_gRst.A;
+        LD -> bit7_gRst.B;
+        bit8_gRst.O -> bit8_latch_n1_o1.A;
+        bit8_latch_n2_n1.O -> bit8_latch_n1_o1.B;
+        bit8_latch_n1_o1.O -> bit8_latch_n1_n1.A;
+        bit8_gSet.O -> bit8_latch_n2_o1.A;
+        bit8_latch_n1_n1.O -> bit8_latch_n2_o1.B;
+        bit8_latch_n2_o1.O -> bit8_latch_n2_n1.A;
+        D_8_ -> bit8_inv.A;
+        D_8_ -> bit8_gSet.A;
+        LD -> bit8_gSet.B;
+        bit8_inv.O -> bit8_gRst.A;
+        LD -> bit8_gRst.B;
+        bit1_latch_n1_n1.O -> Q_1_;
+        bit2_latch_n1_n1.O -> Q_2_;
+        bit3_latch_n1_n1.O -> Q_3_;
+        bit4_latch_n1_n1.O -> Q_4_;
+        bit5_latch_n1_n1.O -> Q_5_;
+        bit6_latch_n1_n1.O -> Q_6_;
+        bit7_latch_n1_n1.O -> Q_7_;
+        bit8_latch_n1_n1.O -> Q_8_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "D": [
+        "D_1_",
+        "D_2_",
+        "D_3_",
+        "D_4_",
+        "D_5_",
+        "D_6_",
+        "D_7_",
+        "D_8_"
+      ],
+      "LD": [
+        "LD"
+      ]
+    },
+    "outputs": {
+      "Q": [
+        "Q_1_",
+        "Q_2_",
+        "Q_3_",
+        "Q_4_",
+        "Q_5_",
+        "Q_6_",
+        "Q_7_",
+        "Q_8_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "RegisterN": {
+      "source_file": "circuit.shdl",
+      "source_line": 13,
+      "instances": {
+        "bit1": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit1_",
+          "ports": {
+            "D": "D_1_",
+            "EN": "LD",
+            "Q": "Q_1_",
+            "Qn": "bit1_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit1_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit1_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit1_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit1_latch_",
+              "ports": {
+                "S": "bit1_gSet.O",
+                "R": "bit1_gRst.O",
+                "Q": "Q_1_",
+                "Qn": "bit1_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit1_latch_n1_",
+                  "ports": {
+                    "A": "bit1_gRst.O",
+                    "B": "bit1_latch_n2_n1.O",
+                    "O": "Q_1_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit1_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit1_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit1_latch_n2_",
+                  "ports": {
+                    "A": "bit1_gSet.O",
+                    "B": "Q_1_",
+                    "O": "bit1_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit1_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit1_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit2": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit2_",
+          "ports": {
+            "D": "D_2_",
+            "EN": "LD",
+            "Q": "Q_2_",
+            "Qn": "bit2_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit2_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit2_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit2_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit2_latch_",
+              "ports": {
+                "S": "bit2_gSet.O",
+                "R": "bit2_gRst.O",
+                "Q": "Q_2_",
+                "Qn": "bit2_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit2_latch_n1_",
+                  "ports": {
+                    "A": "bit2_gRst.O",
+                    "B": "bit2_latch_n2_n1.O",
+                    "O": "Q_2_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit2_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit2_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit2_latch_n2_",
+                  "ports": {
+                    "A": "bit2_gSet.O",
+                    "B": "Q_2_",
+                    "O": "bit2_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit2_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit2_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit3": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit3_",
+          "ports": {
+            "D": "D_3_",
+            "EN": "LD",
+            "Q": "Q_3_",
+            "Qn": "bit3_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit3_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit3_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit3_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit3_latch_",
+              "ports": {
+                "S": "bit3_gSet.O",
+                "R": "bit3_gRst.O",
+                "Q": "Q_3_",
+                "Qn": "bit3_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit3_latch_n1_",
+                  "ports": {
+                    "A": "bit3_gRst.O",
+                    "B": "bit3_latch_n2_n1.O",
+                    "O": "Q_3_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit3_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit3_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit3_latch_n2_",
+                  "ports": {
+                    "A": "bit3_gSet.O",
+                    "B": "Q_3_",
+                    "O": "bit3_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit3_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit3_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit4": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit4_",
+          "ports": {
+            "D": "D_4_",
+            "EN": "LD",
+            "Q": "Q_4_",
+            "Qn": "bit4_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit4_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit4_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit4_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit4_latch_",
+              "ports": {
+                "S": "bit4_gSet.O",
+                "R": "bit4_gRst.O",
+                "Q": "Q_4_",
+                "Qn": "bit4_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit4_latch_n1_",
+                  "ports": {
+                    "A": "bit4_gRst.O",
+                    "B": "bit4_latch_n2_n1.O",
+                    "O": "Q_4_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit4_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit4_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit4_latch_n2_",
+                  "ports": {
+                    "A": "bit4_gSet.O",
+                    "B": "Q_4_",
+                    "O": "bit4_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit4_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit4_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit5": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit5_",
+          "ports": {
+            "D": "D_5_",
+            "EN": "LD",
+            "Q": "Q_5_",
+            "Qn": "bit5_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit5_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit5_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit5_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit5_latch_",
+              "ports": {
+                "S": "bit5_gSet.O",
+                "R": "bit5_gRst.O",
+                "Q": "Q_5_",
+                "Qn": "bit5_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit5_latch_n1_",
+                  "ports": {
+                    "A": "bit5_gRst.O",
+                    "B": "bit5_latch_n2_n1.O",
+                    "O": "Q_5_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit5_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit5_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit5_latch_n2_",
+                  "ports": {
+                    "A": "bit5_gSet.O",
+                    "B": "Q_5_",
+                    "O": "bit5_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit5_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit5_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit6": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit6_",
+          "ports": {
+            "D": "D_6_",
+            "EN": "LD",
+            "Q": "Q_6_",
+            "Qn": "bit6_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit6_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit6_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit6_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit6_latch_",
+              "ports": {
+                "S": "bit6_gSet.O",
+                "R": "bit6_gRst.O",
+                "Q": "Q_6_",
+                "Qn": "bit6_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit6_latch_n1_",
+                  "ports": {
+                    "A": "bit6_gRst.O",
+                    "B": "bit6_latch_n2_n1.O",
+                    "O": "Q_6_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit6_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit6_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit6_latch_n2_",
+                  "ports": {
+                    "A": "bit6_gSet.O",
+                    "B": "Q_6_",
+                    "O": "bit6_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit6_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit6_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit7": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit7_",
+          "ports": {
+            "D": "D_7_",
+            "EN": "LD",
+            "Q": "Q_7_",
+            "Qn": "bit7_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit7_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit7_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit7_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit7_latch_",
+              "ports": {
+                "S": "bit7_gSet.O",
+                "R": "bit7_gRst.O",
+                "Q": "Q_7_",
+                "Qn": "bit7_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit7_latch_n1_",
+                  "ports": {
+                    "A": "bit7_gRst.O",
+                    "B": "bit7_latch_n2_n1.O",
+                    "O": "Q_7_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit7_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit7_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit7_latch_n2_",
+                  "ports": {
+                    "A": "bit7_gSet.O",
+                    "B": "Q_7_",
+                    "O": "bit7_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit7_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit7_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bit8": {
+          "type": "DLatch",
+          "source_file": "circuit.shdl",
+          "source_line": 14,
+          "prefix": "bit8_",
+          "ports": {
+            "D": "D_8_",
+            "EN": "LD",
+            "Q": "Q_8_",
+            "Qn": "bit8_latch_n2_n1.O"
+          },
+          "instances": {
+            "inv": {
+              "type": "NOT",
+              "gate": "bit8_inv"
+            },
+            "gSet": {
+              "type": "AND",
+              "gate": "bit8_gSet"
+            },
+            "gRst": {
+              "type": "AND",
+              "gate": "bit8_gRst"
+            },
+            "latch": {
+              "type": "SRLatch",
+              "source_file": "dLatch.shdl",
+              "source_line": 16,
+              "prefix": "bit8_latch_",
+              "ports": {
+                "S": "bit8_gSet.O",
+                "R": "bit8_gRst.O",
+                "Q": "Q_8_",
+                "Qn": "bit8_latch_n2_n1.O"
+              },
+              "instances": {
+                "n1": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit8_latch_n1_",
+                  "ports": {
+                    "A": "bit8_gRst.O",
+                    "B": "bit8_latch_n2_n1.O",
+                    "O": "Q_8_"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit8_latch_n1_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit8_latch_n1_n1"
+                    }
+                  }
+                },
+                "n2": {
+                  "type": "NOR",
+                  "source_file": "srLatch.shdl",
+                  "source_line": 18,
+                  "prefix": "bit8_latch_n2_",
+                  "ports": {
+                    "A": "bit8_gSet.O",
+                    "B": "Q_8_",
+                    "O": "bit8_latch_n2_n1.O"
+                  },
+                  "instances": {
+                    "o1": {
+                      "type": "OR",
+                      "gate": "bit8_latch_n2_o1"
+                    },
+                    "n1": {
+                      "type": "NOT",
+                      "gate": "bit8_latch_n2_n1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "bit1_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit1_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit1_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit1_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit1_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit1_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit1_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit2_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit2_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit2_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit2_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit2_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit2_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit2_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit3_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit3_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit3_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit3_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit3_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit3_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit3_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit4_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit4_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit4_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit4_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit4_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit4_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit4_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit5_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit5_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit5_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit5_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit5_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit5_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit5_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit6_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit6_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit6_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit6_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit6_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit6_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit6_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit7_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit7_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit7_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit7_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit7_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit7_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit7_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit8_inv": {
+        "file": "dLatch.shdl",
+        "line": 13,
+        "column": 5
+      },
+      "bit8_gSet": {
+        "file": "dLatch.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "bit8_gRst": {
+        "file": "dLatch.shdl",
+        "line": 15,
+        "column": 5
+      },
+      "bit8_latch_n1_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit8_latch_n1_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      },
+      "bit8_latch_n2_o1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 5
+      },
+      "bit8_latch_n2_n1": {
+        "file": "stdgates.shdl",
+        "line": 24,
+        "column": 14
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "14": [
+          "bit1_inv",
+          "bit1_gSet",
+          "bit1_gRst",
+          "bit1_latch_n1_o1",
+          "bit1_latch_n1_n1",
+          "bit1_latch_n2_o1",
+          "bit1_latch_n2_n1",
+          "bit2_inv",
+          "bit2_gSet",
+          "bit2_gRst",
+          "bit2_latch_n1_o1",
+          "bit2_latch_n1_n1",
+          "bit2_latch_n2_o1",
+          "bit2_latch_n2_n1",
+          "bit3_inv",
+          "bit3_gSet",
+          "bit3_gRst",
+          "bit3_latch_n1_o1",
+          "bit3_latch_n1_n1",
+          "bit3_latch_n2_o1",
+          "bit3_latch_n2_n1",
+          "bit4_inv",
+          "bit4_gSet",
+          "bit4_gRst",
+          "bit4_latch_n1_o1",
+          "bit4_latch_n1_n1",
+          "bit4_latch_n2_o1",
+          "bit4_latch_n2_n1",
+          "bit5_inv",
+          "bit5_gSet",
+          "bit5_gRst",
+          "bit5_latch_n1_o1",
+          "bit5_latch_n1_n1",
+          "bit5_latch_n2_o1",
+          "bit5_latch_n2_n1",
+          "bit6_inv",
+          "bit6_gSet",
+          "bit6_gRst",
+          "bit6_latch_n1_o1",
+          "bit6_latch_n1_n1",
+          "bit6_latch_n2_o1",
+          "bit6_latch_n2_n1",
+          "bit7_inv",
+          "bit7_gSet",
+          "bit7_gRst",
+          "bit7_latch_n1_o1",
+          "bit7_latch_n1_n1",
+          "bit7_latch_n2_o1",
+          "bit7_latch_n2_n1",
+          "bit8_inv",
+          "bit8_gSet",
+          "bit8_gRst",
+          "bit8_latch_n1_o1",
+          "bit8_latch_n1_n1",
+          "bit8_latch_n2_o1",
+          "bit8_latch_n2_n1"
+        ]
+      },
+      "dLatch.shdl": {
+        "13": [
+          "bit1_inv",
+          "bit2_inv",
+          "bit3_inv",
+          "bit4_inv",
+          "bit5_inv",
+          "bit6_inv",
+          "bit7_inv",
+          "bit8_inv"
+        ],
+        "14": [
+          "bit1_gSet",
+          "bit2_gSet",
+          "bit3_gSet",
+          "bit4_gSet",
+          "bit5_gSet",
+          "bit6_gSet",
+          "bit7_gSet",
+          "bit8_gSet"
+        ],
+        "15": [
+          "bit1_gRst",
+          "bit2_gRst",
+          "bit3_gRst",
+          "bit4_gRst",
+          "bit5_gRst",
+          "bit6_gRst",
+          "bit7_gRst",
+          "bit8_gRst"
+        ],
+        "16": [
+          "bit1_latch_n1_o1",
+          "bit1_latch_n1_n1",
+          "bit1_latch_n2_o1",
+          "bit1_latch_n2_n1",
+          "bit2_latch_n1_o1",
+          "bit2_latch_n1_n1",
+          "bit2_latch_n2_o1",
+          "bit2_latch_n2_n1",
+          "bit3_latch_n1_o1",
+          "bit3_latch_n1_n1",
+          "bit3_latch_n2_o1",
+          "bit3_latch_n2_n1",
+          "bit4_latch_n1_o1",
+          "bit4_latch_n1_n1",
+          "bit4_latch_n2_o1",
+          "bit4_latch_n2_n1",
+          "bit5_latch_n1_o1",
+          "bit5_latch_n1_n1",
+          "bit5_latch_n2_o1",
+          "bit5_latch_n2_n1",
+          "bit6_latch_n1_o1",
+          "bit6_latch_n1_n1",
+          "bit6_latch_n2_o1",
+          "bit6_latch_n2_n1",
+          "bit7_latch_n1_o1",
+          "bit7_latch_n1_n1",
+          "bit7_latch_n2_o1",
+          "bit7_latch_n2_n1",
+          "bit8_latch_n1_o1",
+          "bit8_latch_n1_n1",
+          "bit8_latch_n2_o1",
+          "bit8_latch_n2_n1"
+        ]
+      },
+      "srLatch.shdl": {
+        "18": [
+          "bit1_latch_n1_o1",
+          "bit1_latch_n1_n1",
+          "bit1_latch_n2_o1",
+          "bit1_latch_n2_n1",
+          "bit2_latch_n1_o1",
+          "bit2_latch_n1_n1",
+          "bit2_latch_n2_o1",
+          "bit2_latch_n2_n1",
+          "bit3_latch_n1_o1",
+          "bit3_latch_n1_n1",
+          "bit3_latch_n2_o1",
+          "bit3_latch_n2_n1",
+          "bit4_latch_n1_o1",
+          "bit4_latch_n1_n1",
+          "bit4_latch_n2_o1",
+          "bit4_latch_n2_n1",
+          "bit5_latch_n1_o1",
+          "bit5_latch_n1_n1",
+          "bit5_latch_n2_o1",
+          "bit5_latch_n2_n1",
+          "bit6_latch_n1_o1",
+          "bit6_latch_n1_n1",
+          "bit6_latch_n2_o1",
+          "bit6_latch_n2_n1",
+          "bit7_latch_n1_o1",
+          "bit7_latch_n1_n1",
+          "bit7_latch_n2_o1",
+          "bit7_latch_n2_n1",
+          "bit8_latch_n1_o1",
+          "bit8_latch_n1_n1",
+          "bit8_latch_n2_o1",
+          "bit8_latch_n2_n1"
+        ]
+      },
+      "stdgates.shdl": {
+        "24": [
+          "bit1_latch_n1_o1",
+          "bit1_latch_n1_n1",
+          "bit1_latch_n2_o1",
+          "bit1_latch_n2_n1",
+          "bit2_latch_n1_o1",
+          "bit2_latch_n1_n1",
+          "bit2_latch_n2_o1",
+          "bit2_latch_n2_n1",
+          "bit3_latch_n1_o1",
+          "bit3_latch_n1_n1",
+          "bit3_latch_n2_o1",
+          "bit3_latch_n2_n1",
+          "bit4_latch_n1_o1",
+          "bit4_latch_n1_n1",
+          "bit4_latch_n2_o1",
+          "bit4_latch_n2_n1",
+          "bit5_latch_n1_o1",
+          "bit5_latch_n1_n1",
+          "bit5_latch_n2_o1",
+          "bit5_latch_n2_n1",
+          "bit6_latch_n1_o1",
+          "bit6_latch_n1_n1",
+          "bit6_latch_n2_o1",
+          "bit6_latch_n2_n1",
+          "bit7_latch_n1_o1",
+          "bit7_latch_n1_n1",
+          "bit7_latch_n2_o1",
+          "bit7_latch_n2_n1",
+          "bit8_latch_n1_o1",
+          "bit8_latch_n1_n1",
+          "bit8_latch_n2_o1",
+          "bit8_latch_n2_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Q_1_": 1,
+      "Q_2_": 1,
+      "Q_3_": 1,
+      "Q_4_": 1,
+      "Q_5_": 1,
+      "Q_6_": 1,
+      "Q_7_": 1,
+      "Q_8_": 1
+    },
+    "is_combinational": false,
+    "has_feedback": true,
+    "critical_path": [
+      "bit1_latch_n1_n1",
+      "Q_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 56,
+    "total_connections": 96,
+    "total_ports": 17,
+    "by_type": {
+      "NOT": 24,
+      "AND": 16,
+      "OR": 16
+    }
+  },
+  "doc": {
+    "description": "13 -- RegisterN: an N-bit load-enable register from D latches.\n\nA generator instantiates user-defined sequential components in bulk\nexactly as it does primitives.  While LD is high the register tracks\nD; when LD drops it holds the last value.  The inverted outputs of\nthe latches are simply left unused -- instance outputs need no\nconsumers (§6.4: fan-out, including zero, is free).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {
+    "Q_1_": 0,
+    "bit1_latch_n2_n1.O": 1,
+    "Q_2_": 0,
+    "bit2_latch_n2_n1.O": 1,
+    "Q_3_": 0,
+    "bit3_latch_n2_n1.O": 1,
+    "Q_4_": 0,
+    "bit4_latch_n2_n1.O": 1,
+    "Q_5_": 0,
+    "bit5_latch_n2_n1.O": 1,
+    "Q_6_": 0,
+    "bit6_latch_n2_n1.O": 1,
+    "Q_7_": 0,
+    "bit7_latch_n2_n1.O": 1,
+    "Q_8_": 0,
+    "bit8_latch_n2_n1.O": 1
+  }
+}

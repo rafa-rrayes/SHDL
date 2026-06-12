@@ -1,0 +1,26 @@
+{
+  "case_format": 1,
+  "name": "abi_step_zero",
+  "title": "ABI: step(0) is a no-op that preserves the dirty flag",
+  "description": "Two step(0) calls between poke and peek must neither advance the thermometer nor clear dirty: the following output peek reads 1 (one hidden tick), not 0 (dirty lost) nor 3 (steps executed). A step(1) afterwards must clear dirty: the next peek is tickless.",
+  "tiers": [
+    "A",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/step_zero_noop.json"
+  ],
+  "features": [
+    "abi:step-zero-preserves-dirty"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

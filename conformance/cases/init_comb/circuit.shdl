@@ -1,0 +1,22 @@
+"""init on a purely combinational gate (no feedback).
+
+The output gate is a buffer (OR with both inputs tied to A), seeded to 1
+by the init block. With no feedback the seed is transient: at cycle 0 O
+reads the seeded 1, but the very first tick recomputes O := A OR A = A,
+so a poke of A=0 + one step yields 0 — the seed does not stick. Pins
+that meta.init seeds the current buffer of an ordinary gate at power-on
+and that reset restores the seed (shdl.md §11.4; AMB-3 / AMB-39
+power-on state, witnessed at cycle 0 vs after a tick).
+"""
+
+top component InitComb(A) -> (O) {
+    buf: OR;
+
+    init {
+        buf.O = 1;     # power-on: O reads 1 at cycle 0
+    }
+
+    connect {
+        A -> buf.A;  A -> buf.B;  buf.O -> O;
+    }
+}

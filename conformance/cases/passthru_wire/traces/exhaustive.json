@@ -1,0 +1,98 @@
+{
+  "trace_format": 1,
+  "name": "exhaustive",
+  "tier": "B",
+  "description": "All four values of A; B mirrors A and C is the parity A[1] XOR A[2].",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "expect",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "C",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "C",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "C",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "B",
+      "value": 2
+    },
+    {
+      "op": "expect",
+      "signal": "C",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 1
+    },
+    {
+      "op": "expect",
+      "signal": "B",
+      "value": 3
+    },
+    {
+      "op": "expect",
+      "signal": "C",
+      "value": 0
+    }
+  ]
+}

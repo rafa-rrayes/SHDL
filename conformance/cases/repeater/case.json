@@ -1,0 +1,27 @@
+{
+  "case_format": 1,
+  "name": "repeater",
+  "title": "Nested generators with arithmetic index expressions",
+  "description": "Repeater<N=2, M=3> replicates each input bit M times via nested >i[N]{ >j[M] } loops and the index expression (i-1)*M + j.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/replication.json"
+  ],
+  "features": [
+    "lang:nested-generators",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

@@ -1,0 +1,110 @@
+component SignExtend(In_1_, In_2_, In_3_, In_4_, In_5_, In_6_, In_7_, In_8_) -> (Out_1_, Out_2_, Out_3_, Out_4_, Out_5_, Out_6_, Out_7_, Out_8_, Out_9_, Out_10_, Out_11_, Out_12_, Out_13_, Out_14_, Out_15_, Out_16_) {
+    connect {
+        In_8_ -> Out_16_;
+        In_8_ -> Out_15_;
+        In_8_ -> Out_14_;
+        In_8_ -> Out_13_;
+        In_8_ -> Out_12_;
+        In_8_ -> Out_11_;
+        In_8_ -> Out_10_;
+        In_8_ -> Out_9_;
+        In_8_ -> Out_8_;
+        In_7_ -> Out_7_;
+        In_6_ -> Out_6_;
+        In_5_ -> Out_5_;
+        In_4_ -> Out_4_;
+        In_3_ -> Out_3_;
+        In_2_ -> Out_2_;
+        In_1_ -> Out_1_;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "In": [
+        "In_1_",
+        "In_2_",
+        "In_3_",
+        "In_4_",
+        "In_5_",
+        "In_6_",
+        "In_7_",
+        "In_8_"
+      ]
+    },
+    "outputs": {
+      "Out": [
+        "Out_1_",
+        "Out_2_",
+        "Out_3_",
+        "Out_4_",
+        "Out_5_",
+        "Out_6_",
+        "Out_7_",
+        "Out_8_",
+        "Out_9_",
+        "Out_10_",
+        "Out_11_",
+        "Out_12_",
+        "Out_13_",
+        "Out_14_",
+        "Out_15_",
+        "Out_16_"
+      ]
+    }
+  },
+  "hierarchy": {
+    "SignExtend": {
+      "source_file": "circuit.shdl",
+      "source_line": 24,
+      "instances": {}
+    }
+  },
+  "source_map": {
+    "gates": {},
+    "lines": {}
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 0,
+    "output_depths": {
+      "Out_1_": 0,
+      "Out_2_": 0,
+      "Out_3_": 0,
+      "Out_4_": 0,
+      "Out_5_": 0,
+      "Out_6_": 0,
+      "Out_7_": 0,
+      "Out_8_": 0,
+      "Out_9_": 0,
+      "Out_10_": 0,
+      "Out_11_": 0,
+      "Out_12_": 0,
+      "Out_13_": 0,
+      "Out_14_": 0,
+      "Out_15_": 0,
+      "Out_16_": 0
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "In_1_",
+      "Out_1_"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 0,
+    "total_connections": 16,
+    "total_ports": 24,
+    "by_type": {}
+  },
+  "doc": {
+    "description": "05 -- Bus wiring: slices, concatenation, and replication.\n\nA slice S[a:b] wires a contiguous bit range in one statement; braces\n{hi, lo} concatenate signals MSB-first; N{...} replicates a group N\ntimes.  Bit 1 is always the LSB (§6).  None of these produce gates --\nthey are pure wiring shorthand.",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

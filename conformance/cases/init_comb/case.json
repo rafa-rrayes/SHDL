@@ -1,0 +1,31 @@
+{
+  "case_format": 1,
+  "name": "init_comb",
+  "title": "init seed on a purely combinational gate (transient, reset-restored)",
+  "description": "buf is a buffer (OR with both inputs tied to A) seeded to 1 by init. With no feedback the seed is transient: O reads 1 at cycle 0 (clean read, no tick) but the first tick recomputes O := A OR A, so the seed does not stick; reset re-applies it. Pins AMB-3/AMB-39 power-on state at cycle 0 vs after a tick.",
+  "tiers": [
+    "A",
+    "B",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/seed_then_recompute.json"
+  ],
+  "features": [
+    "lang:init-block",
+    "lang:init-combinational",
+    "abi:init-seeding",
+    "abi:reset-idempotent",
+    "primitive:or"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.1.0 addition (2026-06-12); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

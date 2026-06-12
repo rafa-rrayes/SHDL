@@ -1,0 +1,32 @@
+{
+  "case_format": 1,
+  "name": "cpu_rege",
+  "title": "SR16 two-phase master-slave register (RegE, N=16)",
+  "description": "The CPU building block: 16 MSFFE bits, each a master DLatch strobed by LD AND Phi1 and a slave published on Phi2. Driven with non-overlapping phases the trace pins edge-triggered capture, hold with LD low, and reload.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "dLatch.shdl",
+    "srLatch.shdl",
+    "stdgates.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/two_phase_load.json"
+  ],
+  "features": [
+    "composite:large",
+    "state:d-latch",
+    "lang:hierarchy",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

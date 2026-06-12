@@ -1,0 +1,84 @@
+component InitComb(A) -> (O) {
+    buf: OR;
+
+    connect {
+        A -> buf.A;
+        A -> buf.B;
+        buf.O -> O;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O"
+      ]
+    }
+  },
+  "hierarchy": {
+    "InitComb": {
+      "source_file": "circuit.shdl",
+      "source_line": 12,
+      "instances": {
+        "buf": {
+          "type": "OR",
+          "gate": "buf"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "buf": {
+        "file": "circuit.shdl",
+        "line": 13,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "13": [
+          "buf"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "O": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "buf",
+      "O"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 1,
+    "total_connections": 3,
+    "total_ports": 2,
+    "by_type": {
+      "OR": 1
+    }
+  },
+  "doc": {
+    "description": "init on a purely combinational gate (no feedback).\n\nThe output gate is a buffer (OR with both inputs tied to A), seeded to 1\nby the init block. With no feedback the seed is transient: at cycle 0 O\nreads the seeded 1, but the very first tick recomputes O := A OR A = A,\nso a poke of A=0 + one step yields 0 — the seed does not stick. Pins\nthat meta.init seeds the current buffer of an ordinary gate at power-on\nand that reset restores the seed (shdl.md §11.4; AMB-3 / AMB-39\npower-on state, witnessed at cycle 0 vs after a tick).",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {
+    "O": 1
+  }
+}

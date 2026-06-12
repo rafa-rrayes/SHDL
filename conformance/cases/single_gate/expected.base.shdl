@@ -1,0 +1,81 @@
+component Inverter(A) -> (O) {
+    n1: NOT;
+
+    connect {
+        A -> n1.A;
+        n1.O -> O;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ]
+    },
+    "outputs": {
+      "O": [
+        "O"
+      ]
+    }
+  },
+  "hierarchy": {
+    "Inverter": {
+      "source_file": "circuit.shdl",
+      "source_line": 11,
+      "instances": {
+        "n1": {
+          "type": "NOT",
+          "gate": "n1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "n1": {
+        "file": "circuit.shdl",
+        "line": 12,
+        "column": 5
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "12": [
+          "n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "O": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "n1",
+      "O"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 1,
+    "total_connections": 2,
+    "total_ports": 2,
+    "by_type": {
+      "NOT": 1
+    }
+  },
+  "doc": {
+    "description": "01 -- Inverter: the \"hello, circuit\" of SHDL.\n\nA component declares an input list, an output list, instances, and a\nconnect block.  Everything in SHDL is ultimately gates and wires; this\nis one gate and two wires.\n\nFlatten:  shdl-flatten examples/inverter.shdl",
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}

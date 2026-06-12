@@ -1,0 +1,30 @@
+{
+  "case_format": 1,
+  "name": "cond_matrix",
+  "title": "Conditional-operator matrix: every when-condition operator at flatten time",
+  "description": "A 6-lane generator selects each lane's source (P or Q) by a distinct compile-time relational/boolean operator over the loop index (==, !=, <, >=, <=, >, &&, ||). Operators never become gates; the lane vector is [P,Q,P,P,Q,Q] (LSB-first). P-only -> 13, Q-only -> 50, both -> 63.",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/operator_matrix.json"
+  ],
+  "features": [
+    "lang:conditionals-multi-binding",
+    "lang:conditional-operators",
+    "lang:generators-multi-binding",
+    "primitive:gnd",
+    "primitive:or"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.1.0 addition (2026-06-12); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

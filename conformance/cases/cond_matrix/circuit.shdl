@@ -1,0 +1,38 @@
+"""Conditional-operator matrix: every when-condition operator at flatten time.
+
+A 6-lane generator where each lane's structure is chosen by a distinct
+relational/boolean operator over the loop index i (1..6). Exactly one
+when-branch fires per lane, selecting that lane's source:
+
+    i == 1            -> P     (equality)
+    i != 1 && i < 3   -> Q     (inequality, less-than, boolean AND)
+    i >= 3 && i <= 4  -> P     (ge, le)
+    i > 4 || i == 99  -> Q     (gt, boolean OR)
+
+The operators are compile-time only (shdl.md §13, §7.7); they never
+become gates. Each lane ORs its chosen source with a shared GND (0) so
+OR(src, 0) = src is observable after one cycle. Out (LSB-first) =
+[P, Q, P, P, Q, Q].
+"""
+
+top component CondMatrix<N = 6>(P, Q) -> (Out[N]) {
+    z: __GND__;
+    >i[N]{ lane{i}: OR; }
+
+    connect {
+        >i[N]{
+            when {i == 1}            { P -> lane{i}.A; }
+            else {
+                when {i != 1 && i < 3}   { Q -> lane{i}.A; }
+                else {
+                    when {i >= 3 && i <= 4}  { P -> lane{i}.A; }
+                    else {
+                        when {i > 4 || i == 99}  { Q -> lane{i}.A; }
+                    }
+                }
+            }
+            z.O -> lane{i}.B;
+            lane{i}.O -> Out[{i}];
+        }
+    }
+}

@@ -1,0 +1,20 @@
+component Wire1(In) -> (Out) {
+    connect { In -> Out; }
+}
+
+component Wire2(In) -> (Out) {
+    w: Wire1;
+    connect { In -> w.In;  w.Out -> Out; }
+}
+
+top component PassThru(A[2]) -> (B[2], C) {
+    w1: Wire2;  w2: Wire2;
+    x1: XOR;
+
+    connect {
+        A[1] -> w1.In;   A[2] -> w2.In;
+        w1.Out -> B[1];  w2.Out -> B[2];
+        w1.Out -> x1.A;  w2.Out -> x1.B;
+        x1.O -> C;
+    }
+}

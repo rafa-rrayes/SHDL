@@ -1,0 +1,26 @@
+{
+  "case_format": 1,
+  "name": "abi_poke_masking",
+  "title": "ABI: poke masks the value to the port width",
+  "description": "MaskProbe is a pure 2-bit passthrough. Poking 255 and 4 (0b100) into In[2] must store 3 and 0: the scatter keeps only bits within the port width, observable both by peeking the input back and through the passthrough output.",
+  "tiers": [
+    "A",
+    "C"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/masking.json"
+  ],
+  "features": [
+    "abi:poke-masking"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen \u2014 modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}

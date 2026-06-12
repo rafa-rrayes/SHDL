@@ -1,0 +1,88 @@
+{
+  "trace_format": 1,
+  "name": "select_tree",
+  "tier": "B",
+  "description": "With D0..D3 = 0x11/0x22/0x44/0x88, O equals the bus picked by S.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "D0",
+      "value": 17
+    },
+    {
+      "op": "poke",
+      "signal": "D1",
+      "value": 34
+    },
+    {
+      "op": "poke",
+      "signal": "D2",
+      "value": 68
+    },
+    {
+      "op": "poke",
+      "signal": "D3",
+      "value": 136
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 5
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 17
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 5
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 34
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 2
+    },
+    {
+      "op": "step",
+      "cycles": 5
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 68
+    },
+    {
+      "op": "poke",
+      "signal": "S",
+      "value": 3
+    },
+    {
+      "op": "step",
+      "cycles": 5
+    },
+    {
+      "op": "expect",
+      "signal": "O",
+      "value": 136
+    }
+  ]
+}

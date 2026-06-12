@@ -1,0 +1,23 @@
+"""
+13 -- RegisterN: an N-bit load-enable register from D latches.
+
+A generator instantiates user-defined sequential components in bulk
+exactly as it does primitives.  While LD is high the register tracks
+D; when LD drops it holds the last value.  The inverted outputs of
+the latches are simply left unused -- instance outputs need no
+consumers (§6.4: fan-out, including zero, is free).
+"""
+
+use dLatch::{DLatch};
+
+top component RegisterN<N = 8>(D[N], LD) -> (Q[N]) {
+    >i[N]{ bit{i}: DLatch; }
+
+    connect {
+        >i[N]{
+            D[{i}]   -> bit{i}.D;
+            LD       -> bit{i}.EN;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}

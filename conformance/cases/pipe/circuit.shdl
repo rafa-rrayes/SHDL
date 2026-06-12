@@ -1,0 +1,20 @@
+component Stage<W = 1, ID = 0>(In[W]) -> (Out[W]) {
+    >k[W]{ b{k}: OR; }
+    connect {
+        >k[W]{
+            In[{k}] -> b{k}.A;
+            In[{k}] -> b{k}.B;
+            b{k}.O -> Out[{k}];
+        }
+    }
+}
+
+top component Pipe<W = 2>(In[W]) -> (Out[W]) {
+    >i[3]{ stage{i}: Stage<W = W, ID = i>; }   # argument depends on the loop variable
+
+    connect {
+        In -> stage1.In;
+        >i[2:3]{ stage{i-1}.Out -> stage{i}.In; }
+        stage3.Out -> Out;
+    }
+}

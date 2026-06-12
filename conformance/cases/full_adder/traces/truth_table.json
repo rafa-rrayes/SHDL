@@ -1,0 +1,244 @@
+{
+  "trace_format": 1,
+  "name": "truth_table",
+  "tier": "B",
+  "description": "Sum/Cout for every (A, B, Cin).",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    {
+      "op": "reset"
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 0
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 0
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 0
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "A",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "B",
+      "value": 1
+    },
+    {
+      "op": "poke",
+      "signal": "Cin",
+      "value": 1
+    },
+    {
+      "op": "step",
+      "cycles": 3
+    },
+    {
+      "op": "expect",
+      "signal": "Sum",
+      "value": 1
+    },
+    {
+      "op": "expect",
+      "signal": "Cout",
+      "value": 1
+    }
+  ]
+}

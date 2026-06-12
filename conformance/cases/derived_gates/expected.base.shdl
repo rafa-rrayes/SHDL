@@ -1,0 +1,213 @@
+component GatesDemo(A, B) -> (Na, No, Xn) {
+    g1_a1: AND;
+    g1_n1: NOT;
+    g2_o1: OR;
+    g2_n1: NOT;
+    g3_x1: XOR;
+    g3_n1: NOT;
+
+    connect {
+        A -> g1_a1.A;
+        B -> g1_a1.B;
+        g1_a1.O -> g1_n1.A;
+        A -> g2_o1.A;
+        B -> g2_o1.B;
+        g2_o1.O -> g2_n1.A;
+        A -> g3_x1.A;
+        B -> g3_x1.B;
+        g3_x1.O -> g3_n1.A;
+        g1_n1.O -> Na;
+        g2_n1.O -> No;
+        g3_n1.O -> Xn;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ]
+    },
+    "outputs": {
+      "Na": [
+        "Na"
+      ],
+      "No": [
+        "No"
+      ],
+      "Xn": [
+        "Xn"
+      ]
+    }
+  },
+  "hierarchy": {
+    "GatesDemo": {
+      "source_file": "circuit.shdl",
+      "source_line": 3,
+      "instances": {
+        "g1": {
+          "type": "NAND",
+          "source_file": "circuit.shdl",
+          "source_line": 4,
+          "prefix": "g1_",
+          "ports": {
+            "A": "A",
+            "B": "B",
+            "O": "Na"
+          },
+          "instances": {
+            "a1": {
+              "type": "AND",
+              "gate": "g1_a1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "g1_n1"
+            }
+          }
+        },
+        "g2": {
+          "type": "NOR",
+          "source_file": "circuit.shdl",
+          "source_line": 4,
+          "prefix": "g2_",
+          "ports": {
+            "A": "A",
+            "B": "B",
+            "O": "No"
+          },
+          "instances": {
+            "o1": {
+              "type": "OR",
+              "gate": "g2_o1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "g2_n1"
+            }
+          }
+        },
+        "g3": {
+          "type": "XNOR",
+          "source_file": "circuit.shdl",
+          "source_line": 4,
+          "prefix": "g3_",
+          "ports": {
+            "A": "A",
+            "B": "B",
+            "O": "Xn"
+          },
+          "instances": {
+            "x1": {
+              "type": "XOR",
+              "gate": "g3_x1"
+            },
+            "n1": {
+              "type": "NOT",
+              "gate": "g3_n1"
+            }
+          }
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "g1_a1": {
+        "file": "stdgates.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "g1_n1": {
+        "file": "stdgates.shdl",
+        "line": 4,
+        "column": 15
+      },
+      "g2_o1": {
+        "file": "stdgates.shdl",
+        "line": 9,
+        "column": 5
+      },
+      "g2_n1": {
+        "file": "stdgates.shdl",
+        "line": 9,
+        "column": 14
+      },
+      "g3_x1": {
+        "file": "stdgates.shdl",
+        "line": 14,
+        "column": 5
+      },
+      "g3_n1": {
+        "file": "stdgates.shdl",
+        "line": 14,
+        "column": 15
+      }
+    },
+    "lines": {
+      "circuit.shdl": {
+        "4": [
+          "g1_a1",
+          "g1_n1",
+          "g2_o1",
+          "g2_n1",
+          "g3_x1",
+          "g3_n1"
+        ]
+      },
+      "stdgates.shdl": {
+        "4": [
+          "g1_a1",
+          "g1_n1"
+        ],
+        "9": [
+          "g2_o1",
+          "g2_n1"
+        ],
+        "14": [
+          "g3_x1",
+          "g3_n1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 2,
+    "output_depths": {
+      "Na": 2,
+      "No": 2,
+      "Xn": 2
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "g1_a1",
+      "g1_n1",
+      "Na"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 6,
+    "total_connections": 12,
+    "total_ports": 5,
+    "by_type": {
+      "AND": 1,
+      "NOT": 3,
+      "OR": 1,
+      "XOR": 1
+    }
+  },
+  "doc": {
+    "source": "circuit.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}
