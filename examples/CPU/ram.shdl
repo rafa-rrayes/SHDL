@@ -1,0 +1,76 @@
+"""
+SR16 main memory: 256 x 16-bit word RAM, one shared read/write port.
+
+- Address decode: Dec2 x Dec3 x Dec3 products -> 256 one-hot word selects
+  (word w, 1-based, holds address w-1 = (h-1)*64 + (m-1)*8 + (l-1)).
+- Cells: D latches strobed on Phi1 (same phase as the CPU's master latches:
+  write data is a combinational function of slave outputs, stable while
+  Phi2 is low).
+- Read: per-bit AND-OR with a balanced 8-level OR tree (depth ~ log2(256),
+  which keeps the per-cycle settle budget small).
+"""
+
+use dLatch::{DLatch};
+use parts::{Dec2, Dec3};
+
+top component RAM256(Addr[8], WData[16], WE, Phi1) -> (Q[16]) {
+    decL: Dec3;     # Addr[1:3]
+    decM: Dec3;     # Addr[4:6]
+    decH: Dec2;     # Addr[7:8]
+    wep:  AND;      # global write strobe: WE & Phi1
+
+    >h[4]{ >m[8]{ hm{{h-1}*8+m}: AND; } }                 # 32 hi*mid products
+    >w[256]{ wsel{w}: AND;  en{w}: AND; }                 # word select / cell strobe
+    >w[256]{ >b[16]{ c{w}_{b}: DLatch;  rd{w}_{b}: AND; } }
+
+    # read tree: 256 -> 128 -> 64 -> 32 -> 16 -> 8 -> 4 -> 2 -> 1 per bit
+    >b[16]{
+        >k[128]{ t1_{k}_{b}: OR; }
+        >k[64]{  t2_{k}_{b}: OR; }
+        >k[32]{  t3_{k}_{b}: OR; }
+        >k[16]{  t4_{k}_{b}: OR; }
+        >k[8]{   t5_{k}_{b}: OR; }
+        >k[4]{   t6_{k}_{b}: OR; }
+        >k[2]{   t7_{k}_{b}: OR; }
+        t8_{b}: OR;
+    }
+
+    connect {
+        Addr[1:3] -> decL.S;
+        Addr[4:6] -> decM.S;
+        Addr[7:8] -> decH.S;
+        WE -> wep.A;   Phi1 -> wep.B;
+
+        >h[4]{ >m[8]{
+            decH.O[{h}] -> hm{{h-1}*8+m}.A;
+            decM.O[{m}] -> hm{{h-1}*8+m}.B;
+        } }
+
+        >h[4]{ >m[8]{ >l[8]{
+            hm{{h-1}*8+m}.O -> wsel{{h-1}*64+{m-1}*8+l}.A;
+            decL.O[{l}]     -> wsel{{h-1}*64+{m-1}*8+l}.B;
+        } } }
+
+        >w[256]{
+            wsel{w}.O -> en{w}.A;   wep.O -> en{w}.B;
+            >b[16]{
+                WData[{b}] -> c{w}_{b}.D;
+                en{w}.O    -> c{w}_{b}.EN;
+                c{w}_{b}.Q -> rd{w}_{b}.A;
+                wsel{w}.O  -> rd{w}_{b}.B;
+            }
+        }
+
+        >b[16]{
+            >k[128]{ rd{2*k-1}_{b}.O -> t1_{k}_{b}.A;   rd{2*k}_{b}.O -> t1_{k}_{b}.B; }
+            >k[64]{  t1_{2*k-1}_{b}.O -> t2_{k}_{b}.A;  t1_{2*k}_{b}.O -> t2_{k}_{b}.B; }
+            >k[32]{  t2_{2*k-1}_{b}.O -> t3_{k}_{b}.A;  t2_{2*k}_{b}.O -> t3_{k}_{b}.B; }
+            >k[16]{  t3_{2*k-1}_{b}.O -> t4_{k}_{b}.A;  t3_{2*k}_{b}.O -> t4_{k}_{b}.B; }
+            >k[8]{   t4_{2*k-1}_{b}.O -> t5_{k}_{b}.A;  t4_{2*k}_{b}.O -> t5_{k}_{b}.B; }
+            >k[4]{   t5_{2*k-1}_{b}.O -> t6_{k}_{b}.A;  t5_{2*k}_{b}.O -> t6_{k}_{b}.B; }
+            >k[2]{   t6_{2*k-1}_{b}.O -> t7_{k}_{b}.A;  t6_{2*k}_{b}.O -> t7_{k}_{b}.B; }
+            t7_1_{b}.O -> t8_{b}.A;   t7_2_{b}.O -> t8_{b}.B;
+            t8_{b}.O -> Q[{b}];
+        }
+    }
+}

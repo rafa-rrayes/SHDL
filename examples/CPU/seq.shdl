@@ -1,0 +1,38 @@
+"""
+SR16 sequential building blocks (ISA.md §5).
+
+Two-phase master-slave discipline: the master latch captures while Phi1 is
+high (gated by the load enable), the slave publishes while Phi2 is high.
+With non-overlapping phases driven by the harness there is no race-through
+window: whatever the master holds when Phi1 falls is what the slave exposes
+on the next Phi2 — edge-triggered behavior from level-sensitive latches.
+"""
+
+use dLatch::{DLatch};
+
+component MSFFE(D, LD, Phi1, Phi2) -> (Q) {
+    en: AND;           # master strobes only when loaded: EN = LD & Phi1
+    m:  DLatch;
+    s:  DLatch;
+
+    connect {
+        LD   -> en.A;   Phi1 -> en.B;
+        D    -> m.D;    en.O -> m.EN;
+        m.Q  -> s.D;    Phi2 -> s.EN;
+        s.Q  -> Q;
+    }
+}
+
+top component RegE<N = 16>(D[N], LD, Phi1, Phi2) -> (Q[N]) {
+    >i[N]{ b{i}: MSFFE; }
+
+    connect {
+        >i[N]{
+            D[{i}]  -> b{i}.D;
+            LD      -> b{i}.LD;
+            Phi1    -> b{i}.Phi1;
+            Phi2    -> b{i}.Phi2;
+            b{i}.Q  -> Q[{i}];
+        }
+    }
+}

@@ -1,0 +1,146 @@
+"""
+SR16 top level (ISA.md §6): control + register file + ALU + RAM + the
+architectural registers (PC, IR, flags, FSM state), glued by the selector
+muxes the control unit drives.
+
+DMA load port: LdEn freezes the CPU (control masks every state-write
+enable) and steers the RAM address/data/WE to the Ld* pins, so a host can
+fill memory with Phi1 pulses and read it back through MemOut.
+
+All architectural state is exported for observability: PC, IR, flags
+(bit 1 = Z, 2 = N, 3 = C, 4 = V), FSM state and the eight registers.
+"""
+
+use seq::{MSFFE, RegE};
+use parts::{Inc16};
+use muxN::{MuxN, Mux4N};
+use control::{Control};
+use alu::{ALU};
+use regfile::{RegFile};
+use ram::{RAM256};
+
+top component SR16(Phi1, Phi2, LdEn, LdWe, LdAddr[16], LdData[16])
+    -> (Halted, PCout[16], IRout[16], Flags[4], State[2], MemOut[16],
+        R0out[16], R1out[16], R2out[16], R3out[16],
+        R4out[16], R5out[16], R6out[16], R7out[16]) {
+
+    ZERO = 0;  ONE = 1;  SEVEN = 7;
+
+    ctl: Control;
+    rf:  RegFile;
+    alu: ALU;
+    ram: RAM256;
+
+    pc:   RegE<16>;
+    ir:   RegE<16>;
+    pinc: Inc16;
+
+    fZ: MSFFE;  fN: MSFFE;  fC: MSFFE;  fV: MSFFE;
+    st1: MSFFE;  st2: MSFFE;       # FSM state, bit 1 / bit 2
+
+    rp1M: MuxN<3>;     # read port 1: rs1 field / R7
+    rp2M: MuxN<3>;     # read port 2: rs2 field / rd field
+    waM:  MuxN<3>;     # write address: rd field / R7
+    a1M:  MuxN<16>;    # ALU A: RD1 / PC
+    a2M:  Mux4N<16>;   # ALU B: RD2 / sext6 / +1 / sext9
+    wbM:  Mux4N<16>;   # writeback: ALU / RAM / sext8 / LDIH merge
+    pcM:  Mux4N<16>;   # next PC: PC+1 / ALU / imm12 / RAM
+    raM:  MuxN<8>;     # RAM address: PC / ALU
+    daM:  MuxN<8>;     # DMA address override
+    rdM:  MuxN<16>;    # RAM write data: RD2 / PC (CALL)
+    ddM:  MuxN<16>;    # DMA data override
+    weA:  AND;  weO: OR;   # RAM WE: CPU strobe | (LdEn & LdWe)
+
+    connect {
+        # --- control unit inputs ---
+        st1.Q -> ctl.State[1];   st2.Q -> ctl.State[2];
+        ir.Q  -> ctl.IR;
+        fZ.Q -> ctl.FlZ;   fN.Q -> ctl.FlN;
+        fC.Q -> ctl.FlC;   fV.Q -> ctl.FlV;
+        LdEn -> ctl.LdEn;
+
+        # --- PC ---
+        pc.Q   -> pinc.A;
+        pinc.Q -> pcM.D0;
+        alu.R  -> pcM.D1;
+        {ZERO[13:16], ir.Q[1:12]} -> pcM.D2;     # imm12, zero-extended
+        ram.Q  -> pcM.D3;
+        ctl.PcSel -> pcM.S;
+        pcM.O -> pc.D;       ctl.PcWe -> pc.LD;
+        Phi1 -> pc.Phi1;     Phi2 -> pc.Phi2;
+
+        # --- IR ---
+        ram.Q -> ir.D;       ctl.IrWe -> ir.LD;
+        Phi1 -> ir.Phi1;     Phi2 -> ir.Phi2;
+
+        # --- register file ---
+        ir.Q[7:9]   -> rp1M.A;   SEVEN[1:3]  -> rp1M.B;   ctl.Rp1Sel -> rp1M.S;
+        ir.Q[4:6]   -> rp2M.A;   ir.Q[10:12] -> rp2M.B;   ctl.Rp2Sel -> rp2M.S;
+        ir.Q[10:12] -> waM.A;    SEVEN[1:3]  -> waM.B;    ctl.RegWAddrSel -> waM.S;
+
+        alu.R -> wbM.D0;
+        ram.Q -> wbM.D1;
+        {8{ir.Q[8]}, ir.Q[1:8]}  -> wbM.D2;      # LDI: sign-extended imm8
+        {ir.Q[1:8], rf.RD2[1:8]} -> wbM.D3;      # LDIH: imm8 over old low byte
+        ctl.RegWDataSel -> wbM.S;
+
+        rp1M.O -> rf.RAddr1;   rp2M.O -> rf.RAddr2;
+        waM.O  -> rf.WAddr;    wbM.O  -> rf.WData;   ctl.RegWe -> rf.WE;
+        Phi1 -> rf.Phi1;       Phi2 -> rf.Phi2;
+
+        # --- ALU ---
+        rf.RD1 -> a1M.A;   pc.Q -> a1M.B;   ctl.AluIn1Sel -> a1M.S;
+        a1M.O  -> alu.A;
+
+        rf.RD2 -> a2M.D0;
+        {10{ir.Q[6]}, ir.Q[1:6]} -> a2M.D1;      # sext6 (LD/ST/ADDI)
+        ONE[1:16]                -> a2M.D2;      # stack +-1
+        {7{ir.Q[9]}, ir.Q[1:9]}  -> a2M.D3;      # sext9 (branch offset)
+        ctl.AluIn2Sel -> a2M.S;
+        a2M.O -> alu.B;
+
+        ctl.AluOp -> alu.Op;
+        fC.Q      -> alu.Cin;
+
+        # --- flags ---
+        alu.Z -> fZ.D;   ctl.FlWeZN -> fZ.LD;
+        alu.N -> fN.D;   ctl.FlWeZN -> fN.LD;
+        alu.C -> fC.D;   ctl.FlWeC  -> fC.LD;
+        alu.V -> fV.D;   ctl.FlWeV  -> fV.LD;
+        Phi1 -> fZ.Phi1;   Phi2 -> fZ.Phi2;
+        Phi1 -> fN.Phi1;   Phi2 -> fN.Phi2;
+        Phi1 -> fC.Phi1;   Phi2 -> fC.Phi2;
+        Phi1 -> fV.Phi1;   Phi2 -> fV.Phi2;
+
+        # --- FSM state ---
+        ctl.StateNext[1] -> st1.D;   ctl.StateWe -> st1.LD;
+        ctl.StateNext[2] -> st2.D;   ctl.StateWe -> st2.LD;
+        Phi1 -> st1.Phi1;   Phi2 -> st1.Phi2;
+        Phi1 -> st2.Phi1;   Phi2 -> st2.Phi2;
+
+        # --- RAM port (low 8 address bits; addresses alias mod 256) ---
+        pc.Q[1:8]  -> raM.A;   alu.R[1:8]  -> raM.B;   ctl.RamAddrSel -> raM.S;
+        raM.O      -> daM.A;   LdAddr[1:8] -> daM.B;   LdEn -> daM.S;
+        daM.O      -> ram.Addr;
+
+        rf.RD2 -> rdM.A;   pc.Q   -> rdM.B;   ctl.RamWDataSel -> rdM.S;
+        rdM.O  -> ddM.A;   LdData -> ddM.B;   LdEn -> ddM.S;
+        ddM.O  -> ram.WData;
+
+        LdEn      -> weA.A;   LdWe  -> weA.B;
+        ctl.RamWe -> weO.A;   weA.O -> weO.B;
+        weO.O -> ram.WE;
+        Phi1  -> ram.Phi1;
+
+        # --- observability ---
+        ctl.Halted -> Halted;
+        pc.Q  -> PCout;
+        ir.Q  -> IRout;
+        fZ.Q  -> Flags[1];   fN.Q -> Flags[2];
+        fC.Q  -> Flags[3];   fV.Q -> Flags[4];
+        st1.Q -> State[1];   st2.Q -> State[2];
+        ram.Q -> MemOut;
+        rf.Q0 -> R0out;   rf.Q1 -> R1out;   rf.Q2 -> R2out;   rf.Q3 -> R3out;
+        rf.Q4 -> R4out;   rf.Q5 -> R5out;   rf.Q6 -> R6out;   rf.Q7 -> R7out;
+    }
+}

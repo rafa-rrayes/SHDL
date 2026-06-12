@@ -1,0 +1,98 @@
+"""
+SR16 ALU (ISA.md §3.1/§3.2). Internal Op encoding:
+
+    0 ADD   1 SUB   2 ADC   3 AND   4 OR    5 XOR   6 MOV   7 NOT
+    8 SHL   9 SHR  10 SAR  11 ROL  12 ROR  13-15 reserved (= adder result)
+
+One adder lane (B inverted + carry-in forced for SUB; carry-in = C flag for
+ADC), bitwise lanes, shifts as pure wiring into the result mux. Flag outputs
+are always computed; the control unit decides which ones get latched:
+
+    Z = result == 0          N = result bit 15
+    C = adder carry (ADD/SUB/ADC), shifted-out bit (shifts), else passes Cin
+    V = adder signed overflow (meaningful for ADD/SUB/ADC only)
+"""
+
+use adderN::{AdderN};
+use stdgates::{XNOR};
+use mux2::{Mux2};
+use parts::{Mux16N, Dec4, Or16};
+
+top component ALU(A[16], B[16], Op[4], Cin) -> (R[16], Z, N, C, V) {
+    ZERO = 0;
+
+    dec: Dec4;                       # one-hot op: dec.O[k] <=> Op == k-1
+    >i[16]{ bx{i}: XOR; }            # effective B: B ^ isSub
+    cinAnd: AND;  cinOr: OR;
+    add: AdderN<16>;
+
+    >i[16]{ lAnd{i}: AND;  lOr{i}: OR;  lXor{i}: XOR;  lNot{i}: NOT; }
+
+    res:  Mux16N<16>;
+    zRed: Or16;   zInv: NOT;
+
+    cSh16: OR;  cSh1a: OR;  cSh1b: OR;   # C-source decode
+    addOpA: OR; addOpB: OR;
+    cm1: Mux2;  cm2: Mux2;  cm3: Mux2;
+
+    vXnor: XNOR;  vXor: XOR;  vAnd: AND;
+
+    connect {
+        Op -> dec.S;
+
+        # --- adder lane: B2 = B ^ isSub, cin = isSub | (isAdc & Cin) ---
+        >i[16]{ B[{i}] -> bx{i}.A;  dec.O[2] -> bx{i}.B; }
+        dec.O[3] -> cinAnd.A;   Cin      -> cinAnd.B;
+        dec.O[2] -> cinOr.A;    cinAnd.O -> cinOr.B;
+
+        A -> add.A;
+        >i[16]{ bx{i}.O -> add.B[{i}]; }
+        cinOr.O -> add.Cin;
+
+        # --- bitwise lanes ---
+        >i[16]{
+            A[{i}] -> lAnd{i}.A;   B[{i}] -> lAnd{i}.B;
+            A[{i}] -> lOr{i}.A;    B[{i}] -> lOr{i}.B;
+            A[{i}] -> lXor{i}.A;   B[{i}] -> lXor{i}.B;
+            A[{i}] -> lNot{i}.A;
+        }
+
+        # --- result select ---
+        add.Sum -> res.D0;   add.Sum -> res.D1;   add.Sum -> res.D2;
+        >i[16]{
+            lAnd{i}.O -> res.D3[{i}];
+            lOr{i}.O  -> res.D4[{i}];
+            lXor{i}.O -> res.D5[{i}];
+            lNot{i}.O -> res.D7[{i}];
+        }
+        A -> res.D6;                          # MOV
+        {A[1:15], ZERO[1]} -> res.D8;         # SHL:  bit i+1 <- bit i, LSB <- 0
+        {ZERO[1], A[2:16]} -> res.D9;         # SHR:  bit i <- bit i+1, MSB <- 0
+        {A[16],   A[2:16]} -> res.D10;        # SAR:  like SHR, MSB preserved
+        {A[1:15], A[16]}   -> res.D11;        # ROL
+        {A[1],    A[2:16]} -> res.D12;        # ROR
+        add.Sum -> res.D13;  add.Sum -> res.D14;  add.Sum -> res.D15;
+        Op -> res.S;
+        res.O -> R;
+
+        # --- flags ---
+        res.O -> zRed.A;   zRed.O -> zInv.A;   zInv.O -> Z;
+        res.O[16] -> N;
+
+        dec.O[9]  -> cSh16.A;   dec.O[12] -> cSh16.B;     # SHL | ROL
+        dec.O[10] -> cSh1a.A;   dec.O[11] -> cSh1a.B;
+        cSh1a.O   -> cSh1b.A;   dec.O[13] -> cSh1b.B;     # SHR | SAR | ROR
+        dec.O[1]  -> addOpA.A;  dec.O[2]  -> addOpA.B;
+        addOpA.O  -> addOpB.A;  dec.O[3]  -> addOpB.B;    # ADD | SUB | ADC
+
+        Cin   -> cm1.A;   A[1]      -> cm1.B;   cSh1b.O  -> cm1.S;
+        cm1.O -> cm2.A;   A[16]     -> cm2.B;   cSh16.O  -> cm2.S;
+        cm2.O -> cm3.A;   add.Cout  -> cm3.B;   addOpB.O -> cm3.S;
+        cm3.O -> C;
+
+        A[16]   -> vXnor.A;   bx16.O      -> vXnor.B;
+        A[16]   -> vXor.A;    add.Sum[16] -> vXor.B;
+        vXnor.O -> vAnd.A;    vXor.O      -> vAnd.B;
+        vAnd.O  -> V;
+    }
+}

@@ -3,27 +3,34 @@
 
 Feedback is well-defined in SHDL's unit-delay model (§11.2): every
 gate recomputes once per cycle from last cycle's values, so a wire
-may depend on its own previous value.  Cross-coupled NORs therefore
-hold state with no special syntax.
+may depend on its own previous value.  Cross-coupled NOR structures
+therefore hold state with no special syntax.
 
-The init block seeds chosen nets at cycle 0 (§11.4) -- it produces no
-gates, only power-on metadata.  Here the latch comes up reset (Q = 0)
-instead of relying on the all-zeros default, which would briefly be
-inconsistent (Q = Qn = 0) until the loop settles.
+In this model, the state of a feedback loop is ALL of its gate
+outputs, and `init` must specify a fixed point of the loop -- every
+seed below equals what that gate computes from the other seeds with
+S = R = 0, so the state holds from tick 0.  A component that seeds a
+loop must therefore own every gate in it: a composite like
+stdgates::NOR is fine anywhere except inside a seeded loop, because
+`n1.O` would alias only its internal NOT while the internal OR's
+output remains a separate, unseeded net.  (An incompletely seeded
+loop does not "settle" -- a symmetric state never breaks symmetry in
+a deterministic unit-delay network; it oscillates forever.)
 """
 
-use stdgates::{NOR};
-
 top component SRLatch(S, R) -> (Q, Qn) {
-    n1: NOR;  n2: NOR;
+    o1: OR;  i1: NOT;     # NOR #1, owned by the latch
+    o2: OR;  i2: NOT;     # NOR #2
 
     init {
-        n1.O = 0;     # power-on: Q  = 0
-        n2.O = 1;     #           Qn = 1
+        o1.O = 1;   # OR(R=0, Qn=1) — the gate a stdgates::NOR seed would miss
+        i1.O = 0;   # Q  = 0
+        o2.O = 0;   # OR(S=0, Q=0)
+        i2.O = 1;   # Qn = 1
     }
 
     connect {
-        R -> n1.A;   n2.O -> n1.B;   n1.O -> Q;
-        S -> n2.A;   n1.O -> n2.B;   n2.O -> Qn;
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
     }
 }

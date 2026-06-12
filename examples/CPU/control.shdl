@@ -1,0 +1,312 @@
+"""
+SR16 control unit (ISA.md §3, §4). Pure combinational decode from the FSM
+state, the instruction register and the flags to every datapath enable and
+mux select. LdEn (DMA mode) masks all state-write enables, freezing the CPU.
+
+Selector encodings (the top level wires the matching mux data inputs):
+
+    PcSel[2]        0 PC+1      1 ALU       2 imm12     3 RAM
+    RegWDataSel[2]  0 ALU       1 RAM       2 sext8     3 LDIH byte-merge
+    AluIn2Sel[2]    0 RD2       1 sext6     2 +1        3 sext9
+    RegWAddrSel     0 rd field  1 R7
+    Rp1Sel          0 rs1 field 1 R7
+    Rp2Sel          0 rs2 field 1 rd field
+    AluIn1Sel       0 RD1       1 PC
+    RamAddrSel      0 PC        1 ALU
+    RamWDataSel     0 RD2       1 PC
+
+ALU internal op (alu.shdl): 0 ADD, 1 SUB, 2 ADC, 3 AND, 4 OR, 5 XOR, 6 MOV,
+7 NOT, 8 SHL, 9 SHR, 10 SAR, 11 ROL, 12 ROR.
+
+Instruction fields (SHDL 1-based): funct = IR[1:3], rs2 = IR[4:6],
+rs1 = IR[7:9], rd/cond = IR[10:12], op = IR[13:16]. IR[4:9] feed the
+datapath muxes directly and are not decoded here.
+"""
+
+use parts::{Dec2, Dec3, Dec4, Mux8N};
+
+top component Control(State[2], IR[16], FlZ, FlN, FlC, FlV, LdEn)
+    -> (IrWe, PcWe, PcSel[2],
+        RegWe, RegWAddrSel, RegWDataSel[2], Rp1Sel, Rp2Sel,
+        AluIn1Sel, AluIn2Sel[2], AluOp[4],
+        RamAddrSel, RamWe, RamWDataSel,
+        FlWeZN, FlWeC, FlWeV,
+        StateNext[2], StateWe, Halted) {
+
+    opd:  Dec4;    # opcode: opd.O[k] <=> op == k-1 (O[1] ALU ... O[11] MISC)
+    fd:   Dec3;    # funct:  fd.O[k]  <=> funct == k-1
+    std:  Dec2;    # state:  O[1] FETCH, O[2] EXEC, O[3] MEMRD, O[4] HALTED
+    runN: NOT;     # run = !LdEn
+
+    # MISC sub-decode (op = 1010) and halt sources
+    pu: AND;  po: AND;  rt: AND;  jr: AND;       # PUSH POP RET JR
+    hlt1: OR;  hlt2: OR;  hlti: AND;             # HALT + reserved functs 6,7
+    rsv1: OR;  rsv2: OR;  rsv3: OR;  rsv4: OR;   # reserved opcodes B..F
+    halt: OR;
+
+    # branch condition met (ISA.md §3.5): cond field selects a flag function
+    nz: NOT;  nc: NOT;  nn: NOT;  ltx: XOR;  gex: NOT;
+    cm: Mux8N<1>;
+
+    nCmp: NOT;  aw: AND;     # ALU group writes rd unless CMP
+    nMov: NOT;  zw: AND;     # ALU group writes Z N unless MOV
+
+    # shared product terms
+    sp1: OR;  sp2: OR;  sp3: OR;     # PUSH|POP|RET|CALL (ops that retarget R7)
+    puCall: OR;                      # PUSH|CALL (SP decrement)
+    pj1: OR;                         # JMP|CALL
+    bTaken: AND;                     # B & condition met
+
+    # IR / PC
+    irWe: AND;
+    pcE1: OR;  pcE2: OR;  pcE3: AND;  pcMr: AND;
+    pcW1: OR;  pcW2: OR;  pcWe: AND;
+    ps1a: OR;  ps1b: AND;  ps1: OR;
+    ps2b: AND;  ps2: OR;
+
+    # register file
+    rw1: OR;  rw2: OR;  rw3: OR;  rw4: OR;  rw5: OR;  rw6: OR;
+    rwE: AND;  rwM: AND;  rwOr: OR;  regWe: AND;
+    regWA: AND;  rp1Or: OR;
+    rp2a: OR;  rp2b: OR;
+    wd1a: OR;  wd1b: AND;  wd1: OR;
+    wd2a: OR;  wd2: AND;
+
+    # ALU operand select / op code
+    ai1a: OR;  ai1b: OR;  ai1c: AND;  ai1: OR;
+    ai2: OR;
+    ao1a: OR;  ao1b: OR;  ao1c: OR;  ao1d: AND;
+    ao1e: OR;  ao1f: OR;  ao1g: OR;  ao1h: OR;  ao1i: AND;
+    ao1j: AND;  ao1k: OR;  ao1l: OR;  ao1m: OR;
+    ao2a: OR;  ao2b: OR;  ao2c: AND;
+    ao2d: OR;  ao2e: OR;  ao2f: OR;  ao2g: OR;  ao2h: AND;
+    ao2i: OR;  ao2j: OR;
+    ao3a: OR;  ao3b: OR;  ao3c: AND;
+    ao3d: OR;  ao3e: OR;  ao3f: OR;  ao3g: AND;
+    ao3h: OR;  ao3i: OR;
+    sh1: OR;  sh2: OR;  sh3: OR;  sh4: OR;  ao4: AND;
+
+    # RAM port
+    ra2: OR;  ra3: OR;  ra4: AND;  ramAS: OR;
+    rwba: OR;  rwbb: AND;  ramWe: AND;
+
+    # flag write enables
+    fz1: OR;  fz2: OR;  fz3: AND;  flZN: AND;
+    fc1: OR;  fc2: OR;  fc3: OR;  fc4: AND;  fc5: OR;  fc6: OR;  fc7: AND;  flC: AND;
+    fv1: OR;  fv2: AND;  flV: AND;
+
+    # FSM next state
+    sn1a: AND;  sn1b: OR;  sn1c: OR;
+    sn2a: OR;  sn2b: OR;  sn2c: AND;  sn2d: OR;
+
+    connect {
+        IR[13:16] -> opd.S;
+        IR[1:3]   -> fd.S;
+        State     -> std.S;
+        LdEn      -> runN.A;
+
+        # --- MISC sub-decode: funct 0 PUSH, 1 POP, 2 RET, 3 JR, 4 NOP,
+        #     5 HALT, 6-7 reserved-as-HALT; opcodes B..F reserved-as-HALT ---
+        opd.O[11] -> pu.A;     fd.O[1] -> pu.B;
+        opd.O[11] -> po.A;     fd.O[2] -> po.B;
+        opd.O[11] -> rt.A;     fd.O[3] -> rt.B;
+        opd.O[11] -> jr.A;     fd.O[4] -> jr.B;
+
+        fd.O[6]   -> hlt1.A;   fd.O[7]   -> hlt1.B;
+        hlt1.O    -> hlt2.A;   fd.O[8]   -> hlt2.B;
+        opd.O[11] -> hlti.A;   hlt2.O    -> hlti.B;
+        opd.O[12] -> rsv1.A;   opd.O[13] -> rsv1.B;
+        rsv1.O    -> rsv2.A;   opd.O[14] -> rsv2.B;
+        rsv2.O    -> rsv3.A;   opd.O[15] -> rsv3.B;
+        rsv3.O    -> rsv4.A;   opd.O[16] -> rsv4.B;
+        hlti.O    -> halt.A;   rsv4.O    -> halt.B;
+
+        # --- condition evaluation: cm.O = taken (cond field = IR[10:12]) ---
+        FlZ -> nz.A;   FlC -> nc.A;   FlN -> nn.A;
+        FlN -> ltx.A;  FlV -> ltx.B;  ltx.O -> gex.A;
+        FlZ   -> cm.D0;    nz.O  -> cm.D1;     # EQ  NE
+        FlC   -> cm.D2;    nc.O  -> cm.D3;     # CS  CC
+        FlN   -> cm.D4;    nn.O  -> cm.D5;     # MI  PL
+        ltx.O -> cm.D6;    gex.O -> cm.D7;     # LT  GE
+        IR[10:12] -> cm.S;
+
+        fd.O[7] -> nCmp.A;     # funct 6 = CMP
+        fd.O[6] -> nMov.A;     # funct 5 = MOV
+        opd.O[1] -> aw.A;      nCmp.O -> aw.B;
+        opd.O[1] -> zw.A;      nMov.O -> zw.B;
+
+        # --- shared products ---
+        pu.O  -> sp1.A;        po.O      -> sp1.B;
+        sp1.O -> sp2.A;        rt.O      -> sp2.B;
+        sp2.O -> sp3.A;        opd.O[10] -> sp3.B;
+        pu.O  -> puCall.A;     opd.O[10] -> puCall.B;
+        opd.O[9] -> pj1.A;     opd.O[10] -> pj1.B;
+        opd.O[8] -> bTaken.A;  cm.O      -> bTaken.B;
+
+        # --- IR: load during FETCH only ---
+        runN.O -> irWe.A;      std.O[1] -> irWe.B;
+        irWe.O -> IrWe;
+
+        # --- PC: +1 in FETCH; JMP/CALL/JR/taken-B in EXEC; RET in MEMRD ---
+        pj1.O    -> pcE1.A;    jr.O     -> pcE1.B;
+        pcE1.O   -> pcE2.A;    bTaken.O -> pcE2.B;
+        std.O[2] -> pcE3.A;    pcE2.O   -> pcE3.B;
+        std.O[3] -> pcMr.A;    rt.O     -> pcMr.B;
+        std.O[1] -> pcW1.A;    pcE3.O   -> pcW1.B;
+        pcW1.O   -> pcW2.A;    pcMr.O   -> pcW2.B;
+        runN.O   -> pcWe.A;    pcW2.O   -> pcWe.B;
+        pcWe.O   -> PcWe;
+
+        opd.O[8] -> ps1a.A;    jr.O   -> ps1a.B;    # B/JR take the ALU result
+        std.O[2] -> ps1b.A;    ps1a.O -> ps1b.B;
+        ps1b.O   -> ps1.A;     pcMr.O -> ps1.B;     # RET takes RAM (sel 3)
+        ps1.O    -> PcSel[1];
+        std.O[2] -> ps2b.A;    pj1.O  -> ps2b.B;    # JMP/CALL take imm12
+        ps2b.O   -> ps2.A;     pcMr.O -> ps2.B;
+        ps2.O    -> PcSel[2];
+
+        # --- register write: ALU(!CMP)/SHIFT/LDI/LDIH/LD/ADDI write rd;
+        #     PUSH/POP/RET/CALL update R7 in EXEC; POP writes rd in MEMRD ---
+        aw.O     -> rw1.A;     opd.O[2] -> rw1.B;
+        rw1.O    -> rw2.A;     opd.O[3] -> rw2.B;
+        rw2.O    -> rw3.A;     opd.O[4] -> rw3.B;
+        rw3.O    -> rw4.A;     opd.O[5] -> rw4.B;
+        rw4.O    -> rw5.A;     opd.O[7] -> rw5.B;
+        rw5.O    -> rw6.A;     sp3.O    -> rw6.B;
+        std.O[2] -> rwE.A;     rw6.O    -> rwE.B;
+        std.O[3] -> rwM.A;     po.O     -> rwM.B;
+        rwE.O    -> rwOr.A;    rwM.O    -> rwOr.B;
+        runN.O   -> regWe.A;   rwOr.O   -> regWe.B;
+        regWe.O  -> RegWe;
+
+        std.O[2] -> regWA.A;   sp3.O    -> regWA.B;   # stack ops write R7
+        regWA.O  -> RegWAddrSel;
+        regWA.O  -> rp1Or.A;   std.O[3] -> rp1Or.B;   # they also read R7;
+        rp1Or.O  -> Rp1Sel;                           # MEMRD reads R7 too
+
+        opd.O[6] -> rp2a.A;    pu.O     -> rp2a.B;    # ST/PUSH data in rd field
+        rp2a.O   -> rp2b.A;    opd.O[4] -> rp2b.B;    # LDIH reads old rd
+        rp2b.O   -> Rp2Sel;
+
+        opd.O[5] -> wd1a.A;    opd.O[4] -> wd1a.B;    # LD -> RAM, LDIH -> merge
+        std.O[2] -> wd1b.A;    wd1a.O   -> wd1b.B;
+        wd1b.O   -> wd1.A;     std.O[3] -> wd1.B;     # MEMRD (POP) -> RAM
+        wd1.O    -> RegWDataSel[1];
+        opd.O[3] -> wd2a.A;    opd.O[4] -> wd2a.B;    # LDI -> sext8, LDIH -> merge
+        std.O[2] -> wd2.A;     wd2a.O   -> wd2.B;
+        wd2.O    -> RegWDataSel[2];
+
+        # --- ALU operands ---
+        opd.O[8] -> AluIn1Sel;                        # branches: A = PC
+
+        opd.O[5] -> ai1a.A;    opd.O[6] -> ai1a.B;    # LD/ST
+        ai1a.O   -> ai1b.A;    opd.O[7] -> ai1b.B;    # /ADDI -> sext6
+        std.O[2] -> ai1c.A;    ai1b.O   -> ai1c.B;
+        ai1c.O   -> ai1.A;     opd.O[8] -> ai1.B;     # B -> sext9
+        ai1.O    -> AluIn2Sel[1];
+        rp1Or.O  -> ai2.A;     opd.O[8] -> ai2.B;     # stack/MEMRD -> +1
+        ai2.O    -> AluIn2Sel[2];
+
+        # --- ALU op (see encoding at the top). Bit 1 set for internal ops
+        #     1,3,5,7,9,11; bit 2 for 2,3,6,7,10,11; bit 3 for 4,5,6,7,12;
+        #     bit 4 for 8..12. ---
+        fd.O[2]  -> ao1a.A;    fd.O[3]  -> ao1a.B;
+        ao1a.O   -> ao1b.A;    fd.O[5]  -> ao1b.B;
+        ao1b.O   -> ao1c.A;    fd.O[7]  -> ao1c.B;
+        opd.O[1] -> ao1d.A;    ao1c.O   -> ao1d.B;    # ALU: SUB AND XOR CMP
+        fd.O[2]  -> ao1e.A;    fd.O[4]  -> ao1e.B;
+        ao1e.O   -> ao1f.A;    fd.O[6]  -> ao1f.B;
+        ao1f.O   -> ao1g.A;    fd.O[7]  -> ao1g.B;
+        ao1g.O   -> ao1h.A;    fd.O[8]  -> ao1h.B;
+        opd.O[2] -> ao1i.A;    ao1h.O   -> ao1i.B;    # SHIFT: SHR ROL NOT rsvd
+        std.O[2] -> ao1j.A;    puCall.O -> ao1j.B;    # PUSH/CALL: R7-1 (SUB)
+        ao1d.O   -> ao1k.A;    ao1i.O   -> ao1k.B;
+        ao1k.O   -> ao1l.A;    ao1j.O   -> ao1l.B;
+        ao1l.O   -> ao1m.A;    std.O[3] -> ao1m.B;    # MEMRD: R7-1 (SUB)
+        ao1m.O   -> AluOp[1];
+
+        fd.O[3]  -> ao2a.A;    fd.O[6]  -> ao2a.B;
+        ao2a.O   -> ao2b.A;    fd.O[8]  -> ao2b.B;
+        opd.O[1] -> ao2c.A;    ao2b.O   -> ao2c.B;    # ALU: AND MOV ADC
+        fd.O[3]  -> ao2d.A;    fd.O[4]  -> ao2d.B;
+        ao2d.O   -> ao2e.A;    fd.O[6]  -> ao2e.B;
+        ao2e.O   -> ao2f.A;    fd.O[7]  -> ao2f.B;
+        ao2f.O   -> ao2g.A;    fd.O[8]  -> ao2g.B;
+        opd.O[2] -> ao2h.A;    ao2g.O   -> ao2h.B;    # SHIFT: SAR ROL NOT rsvd
+        ao2c.O   -> ao2i.A;    ao2h.O   -> ao2i.B;
+        ao2i.O   -> ao2j.A;    jr.O     -> ao2j.B;    # JR: MOV
+        ao2j.O   -> AluOp[2];
+
+        fd.O[4]  -> ao3a.A;    fd.O[5]  -> ao3a.B;
+        ao3a.O   -> ao3b.A;    fd.O[6]  -> ao3b.B;
+        opd.O[1] -> ao3c.A;    ao3b.O   -> ao3c.B;    # ALU: OR XOR MOV
+        fd.O[5]  -> ao3d.A;    fd.O[6]  -> ao3d.B;
+        ao3d.O   -> ao3e.A;    fd.O[7]  -> ao3e.B;
+        ao3e.O   -> ao3f.A;    fd.O[8]  -> ao3f.B;
+        opd.O[2] -> ao3g.A;    ao3f.O   -> ao3g.B;    # SHIFT: ROR NOT rsvd
+        ao3c.O   -> ao3h.A;    ao3g.O   -> ao3h.B;
+        ao3h.O   -> ao3i.A;    jr.O     -> ao3i.B;    # JR: MOV
+        ao3i.O   -> AluOp[3];
+
+        fd.O[1]  -> sh1.A;     fd.O[2]  -> sh1.B;
+        sh1.O    -> sh2.A;     fd.O[3]  -> sh2.B;
+        sh2.O    -> sh3.A;     fd.O[4]  -> sh3.B;
+        sh3.O    -> sh4.A;     fd.O[5]  -> sh4.B;     # SHL SHR SAR ROL ROR
+        opd.O[2] -> ao4.A;     sh4.O    -> ao4.B;
+        ao4.O    -> AluOp[4];
+
+        # --- RAM port: address from ALU for LD/ST/PUSH/CALL/MEMRD, else PC;
+        #     write strobe for ST/PUSH/CALL; CALL stores PC ---
+        ai1a.O   -> ra2.A;     pu.O      -> ra2.B;
+        ra2.O    -> ra3.A;     opd.O[10] -> ra3.B;
+        std.O[2] -> ra4.A;     ra3.O     -> ra4.B;
+        ra4.O    -> ramAS.A;   std.O[3]  -> ramAS.B;
+        ramAS.O  -> RamAddrSel;
+
+        rp2a.O   -> rwba.A;    opd.O[10] -> rwba.B;
+        std.O[2] -> rwbb.A;    rwba.O    -> rwbb.B;
+        runN.O   -> ramWe.A;   rwbb.O    -> ramWe.B;
+        ramWe.O  -> RamWe;
+
+        opd.O[10] -> RamWDataSel;
+
+        # --- flag write enables (ISA.md §3.1/§3.2): Z N for ALU(!MOV)/
+        #     SHIFT/ADDI; C for adder ops + real shifts + ADDI; V adder only ---
+        zw.O     -> fz1.A;     opd.O[2] -> fz1.B;
+        fz1.O    -> fz2.A;     opd.O[7] -> fz2.B;
+        std.O[2] -> fz3.A;     fz2.O    -> fz3.B;
+        runN.O   -> flZN.A;    fz3.O    -> flZN.B;
+        flZN.O   -> FlWeZN;
+
+        fd.O[1]  -> fc1.A;     fd.O[2]  -> fc1.B;
+        fc1.O    -> fc2.A;     fd.O[7]  -> fc2.B;
+        fc2.O    -> fc3.A;     fd.O[8]  -> fc3.B;
+        opd.O[1] -> fc4.A;     fc3.O    -> fc4.B;     # ADD SUB CMP ADC
+        fc4.O    -> fc5.A;     ao4.O    -> fc5.B;
+        fc5.O    -> fc6.A;     opd.O[7] -> fc6.B;
+        std.O[2] -> fc7.A;     fc6.O    -> fc7.B;
+        runN.O   -> flC.A;     fc7.O    -> flC.B;
+        flC.O    -> FlWeC;
+
+        fc4.O    -> fv1.A;     opd.O[7] -> fv1.B;
+        std.O[2] -> fv2.A;     fv1.O    -> fv2.B;
+        runN.O   -> flV.A;     fv2.O    -> flV.B;
+        flV.O    -> FlWeV;
+
+        # --- FSM: FETCH->EXEC; EXEC->FETCH / MEMRD (POP,RET) / HALTED (halt);
+        #     MEMRD->FETCH; HALTED->HALTED ---
+        std.O[2] -> sn1a.A;    halt.O   -> sn1a.B;
+        std.O[1] -> sn1b.A;    sn1a.O   -> sn1b.B;
+        sn1b.O   -> sn1c.A;    std.O[4] -> sn1c.B;
+        sn1c.O   -> StateNext[1];
+
+        po.O     -> sn2a.A;    rt.O     -> sn2a.B;
+        sn2a.O   -> sn2b.A;    halt.O   -> sn2b.B;
+        std.O[2] -> sn2c.A;    sn2b.O   -> sn2c.B;
+        sn2c.O   -> sn2d.A;    std.O[4] -> sn2d.B;
+        sn2d.O   -> StateNext[2];
+
+        runN.O   -> StateWe;
+        std.O[4] -> Halted;
+    }
+}

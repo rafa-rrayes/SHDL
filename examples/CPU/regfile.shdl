@@ -1,0 +1,35 @@
+"""
+SR16 register file: 8 x 16-bit, two combinational read ports, one write
+port strobed on Phi1 (master-slave discipline: a value written in cycle k
+is readable from cycle k+1). Q0..Q7 expose the registers for debugging.
+"""
+
+use seq::{RegE};
+use parts::{Dec3, Mux8N};
+
+top component RegFile(WAddr[3], WData[16], WE, RAddr1[3], RAddr2[3], Phi1, Phi2)
+    -> (RD1[16], RD2[16],
+        Q0[16], Q1[16], Q2[16], Q3[16], Q4[16], Q5[16], Q6[16], Q7[16]) {
+
+    dec: Dec3;
+    >r[8]{ reg{r}: RegE<16>;  ld{r}: AND; }
+    m1: Mux8N<16>;
+    m2: Mux8N<16>;
+
+    connect {
+        WAddr -> dec.S;
+        >r[8]{
+            dec.O[{r}] -> ld{r}.A;    WE -> ld{r}.B;
+            ld{r}.O    -> reg{r}.LD;
+            WData      -> reg{r}.D;
+            Phi1       -> reg{r}.Phi1;
+            Phi2       -> reg{r}.Phi2;
+
+            reg{r}.Q -> m1.D{r-1};
+            reg{r}.Q -> m2.D{r-1};
+            reg{r}.Q -> Q{r-1};
+        }
+        RAddr1 -> m1.S;   RAddr2 -> m2.S;
+        m1.O -> RD1;      m2.O -> RD2;
+    }
+}

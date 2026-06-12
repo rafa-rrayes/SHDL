@@ -1,0 +1,129 @@
+"""
+SR16 combinational library parts: wide multiplexers, decoders, a +1
+incrementer and a balanced OR-reduction. Pure structure — no state.
+"""
+
+use muxN::{MuxN, Mux4N};
+
+component Mux8N<N = 16>(D0[N], D1[N], D2[N], D3[N], D4[N], D5[N], D6[N], D7[N], S[3]) -> (O[N]) {
+    lo:  Mux4N<N>;
+    hi:  Mux4N<N>;
+    out: MuxN<N>;
+
+    connect {
+        D0 -> lo.D0;  D1 -> lo.D1;  D2 -> lo.D2;  D3 -> lo.D3;
+        D4 -> hi.D0;  D5 -> hi.D1;  D6 -> hi.D2;  D7 -> hi.D3;
+        S[1:2] -> lo.S;   S[1:2] -> hi.S;
+
+        lo.O -> out.A;    hi.O -> out.B;    S[3] -> out.S;
+        out.O -> O;
+    }
+}
+
+component Mux16N<N = 16>(D0[N], D1[N], D2[N], D3[N], D4[N], D5[N], D6[N], D7[N],
+                         D8[N], D9[N], D10[N], D11[N], D12[N], D13[N], D14[N], D15[N],
+                         S[4]) -> (O[N]) {
+    lo:  Mux8N<N>;
+    hi:  Mux8N<N>;
+    out: MuxN<N>;
+
+    connect {
+        D0 -> lo.D0;  D1 -> lo.D1;  D2  -> lo.D2;  D3  -> lo.D3;
+        D4 -> lo.D4;  D5 -> lo.D5;  D6  -> lo.D6;  D7  -> lo.D7;
+        D8 -> hi.D0;  D9 -> hi.D1;  D10 -> hi.D2;  D11 -> hi.D3;
+        D12 -> hi.D4; D13 -> hi.D5; D14 -> hi.D6;  D15 -> hi.D7;
+        S[1:3] -> lo.S;   S[1:3] -> hi.S;
+
+        lo.O -> out.A;    hi.O -> out.B;    S[4] -> out.S;
+        out.O -> O;
+    }
+}
+
+"One-hot decoders. O[k] is high when S = k-1 (S is read as an unsigned int)."
+
+component Dec2(S[2]) -> (O[4]) {
+    n1: NOT;  n2: NOT;
+    a1: AND;  a2: AND;  a3: AND;  a4: AND;
+
+    connect {
+        S[1] -> n1.A;   S[2] -> n2.A;
+
+        n1.O -> a1.A;   n2.O -> a1.B;    # S = 00
+        S[1] -> a2.A;   n2.O -> a2.B;    # S = 01
+        n1.O -> a3.A;   S[2] -> a3.B;    # S = 10
+        S[1] -> a4.A;   S[2] -> a4.B;    # S = 11
+
+        a1.O -> O[1];  a2.O -> O[2];  a3.O -> O[3];  a4.O -> O[4];
+    }
+}
+
+component Dec3(S[3]) -> (O[8]) {
+    d2: Dec2;  n3: NOT;
+    >i[8]{ a{i}: AND; }
+
+    connect {
+        S[1:2] -> d2.S;   S[3] -> n3.A;
+        >i[4]{
+            d2.O[{i}] -> a{i}.A;     n3.O -> a{i}.B;
+            d2.O[{i}] -> a{i+4}.A;   S[3] -> a{i+4}.B;
+            a{i}.O   -> O[{i}];
+            a{i+4}.O -> O[{i+4}];
+        }
+    }
+}
+
+component Dec4(S[4]) -> (O[16]) {
+    d3: Dec3;  n4: NOT;
+    >i[16]{ a{i}: AND; }
+
+    connect {
+        S[1:3] -> d3.S;   S[4] -> n4.A;
+        >i[8]{
+            d3.O[{i}] -> a{i}.A;     n4.O -> a{i}.B;
+            d3.O[{i}] -> a{i+8}.A;   S[4] -> a{i+8}.B;
+            a{i}.O   -> O[{i}];
+            a{i+8}.O -> O[{i+8}];
+        }
+    }
+}
+
+"Q = A + 1 (mod 2^16): half-adder ripple, no carry out."
+
+component Inc16(A[16]) -> (Q[16]) {
+    n1: NOT;
+    >i[2:16]{ x{i}: XOR; }
+    >i[2:15]{ ca{i}: AND; }      # ca{i} = carry out of bit i
+
+    connect {
+        A[1] -> n1.A;   n1.O -> Q[1];
+
+        >i[2:16]{
+            A[{i}] -> x{i}.A;
+            when {i == 2} { A[1]      -> x{i}.B; }
+            else          { ca{i-1}.O -> x{i}.B; }
+            x{i}.O -> Q[{i}];
+        }
+        >i[2:15]{
+            A[{i}] -> ca{i}.A;
+            when {i == 2} { A[1]      -> ca{i}.B; }
+            else          { ca{i-1}.O -> ca{i}.B; }
+        }
+    }
+}
+
+"O = OR-reduce(A): balanced 4-level tree (depth matters for settle time)."
+
+component Or16(A[16]) -> (O) {
+    >k[8]{ t{k}: OR; }
+    >k[4]{ u{k}: OR; }
+    >k[2]{ v{k}: OR; }
+    w: OR;
+
+    connect {
+        >k[8]{ A[{2*k-1}] -> t{k}.A;   A[{2*k}] -> t{k}.B; }
+        >k[4]{ t{2*k-1}.O -> u{k}.A;   t{2*k}.O -> u{k}.B; }
+        >k[2]{ u{2*k-1}.O -> v{k}.A;   u{2*k}.O -> v{k}.B; }
+        v1.O -> w.A;   v2.O -> w.B;
+        w.O -> O;
+    }
+}

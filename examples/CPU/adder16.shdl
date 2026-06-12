@@ -1,0 +1,24 @@
+"""
+Adder16: a standalone 16-bit ripple-carry adder.
+
+Thin wrapper over the width-parameterized AdderN (the same part the SR16
+ALU uses for its adder lane), pinned at N = 16 so it can be compiled and
+benchmarked on its own:
+
+    shdlc adder16.shdl -I ../ -o adder16.dylib
+
+Drive it through the release ABI: poke A/B/Cin, step long enough for the
+carry to ripple through all 16 stages (~35 unit-delay ticks worst case),
+then peek Sum/Cout.  See bench_adder16.py.
+"""
+
+use adderN::{AdderN};
+
+top component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
+    add: AdderN<16>;
+
+    connect {
+        A -> add.A;  B -> add.B;  Cin -> add.Cin;
+        add.Sum -> Sum;  add.Cout -> Cout;
+    }
+}
