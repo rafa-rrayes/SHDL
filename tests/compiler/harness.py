@@ -22,33 +22,22 @@ Key ABI facts under test (shdlc_goals.md §2/§3, shdl.md §11):
 
 from __future__ import annotations
 
-import ctypes
-import itertools
 import json
-import os
-import shutil
 from pathlib import Path
 
-from shdlc.baseshdl import BaseComponent, parse_base
+from shdlc.harness import (  # noqa: F401  (re-exported: the suite imports from here)
+    STRICT_CFLAGS,
+    Sim,
+    identity_ports,
+    load_fresh_copy,
+    make_oracle,
+    parse_with_ports,
+)
 from shdlc.sim.base_eval import BaseEval
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURES = REPO / "tests" / "fixtures"
 TIMESTAMP = "2026-01-01T00:00:00Z"
-
-#: Used for ALL test builds: every build doubles as proof that the generated C
-#: is warning-free under -Wall -Wextra -Werror -pedantic.
-STRICT_CFLAGS = (
-    "-std=c11",
-    "-Wall",
-    "-Wextra",
-    "-Werror",
-    "-pedantic",
-    "-O2",
-    "-fPIC",
-    "-shared",
-    "-fvisibility=hidden",
-)
 
 
 def flatten_fixture_text(name: str) -> str:
@@ -56,81 +45,6 @@ def flatten_fixture_text(name: str) -> str:
     from flattener.pipeline import flatten_program
 
     return flatten_program(str(FIXTURES / f"{name}.shdl"), timestamp=TIMESTAMP).text
-
-
-def identity_ports(comp: BaseComponent) -> dict:
-    """Single-bit identity port groups synthesized from the component header
-    (mirrors model invariant 7 for artifacts without ``meta.ports``)."""
-    return {
-        "inputs": {n: [n] for n in comp.inputs},
-        "outputs": {n: [n] for n in comp.outputs},
-    }
-
-
-def parse_with_ports(base_text: str) -> BaseComponent:
-    comp = parse_base(base_text)
-    comp.meta.setdefault("ports", identity_ports(comp))
-    return comp
-
-
-def make_oracle(base_text: str) -> BaseEval:
-    """A fresh BaseEval over ``base_text`` (ports defaulted if absent)."""
-    return BaseEval(parse_with_ports(base_text))
-
-
-# --------------------------------------------------------------------------
-# ctypes wrapper
-# --------------------------------------------------------------------------
-
-
-class Sim:
-    """One loaded copy of a compiled circuit library (release ABI).
-
-    dlopen caches by path, so two ``Sim`` instances over the *same* file share
-    one global state. Use :func:`load_fresh_copy` whenever an independent
-    instance (with a freshly run constructor) is required.
-    """
-
-    def __init__(self, lib_path: str | Path):
-        self.path = Path(lib_path)
-        lib = ctypes.CDLL(str(self.path), mode=os.RTLD_LOCAL)
-        lib.reset.argtypes = []
-        lib.reset.restype = None
-        lib.poke.argtypes = [ctypes.c_char_p, ctypes.c_uint64]
-        lib.poke.restype = None
-        lib.peek.argtypes = [ctypes.c_char_p]
-        lib.peek.restype = ctypes.c_uint64
-        lib.step.argtypes = [ctypes.c_int]
-        lib.step.restype = None
-        self._lib = lib
-
-    def reset(self) -> None:
-        self._lib.reset()
-
-    def poke(self, name: str, value: int) -> None:
-        self._lib.poke(name.encode("utf-8"), value)
-
-    def peek(self, name: str) -> int:
-        return int(self._lib.peek(name.encode("utf-8")))
-
-    def step(self, n: int = 1) -> None:
-        self._lib.step(n)
-
-
-_copy_counter = itertools.count()
-
-
-def load_fresh_copy(lib_path: str | Path, work_dir: str | Path) -> Sim:
-    """Copy the library file to a brand-new path and load that copy.
-
-    dlopen caches by path: loading the same path twice shares state and skips
-    the constructor. A file copy at a unique path guarantees an independent
-    instance whose constructor (which must run reset) executes at load.
-    """
-    src = Path(lib_path)
-    dst = Path(work_dir) / f"{src.stem}.copy{next(_copy_counter):04d}{src.suffix}"
-    shutil.copy2(src, dst)
-    return Sim(dst)
 
 
 # --------------------------------------------------------------------------
@@ -146,6 +60,24 @@ class DualSim:
     flag is clear and a peek cannot trigger a hidden tick). Pokes send the RAW
     64-bit value to the lib (continuously exercising its masking) but mask to
     the port width before BaseEval.poke, which raises on oversized values.
+
+    FUZ-8 OBSERVABILITY BOUNDARY (golden_tests.md Domain Q, FUZ-8):
+    ``compare_all`` (and therefore every differential / fuzz test built on this
+    driver) compares **port values only** — the lib's ``peek`` of each input
+    and output port against ``BaseEval.peek``. It does NOT inspect internal
+    gate state. Two implementations that disagree on some internal net but
+    whose disagreement *cancels at the ports* for the driven stimulus are
+    indistinguishable here: a port-only oracle is blind to internal-only
+    divergence that never propagates to a compared output (e.g. a dead gate
+    wired wrong, or two compensating sign errors on a wire pair that XOR back
+    to the right bit). Randomized stimulus (``random_drive``) and exhaustive
+    grids shrink this blind spot probabilistically but cannot eliminate it,
+    and a circuit can have observationally-equivalent-but-structurally-wrong
+    internals for *every* stimulus. Closing this fully requires full-gate-state
+    lockstep — peeking every internal gate at every compared cycle via the
+    debug-build ``peek_gate`` (staged as FUT V.1; it upgrades this driver from
+    port equality to gate-state equality). Until that lands, "differential
+    green" means *port-observable* equivalence, not structural identity.
     """
 
     def __init__(self, sim: Sim, base_text: str, *, seed=None, label: str = ""):

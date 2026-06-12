@@ -196,6 +196,59 @@ NEGATIVE_CASES = [
         with_meta(AND1, {"ports": None}),
         ["meta.ports"],
     ),
+    # CCT-8: meta.ports.inputs / .outputs is not a JSON object.
+    (
+        "ports-inputs-not-object",
+        with_meta(AND1, {"ports": {"inputs": "nope", "outputs": {}}}),
+        ["meta.ports.inputs", "object"],
+    ),
+    (
+        "ports-outputs-not-object",
+        with_meta(AND1, {"ports": {"inputs": {}, "outputs": [1, 2]}}),
+        ["meta.ports.outputs", "object"],
+    ),
+    # CCT-8: a port's wires value is not an array of names.
+    (
+        "ports-wires-not-array",
+        with_meta(AND1, {"ports": {"inputs": {"P": "A"}, "outputs": {}}}),
+        ["P", "array"],
+    ),
+    # CCT-8: unknown wire named by an INPUT port (distinct from the output
+    # side already covered by ports-unknown-wire).
+    (
+        "ports-unknown-input-wire",
+        with_meta(AND1, {"ports": {"inputs": {"P": ["nope"]}, "outputs": {}}}),
+        ["P", "nope"],
+    ),
+    # CCT-8: meta.init is not a JSON object.
+    (
+        "init-not-object",
+        with_meta(NOT1, {"init": [1, 2, 3]}),
+        ["meta.init", "object"],
+    ),
+    # AMB-34: an input wire used by two ports is rejected (silent aliasing).
+    (
+        "ports-dup-input-wire-across-ports",
+        with_meta(AND1, {"ports": {"inputs": {"P": ["A"], "Q": ["A"]}, "outputs": {}}}),
+        ["A", "already used"],
+    ),
+    # AMB-34: an input wire repeated within one port is likewise rejected.
+    (
+        "ports-dup-input-wire-within-port",
+        with_meta(AND1, {"ports": {"inputs": {"P": ["A", "A"]}, "outputs": {}}}),
+        ["A", "already used"],
+    ),
+    # AMB-35: ports present but a direction key absent -> name the missing key.
+    (
+        "ports-missing-inputs-key",
+        with_meta(AND1, {"ports": {"outputs": {"Y": ["O1"]}}}),
+        ["inputs", "missing"],
+    ),
+    (
+        "ports-missing-outputs-key",
+        with_meta(AND1, {"ports": {"inputs": {"P": ["A", "B"]}}}),
+        ["outputs", "missing"],
+    ),
     (
         "ports-unknown-wire",
         with_meta(AND1, {"ports": {"inputs": {"A": ["A"]}, "outputs": {"Y": ["nope"]}}}),
@@ -318,6 +371,59 @@ def test_and_gate_with_meta_ports_and_unrelated_meta_keys():
     assert c.in_ports == (PortGroup("X", (Ref("in", 0), Ref("in", 1))),)
     assert c.out_ports == (PortGroup("Y", (Ref("gate", 0),)),)
     assert c.init == ()
+
+
+def test_model_level_unknown_primitive_rejected():
+    # CCT-8: the model's own unknown-primitive check. parse_base shadows it
+    # (it rejects unknown types first), so reach it via a direct BaseComponent,
+    # proving the model layer does not trust its input's gate types.
+    from shdlc.baseshdl import BaseComponent
+
+    comp = BaseComponent(
+        name="X",
+        inputs=["a"],
+        outputs=["y"],
+        gates={"g": "NAND"},
+        connections=[("a", "g.A"), ("g.O", "y")],
+        meta={},
+    )
+    with pytest.raises(ModelError) as ei:
+        build_circuit(comp)
+    assert "g" in str(ei.value) and "NAND" in str(ei.value)
+
+
+def test_ports_subset_coverage_is_legal():
+    # AMB-33: meta.ports may cover only a subset of header wires. The uncovered
+    # input wire (B) becomes ABI-unreachable (stuck at 0); the uncovered output
+    # is unobservable. This is legal-but-defined, matching the
+    # referenced-bits-only philosophy.
+    c = build(
+        with_meta(
+            "component Sub(A, B) -> (O1, O2) {\n"
+            "    g: AND;\n"
+            "    h: NOT;\n"
+            "    connect { A -> g.A; B -> g.B; g.O -> O1; A -> h.A; h.O -> O2; }\n"
+            "}",
+            {"ports": {"inputs": {"P": ["A"]}, "outputs": {"Q": ["O1"]}}},
+        )
+    )
+    # Only the covered port exists; B and O2 are simply absent from the ABI.
+    assert tuple(p.name for p in c.in_ports) == ("P",)
+    assert c.in_ports[0].refs == (Ref("in", 0),)  # wire A only
+    assert tuple(p.name for p in c.out_ports) == ("Q",)
+
+
+def test_output_wire_reuse_across_ports_is_allowed():
+    # AMB-34: reusing an OUTPUT wire across ports is harmless read fan-out and
+    # must be accepted (unlike input-wire reuse, which is rejected).
+    c = build(
+        with_meta(
+            AND1,
+            {"ports": {"inputs": {"P": ["A", "B"]}, "outputs": {"Y": ["O1"], "Z": ["O1"]}}},
+        )
+    )
+    out = {p.name: p.refs for p in c.out_ports}
+    assert out["Y"] == out["Z"] == (Ref("gate", 0),)
 
 
 def test_width_64_port_is_accepted():

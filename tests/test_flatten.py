@@ -144,3 +144,131 @@ def test_init_value_overflow(tmp_path):
         "top component M(A) -> (Y) { n: NOT; init { n.O = 2; } "
         "connect { A -> n.A; n.O -> Y; } }",
     )
+
+
+# --- FLT-4: hierarchy depth >= 10 ------------------------------------------- #
+
+
+def test_flt4_deep_ten_level_hierarchy(tmp_path):
+    # FLT-4: a 10-level-deep component chain flattens to a single gate whose
+    # name carries all 11 instance prefixes.
+    comps = [
+        f"component L{k}(A) -> (Y) {{ c: L{k + 1}; connect {{ A -> c.A; c.Y -> Y; }} }}"
+        for k in range(10)
+    ]
+    comps.append("component L10(A) -> (Y) { n: NOT; connect { A -> n.A; n.O -> Y; } }")
+    top = "top component T(A) -> (Y) { c: L0; connect { A -> c.A; c.Y -> Y; } }"
+    out = flatten_source(tmp_path, "\n".join(comps) + "\n" + top)
+    assert list(out.flat.netlist.gates) == ["c_c_c_c_c_c_c_c_c_c_c_n"]
+    # The deepest gate's instantiation chain records all 11 sites.
+    (gate,) = out.flat.netlist.gates.values()
+    assert len(gate.chain) == 11
+
+
+# --- FLT-6: E0A01 non-drivable init targets, all four raise sites ----------- #
+
+
+def test_flt6_e0a01_instance_input_pin(tmp_path):
+    # FLT-6 (site 1): seeding an instance *input* pin -> E0A01.
+    d = expect_error(
+        "E0A01",
+        tmp_path,
+        "top component M(A) -> (Y) { n: NOT; init { n.A = 1; } "
+        "connect { A -> n.A; n.O -> Y; } }",
+    )
+    assert "instance input" in d.message
+
+
+def test_flt6_e0a01_constant_target(tmp_path):
+    # FLT-6 (site 2): seeding a constant -> E0A01.
+    d = expect_error(
+        "E0A01",
+        tmp_path,
+        "top component M(A) -> (Y, Z) { K = 1; n: NOT; init { K = 1; } "
+        "connect { A -> n.A; n.O -> Y; K -> Z; } }",
+    )
+    assert "constant" in d.message
+
+
+def test_flt6_e0a01_alias_resolves_to_input(tmp_path):
+    # FLT-6 (site 3): an output seeded that aliases straight back to an input
+    # resolves to that input -> E0A01 (the resolve-time terminal check).
+    d = expect_error(
+        "E0A01",
+        tmp_path,
+        "top component M(A) -> (Y) { init { Y = 1; } connect { A -> Y; } }",
+    )
+    assert "input" in d.message
+
+
+def test_flt6_e0a01_input_port_target(tmp_path):
+    # FLT-6 (site 4): seeding an input port directly -> E0A01.
+    d = expect_error(
+        "E0A01",
+        tmp_path,
+        "top component M(A) -> (Y) { init { A = 1; } connect { A -> Y; } }",
+    )
+    assert "input port" in d.message
+
+
+# --- FLT-9: E0308 flattened gate name vs a top-level port wire -------------- #
+
+
+def test_flt9_gate_collides_with_port_wire(tmp_path):
+    # FLT-9: a child instance 'a' containing a gate 'b' flattens to 'a_b',
+    # colliding with the top output port wire 'a_b' -> E0308 (the second
+    # flatten site, distinct from the gate-vs-gate site of FLT-3).
+    d = expect_error(
+        "E0308",
+        tmp_path,
+        "component C(A) -> (O) { b: NOT; connect { A -> b.A; b.O -> O; } }\n"
+        "top component M(A) -> (a_b) { a: C; connect { A -> a.A; a.O -> a_b; } }",
+    )
+    assert "a_b" in d.message and "port" in d.message
+
+
+# --- FLT-10: indexed/sliced init targets + E0402/E0404 on bad indexes ------- #
+
+_Q4 = (
+    "top component M(A) -> (Q[4]) {{\n"
+    "    >i[4]{{ b{{i}}: OR; }}\n"
+    "    init {{ {init} }}\n"
+    "    connect {{ >i[4]{{ A -> b{{i}}.A; A -> b{{i}}.B; b{{i}}.O -> Q[{{i}}]; }} }}\n"
+    "}}"
+)
+
+
+def test_flt10_indexed_init_target(tmp_path):
+    # FLT-10: `init { Q[3] = 1; }` seeds exactly the one bit Q_3_.
+    out = flatten_source(tmp_path, _Q4.format(init="Q[3] = 1;"))
+    assert out.meta["init"] == {"Q_3_": 1}
+
+
+def test_flt10_sliced_init_target_lsb_first(tmp_path):
+    # FLT-10: `init { Q[2:4] = 5; }` spreads 5 = 0b101 LSB-first across Q2..Q4.
+    out = flatten_source(tmp_path, _Q4.format(init="Q[2:4] = 5;"))
+    assert out.meta["init"] == {"Q_2_": 1, "Q_3_": 0, "Q_4_": 1}
+
+
+def test_flt10_init_bit_index_out_of_range(tmp_path):
+    # FLT-10: an init bit index past the target width -> E0402.
+    expect_error("E0402", tmp_path, _Q4.format(init="Q[5] = 1;"))
+
+
+def test_flt10_init_ill_ordered_slice(tmp_path):
+    # FLT-10: an ill-ordered init slice -> E0404.
+    expect_error("E0404", tmp_path, _Q4.format(init="Q[4:2] = 1;"))
+
+
+# --- FLT-11: a template in an init target -> E0603 -------------------------- #
+
+
+def test_flt11_template_in_init_target(tmp_path):
+    # FLT-11: init targets resolve with an *empty* environment, so a `{…}`
+    # substitution in the target is an unbound identifier -> E0603.
+    expect_error(
+        "E0603",
+        tmp_path,
+        "top component M(A) -> (Y) { >i[1]{ b{i}: OR; } init { b{i}.O = 1; } "
+        "connect { A -> b1.A; A -> b1.B; b1.O -> Y; } }",
+    )

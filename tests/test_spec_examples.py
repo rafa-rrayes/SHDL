@@ -1,11 +1,13 @@
-"""Conformance against the worked examples in base_shdl.md.
+"""Conformance against the worked examples in base_shdl.md and shdl.md.
 
 §3.7 fixes only the *set* of gates and connections, not their order
 (declaration order is explicitly an implementation choice), so the
 comparison is order-insensitive.
 """
 
-from helpers import flatten_fixture
+from pathlib import Path
+
+from helpers import FIXTURES, flatten_fixture, flatten_source
 
 from shdlc.baseshdl import parse_base
 
@@ -99,3 +101,43 @@ def test_add2_timing_matches_resolved_4_7():
     t = flatten_fixture("add2").timing
     assert t["max_depth"] == 5
     assert t["output_depths"] == {"Sum_1_": 2, "Sum_2_": 4, "Cout": 5}
+
+
+# shdl.md §11.4's SRLatch example, verbatim. AMB-41 corrected it: as printed
+# in earlier revisions it used `NOR` (a derived gate) with no import and so
+# failed E0703; the amended spec adds `use stdgates::{NOR};` and it now
+# compiles. This pins the corrected listing — a regression here means the
+# spec example stopped compiling again.
+SPEC_11_4_SRLATCH = """\
+use stdgates::{NOR};
+
+component SRLatch(S, R) -> (Q, Qn) {
+    n1: NOR;  n2: NOR;
+
+    init {
+        n1.O = 0;     # power-on: Q  = 0
+        n2.O = 1;     #           Qn = 1
+    }
+
+    connect {
+        R -> n1.A;   n2.O -> n1.B;   n1.O -> Q;
+        S -> n2.A;   n1.O -> n2.B;   n2.O -> Qn;
+    }
+}
+"""
+
+
+def test_srlatch_spec_11_4_compiles(tmp_path):
+    # AMB-41: the corrected §11.4 example flattens cleanly with the import.
+    stdgates = (FIXTURES / "stdgates.shdl").read_text()
+    out = flatten_source(
+        tmp_path, SPEC_11_4_SRLATCH, name="srlatch_spec",
+        aux={"stdgates": stdgates},
+    )
+    comp = parse_base(out.text)
+    assert comp.name == "SRLatch"
+    assert comp.inputs == ["S", "R"]
+    assert comp.outputs == ["Q", "Qn"]
+    # init seeds (§11.4): n1.O -> Q = 0, n2.O -> Qn = 1, resolved through the
+    # NOR composites to the output-port wires.
+    assert out.meta["init"] == {"Q": 0, "Qn": 1}

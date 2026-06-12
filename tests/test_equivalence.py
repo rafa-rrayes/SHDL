@@ -167,6 +167,75 @@ def test_srlatch_traces_and_function():
             assert (base.peek("Q"), base.peek("Qn")) == (0, 1)
 
 
+def _flatten(tmp_path, source):
+    """Flatten an inline program and return (out, BaseEval, HighEval)."""
+    from helpers import flatten_source
+
+    out = flatten_source(tmp_path, source)
+    return out, BaseEval(parse_base(out.text)), HighEval(out.mono, out.expanded)
+
+
+def test_flt7_combinational_init_visible_then_overwritten(tmp_path):
+    # FLT-7: an init seed on a *combinational* (non-state-holding) wire is
+    # visible at cycle 0, then overwritten by the first step (spec §11.4).
+    # Here n.O is seeded to 1; once A propagates, Y becomes NOT(A).
+    out, base, high = _flatten(
+        tmp_path,
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 1; } "
+        "connect { A -> n.A; n.O -> Y; } }",
+    )
+    assert out.timing["has_feedback"] is False  # purely combinational
+    assert out.meta["init"] == {"Y": 1}
+    base.poke("A", 1)
+    high.poke("A", 1)
+    # Cycle 0: the seed is visible in both evaluators.
+    assert base.peek("Y") == high.peek("Y") == 1
+    base.step()
+    high.step()
+    # After the first step the seed is gone, overwritten by NOT(A=1) = 0.
+    assert base.peek("Y") == high.peek("Y") == 0
+
+
+def test_flt8_non_fixed_point_seed_oscillates(tmp_path):
+    # FLT-8: a seed that is not a fixed point of the feedback loop oscillates
+    # deterministically (tasks/lessons: init must seed a fixed point). A NOT
+    # gate fed by its own output, seeded to 0, toggles 0,1,0,1,... — and both
+    # independent evaluators agree on the (pinned) oscillation.
+    out, base, high = _flatten(
+        tmp_path,
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 0; } "
+        "connect { n.O -> n.A; n.O -> Y; } }",
+    )
+    assert out.timing["has_feedback"] is True
+    base_trace = [base.peek("Y")]
+    high_trace = [high.peek("Y")]
+    for _ in range(5):
+        base.step()
+        high.step()
+        base_trace.append(base.peek("Y"))
+        high_trace.append(high.peek("Y"))
+    assert base_trace == [0, 1, 0, 1, 0, 1], base_trace
+    assert high_trace == base_trace
+
+
+def test_rob2_high_eval_poke_overflow_raises(tmp_path):
+    # ROB-2: the oracle is *intentionally* stricter than the C ABI — a poke
+    # value exceeding the port width raises ValueError rather than masking
+    # (the C poke masks modulo 2^width per AMB-2). This asymmetry must never be
+    # "fixed" into agreement; pinning it here protects that intent.
+    _, base, high = _flatten(
+        tmp_path,
+        "top component M(A[2]) -> (Y[2]) { connect { A -> Y; } }",
+    )
+    with pytest.raises(ValueError):
+        high.poke("A", 4)  # 4 does not fit a 2-bit port
+    with pytest.raises(ValueError):
+        base.poke("A", 4)  # BaseEval is equally strict
+    # In-range pokes are accepted by both.
+    high.poke("A", 3)
+    base.poke("A", 3)
+
+
 def test_clock_ring_traces():
     out, base, high = make_evals("clock")
     assert out.timing["has_feedback"] is True

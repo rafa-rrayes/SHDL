@@ -158,3 +158,273 @@ def test_constant_name_must_be_plain():
     assert parse_err("component C<N>(A) -> (Y) { K{N} = 1; connect { A -> Y; } }") is (
         ErrorCode.E0201
     )
+
+
+# --- PAR-1 holes: productions never positively parsed before -----------------
+
+
+def test_empty_output_list():
+    # PAR-1: `-> ()` — a component with no outputs (a pure sink) parses.
+    c = the_component("component Sink(A) -> () { connect { } }")
+    assert c.outputs == ()
+    assert [p.name for p in c.inputs] == ["A"]
+
+
+def test_declaration_context_when():
+    # PAR-1 + GEN-12 (parse only): a `when` block directly in a component body
+    # (declaration context) parses as a Conditional holding declarations.
+    c = the_component(
+        "component C<W>(A) -> (Y) {\n"
+        "    when {W == 1} { g: AND; }\n"
+        "    connect { A -> Y; }\n"
+        "}"
+    )
+    (cond,) = c.decls
+    assert isinstance(cond, A.Conditional)
+    assert isinstance(cond.then_body[0], A.InstanceDecl)
+
+
+def test_parenthesized_bool_expr():
+    # PAR-1: `( BoolExpr )` — parentheses group a boolean sub-expression.
+    c = the_component(
+        "component C<N>(A) -> (Y) { connect {\n"
+        "    >i[N]{ when {(i == 1 && N > 1) || i == 2} { A -> Y; } }\n"
+        "} }"
+    )
+    cond = c.connect_blocks[0][1][0].body[0].cond
+    assert isinstance(cond, A.BoolOr)
+    assert isinstance(cond.items[0], A.BoolAnd)  # the parenthesized group
+    assert isinstance(cond.items[1], A.Cmp)
+
+
+def test_all_relops_and_oror_parse():
+    # PAR-1: `!= < <= >=` and `||` are positively parsed (only `== > &&` were
+    # exercised before).
+    c = the_component(
+        "component C<N>(A) -> (Y) { connect {\n"
+        "    >i[N]{ when {i != 1 || i < 2 || i <= 3 || i >= 4} { A -> Y; } }\n"
+        "} }"
+    )
+    cond = c.connect_blocks[0][1][0].body[0].cond
+    assert isinstance(cond, A.BoolOr)
+    assert [it.op for it in cond.items] == ["!=", "<", "<=", ">="]
+
+
+# --- PAR-4: nested replication 2{2{s}} ---------------------------------------
+
+
+def test_nested_replication():
+    # PAR-4: a Replication may contain a Replication.
+    c = the_component("component C(s) -> (O[4]) { connect { {2{2{s}}} -> O; } }")
+    (conn,) = c.connect_blocks[0][1]
+    (outer,) = conn.src.items
+    assert isinstance(outer, A.Replication) and outer.count.value == 2
+    (inner,) = outer.items
+    assert isinstance(inner, A.Replication) and inner.count.value == 2
+    assert isinstance(inner.items[0], A.Primary) and inner.items[0].base.plain == "s"
+
+
+# --- PAR-7: context legality (corrected) -------------------------------------
+
+
+def test_par7_constant_token_as_connection_source_is_e0604():
+    # PAR-7: a non-IDENT/non-LBRACE token where a connection is expected fires
+    # the connection-context E0604 site.
+    code = parse_err("component M(A) -> (Y) { connect { 5 -> Y; } }")
+    assert code is ErrorCode.E0604
+
+
+def test_par7_declaration_inside_connect_is_e0201():
+    # PAR-7 (corrected): `g: AND;` inside connect parses as a connection named
+    # `g`, then dies at the `->` expect with E0201 — not E0604.
+    with pytest.raises(SHDLError) as ei:
+        parse("component M(A) -> (Y) { connect { g: AND; A -> Y; } }")
+    assert ei.value.diagnostic.code is ErrorCode.E0201
+
+
+def test_par7_connection_inside_declaration_context_is_e0201():
+    # PAR-7 (the untested direction): a connection in declaration context
+    # parses as a declaration name, then dies expecting `:`/`[`/`=` — E0201.
+    with pytest.raises(SHDLError) as ei:
+        parse("component M(A) -> (Y) { A -> Y; connect { } }")
+    d = ei.value.diagnostic
+    assert d.code is ErrorCode.E0201
+    assert d.pos.line == 1
+
+
+# --- PAR-9: adversarial `<` / `>` mixes --------------------------------------
+
+
+def test_par9_angle_brackets_in_three_roles():
+    # PAR-9: `<>` as a param list, a generator intro `>`, and relational
+    # `< >` inside a `when` — all in one component, disambiguated by context.
+    c = the_component(
+        "component C<N>(A[N]) -> (Y[N]) {\n"
+        "    g: C<N>;\n"  # arg list <N>
+        "    connect {\n"
+        "        >i[N]{ when {i < N && i > 0} { A[{i}] -> Y[{i}]; } }\n"  # gen + relops
+        "    }\n"
+        "}"
+    )
+    assert c.decls[0].args[0].expr.ident == "N"
+    cond = c.connect_blocks[0][1][0].body[0].cond
+    assert isinstance(cond, A.BoolAnd)
+    assert [it.op for it in cond.items] == ["<", ">"]
+
+
+# --- PAR-10: premature EOF inside each body kind -----------------------------
+
+
+def test_par10_eof_in_component_body():
+    # PAR-10: an unclosed connection inside the component body → E0604 "…end
+    # of file" via the gen-item fallthrough (never a crash or a hang).
+    with pytest.raises(SHDLError) as ei:
+        parse("component C(A) -> (Y) { connect { A -> Y;")
+    assert ei.value.diagnostic.code is ErrorCode.E0604
+
+
+def test_par10_eof_in_connect_body():
+    # PAR-10
+    with pytest.raises(SHDLError) as ei:
+        parse("component C(A) -> (Y) { connect {")
+    d = ei.value.diagnostic
+    assert d.code is ErrorCode.E0604
+    assert "end of file" in d.message
+
+
+def test_par10_eof_in_generator_body():
+    # PAR-10
+    with pytest.raises(SHDLError) as ei:
+        parse("component C(A[2]) -> (Y[2]) { connect { >i[2]{")
+    assert ei.value.diagnostic.code is ErrorCode.E0604
+
+
+def test_par10_eof_in_init_body():
+    # PAR-10: the init body expects a primary; EOF → E0201.
+    with pytest.raises(SHDLError) as ei:
+        parse("component C(A) -> (Y) { n: NOT; init {")
+    d = ei.value.diagnostic
+    assert d.code is ErrorCode.E0201
+    assert "end of file" in d.message
+
+
+# --- PAR-11: body-order laxity (AMB-16) --------------------------------------
+
+
+def test_par11_connect_before_declaration():
+    # PAR-11: declarations may follow the connect block (any order accepted).
+    c = the_component(
+        "component C(A) -> (Y) { connect { A -> g.A; g.O -> Y; } g: NOT; }"
+    )
+    assert isinstance(c.decls[0], A.InstanceDecl)
+    assert len(c.connect_blocks) == 1
+
+
+def test_par11_init_before_declaration_and_connect():
+    # PAR-11: init may precede the declaration it seeds and the connect block.
+    c = the_component(
+        "component C(A) -> (Y) {\n"
+        "    init { g.O = 1; }\n"
+        "    g: NOT;\n"
+        "    connect { A -> g.A; g.O -> Y; }\n"
+        "}"
+    )
+    assert len(c.init_blocks) == 1
+    assert len(c.connect_blocks) == 1
+    assert isinstance(c.decls[0], A.InstanceDecl)
+
+
+# --- PAR-12: reserved keyword in identifier position -------------------------
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "component when(A) -> (Y) { connect { A -> Y; } }",  # component name
+        "component M(A) -> (Y) { connect: AND; connect { A -> Y; } }",  # instance
+        "component M(connect) -> (Y) { connect { A -> Y; } }",  # port name
+        "component M<when>(A) -> (Y) { connect { A -> Y; } }",  # param name
+    ],
+)
+def test_par12_reserved_keyword_as_identifier(src):
+    # PAR-12: a keyword where an identifier is required → E0201 with position.
+    with pytest.raises(SHDLError) as ei:
+        parse(src)
+    d = ei.value.diagnostic
+    assert d.code is ErrorCode.E0201
+    assert d.pos.line >= 1 and d.pos.col >= 1
+
+
+# --- PAR-8: deeply nested input → structured diagnostic, never RecursionError -
+
+
+def test_par8_deep_brace_nesting_at_and_beyond_cap():
+    # PAR-8 (live crash): 400-deep `{…}` substitution used to raise a raw
+    # RecursionError; now it is a documented depth-cap diagnostic (E0201).
+    from flattener.parser import MAX_NESTING_DEPTH
+
+    for depth in (MAX_NESTING_DEPTH + 1, 400, 1000):
+        expr = "{" * depth + "1" + "}" * depth
+        src = f"top component M(A[2]) -> (Y) {{ connect {{ A[{expr}] -> Y; }} }}"
+        with pytest.raises(SHDLError) as ei:
+            parse(src)
+        assert ei.value.diagnostic.code is ErrorCode.E0201, depth
+        assert "limit" in ei.value.diagnostic.message
+
+
+def test_par8_deep_paren_nesting_in_when_condition():
+    # PAR-8: deep `(…)` in a boolean condition is likewise capped, not crashed.
+    depth = 1000
+    cond = "(" * depth + "1 == 1" + ")" * depth
+    src = (
+        "top component M<N>(A) -> (Y) { connect {\n"
+        f"    >i[1]{{ when {{{cond}}} {{ A -> Y; }} }}\n"
+        "} }"
+    )
+    with pytest.raises(SHDLError) as ei:
+        parse(src)
+    assert ei.value.diagnostic.code is ErrorCode.E0201
+
+
+def test_par8_nesting_just_below_cap_is_accepted():
+    # PAR-8: the cap is a ceiling, not a regression on ordinary depth — a
+    # group nested to MAX-1 parses cleanly.
+    from flattener.parser import MAX_NESTING_DEPTH
+
+    depth = MAX_NESTING_DEPTH - 1
+    expr = "{" * depth + "1" + "}" * depth
+    c = the_component(
+        f"component M(A[2]) -> (Y) {{ connect {{ A[{expr}] -> Y; }} }}"
+    )
+    assert len(c.connect_blocks) == 1
+
+
+# --- AMB-29: trailing `meta { … }` block is accepted and ignored -------------
+
+
+def test_amb29_trailing_meta_block_is_ignored():
+    # AMB-29: emitted Base SHDL ends with a `meta { … }` block; the parser
+    # accepts and discards it so re-flattening is possible (DET-4).
+    mod = parse(
+        "component C(A) -> (Y) { connect { A -> Y; } }\n"
+        'meta {\n  "doc": {},\n  "stats": { "n": 3 }\n}\n'
+    )
+    assert len(mod.components) == 1
+    assert mod.components[0].name == "C"
+
+
+def test_amb29_meta_must_be_balanced():
+    # AMB-29: an unterminated meta block is a syntax error, not a hang.
+    with pytest.raises(SHDLError) as ei:
+        parse("component C(A) -> (Y) { connect { A -> Y; } }\nmeta {")
+    assert ei.value.diagnostic.code is ErrorCode.E0201
+
+
+def test_amb29_meta_ends_the_module():
+    # AMB-29: the meta block terminates the module — a component after it is
+    # rejected (it is the trailing block, matching what the emitter produces).
+    with pytest.raises(SHDLError) as ei:
+        parse("meta { }\ncomponent C(A) -> (Y) { connect { A -> Y; } }")
+    d = ei.value.diagnostic
+    assert d.code is ErrorCode.E0201
+    assert "after the 'meta' block" in d.message

@@ -12,7 +12,14 @@ import sys
 
 import pytest
 
-ABI = {"_reset", "_poke", "_peek", "_step"}  # macOS C symbols carry a leading _
+ABI = {  # macOS C symbols carry a leading _
+    "_reset",
+    "_poke",
+    "_peek",
+    "_step",
+    "_step_settle",
+    "_run_batch",
+}
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="nm -gU contract is macOS-specific")

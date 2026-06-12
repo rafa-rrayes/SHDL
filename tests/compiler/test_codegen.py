@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from shdlc.codegen import generate_c
+from shdlc.codegen import _TICK_CHUNK, generate_c
 from shdlc.model import Circuit, Gate, PortGroup, Ref
 
 
@@ -154,6 +154,8 @@ def test_section_order():
         "SHDLC_API void poke(const char *signal, uint64_t value)",
         "SHDLC_API uint64_t peek(const char *signal)",
         "SHDLC_API void step(int cycles)",
+        "SHDLC_API int step_settle(int cycles)",
+        "SHDLC_API void run_batch(const uint64_t *in, uint64_t *out,",
         "__attribute__((constructor)) static void shdlc_ctor(void)",
     ]
     positions = []
@@ -249,24 +251,31 @@ def test_reset_memsets_repins_and_seeds_cur_only():
     assert "memset(buf_b, 0, sizeof(buf_b));" in reset
     assert "cur = buf_a;" in reset
     assert "nxt = buf_b;" in reset
-    assert "cur[G_n1] = 1u;" in reset
-    assert "cur[G_n2] = 0u;" in reset
-    assert "nxt[G_n1]" not in reset and "nxt[G_n2]" not in reset
-    # Order: memsets -> re-pin -> seeds -> dirty=0 -> recompute_outputs.
+    # Seeds are data (the init_seeds table), applied to cur[] by one loop.
+    assert "{ G_n1, 1u }," in src
+    assert "{ G_n2, 0u }," in src
+    assert "cur[init_seeds[i].wire] = init_seeds[i].value;" in reset
+    assert "nxt[init_seeds" not in reset
+    # Order: memsets -> re-pin -> seed loop -> dirty=0 -> recompute_outputs.
     assert (
         reset.index("memset(buf_b")
         < reset.index("cur = buf_a;")
-        < reset.index("cur[G_n1] = 1u;")
+        < reset.index("cur[init_seeds[i].wire]")
         < reset.index("dirty = 0;")
         < reset.index("recompute_outputs();")
     )
+    # The table preserves seed order and lives before reset().
+    assert src.index("{ G_n1, 1u },") < src.index("{ G_n2, 0u },")
+    assert src.index("init_seeds[] = {") < src.index("SHDLC_API void reset(void)")
     # Seeds live only in reset, never in tick.
     tick = _body(src, "static void tick(void)")
+    assert "init_seeds" not in tick
     assert "cur[G_" not in tick.replace("(uint8_t)(cur[G_", "")
 
 
 def test_init_seeds_absent_without_init():
     src = generate_c(and_circuit())
+    assert "init_seeds" not in src
     reset = _body(src, "SHDLC_API void reset(void)")
     assert "/* init:" not in reset
     assert "cur[G_" not in reset
@@ -284,15 +293,20 @@ def test_recompute_outputs_called_in_tick_and_reset():
 
 def test_dirty_handling():
     src = generate_c(and_circuit())
-    assert src.count("dirty = 1;") == 1
+    # Set on every input scatter: poke, and run_batch's per-port loop.
+    assert src.count("dirty = 1;") == 2
     assert "dirty = 1;" in _body(src, "SHDLC_API void poke(")
+    assert "dirty = 1;" in _body(src, "SHDLC_API void run_batch(")
     assert "static int dirty = 0;" in src
     assert src.count("    dirty = 0;") == 2  # statements, not the declaration
     assert "dirty = 0;" in _body(src, "static void tick(void)")
     assert "dirty = 0;" in _body(src, "SHDLC_API void reset(void)")
-    assert src.count("if (dirty)") == 1
+    # Lazy-tick checks: peek's output branch, and run_batch's output gather.
+    assert src.count("if (dirty)") == 2
     assert "if (dirty)" in _body(src, "SHDLC_API uint64_t peek(")
+    assert "if (dirty)" in _body(src, "SHDLC_API void run_batch(")
     assert "if (dirty)" not in _body(src, "SHDLC_API void step(")
+    assert "if (dirty)" not in _body(src, "SHDLC_API int step_settle(")
 
 
 # --- peek/poke behavior --------------------------------------------------------
@@ -341,6 +355,39 @@ def test_multibit_port_wires_lsb_first():
     src = generate_c(passthrough_circuit())
     assert "static const uint16_t in_wires_D[] = { IN_d1, IN_d2, IN_d3 };" in src
     assert '{ "D", 3, in_wires_D }' in src
+
+
+def test_wide_in_wires_initializer_wraps_structurally():
+    # CCT-15: a 64-wide input port's initializer exceeds the 80-col limit, so
+    # it wraps. Pin the exact wrapped layout: opening line ends in '{', each
+    # body line carries up to 8 names with comma discipline (every line but
+    # the last ends in ','), the final body line has NO trailing comma, and a
+    # bare '};' closes it.
+    src = generate_c(wide_circuit())
+    open_line = "static const uint16_t in_wires_W[] = {"
+    assert open_line in src
+    block = src[src.index(open_line) :]
+    block = block[: block.index("};") + 2]
+    lines = block.splitlines()
+    assert lines[0] == open_line
+    assert lines[-1] == "};"
+    body = lines[1:-1]
+    assert len(body) == 8, "64 names / 8 per line == 8 body lines"
+    for i, line in enumerate(body):
+        names = [tok for tok in line.replace(",", " ").split() if tok]
+        assert len(names) == 8, f"line {i} should hold 8 names: {line!r}"
+        assert line.startswith("    IN_w"), f"4-space indent, IN_ names: {line!r}"
+        if i < len(body) - 1:
+            assert line.rstrip().endswith(","), f"non-final line needs comma: {line!r}"
+        else:
+            assert not line.rstrip().endswith(","), f"final line: no comma: {line!r}"
+    # LSB first, contiguous, no name dropped or duplicated.
+    all_names = [tok for line in body for tok in line.replace(",", " ").split()]
+    assert all_names == [f"IN_w{k}" for k in range(64)]
+    # The short (single-line) form is byte-identical to the unwrapped helper.
+    assert "static const uint16_t in_wires_D[] = { IN_d1, IN_d2, IN_d3 };" in (
+        generate_c(passthrough_circuit())
+    )
 
 
 def test_no_width_64_shift_anywhere():
@@ -409,7 +456,7 @@ def test_degenerate_no_output_ports():
 # --- visibility / ABI surface ----------------------------------------------------
 
 
-def test_shdlc_api_on_exactly_the_four_abi_functions():
+def test_shdlc_api_on_exactly_the_six_abi_functions():
     src = generate_c(and_circuit())
     api_lines = [ln for ln in src.splitlines() if ln.startswith("SHDLC_API")]
     assert api_lines == [
@@ -417,6 +464,8 @@ def test_shdlc_api_on_exactly_the_four_abi_functions():
         "SHDLC_API void poke(const char *signal, uint64_t value)",
         "SHDLC_API uint64_t peek(const char *signal)",
         "SHDLC_API void step(int cycles)",
+        "SHDLC_API int step_settle(int cycles)",
+        "SHDLC_API void run_batch(const uint64_t *in, uint64_t *out,",
     ]
 
 
@@ -502,3 +551,116 @@ def test_render_ends_with_newline_and_no_trailing_whitespace():
     src = generate_c(feedback_circuit())
     assert src.endswith("\n")
     assert not any(ln != ln.rstrip() for ln in src.splitlines())
+
+
+# --- chunked tick (circuits above _TICK_CHUNK gates) -------------------------
+
+
+def chain_circuit(n: int) -> Circuit:
+    """NOT-chain: gate 0 reads the input, gate i reads gate i-1."""
+    gates = [Gate("g0", "NOT", _in(0), None)]
+    gates.extend(Gate(f"g{i}", "NOT", _g(i - 1), None) for i in range(1, n))
+    return _circuit(
+        name="Chain",
+        inputs=("a",),
+        gates=tuple(gates),
+        outputs=("o",),
+        in_ports=(PortGroup("a", (_in(0),)),),
+        out_ports=(PortGroup("o", (_g(n - 1),)),),
+    )
+
+
+def input_only_circuit(n: int) -> Circuit:
+    """n AND gates all reading input wires: no gate-output (c[]) read anywhere."""
+    return _circuit(
+        name="Flat",
+        inputs=("a", "b"),
+        gates=tuple(Gate(f"g{i}", "AND", _in(0), _in(1)) for i in range(n)),
+        outputs=("o",),
+        in_ports=(PortGroup("a", (_in(0),)), PortGroup("b", (_in(1),))),
+        out_ports=(PortGroup("o", (_g(n - 1),)),),
+    )
+
+
+_CHUNK_SIG = "static void tick_chunk_{}(const uint8_t *restrict c, uint8_t *restrict n)"
+
+
+def test_at_threshold_emits_inline_tick():
+    src = generate_c(chain_circuit(_TICK_CHUNK))
+    assert "tick_chunk_" not in src
+    assert "SHDLC_NOINLINE" not in src
+    assert "restrict" not in src
+    tick = _body(src, "static void tick(void)")
+    assigns = [ln for ln in tick.splitlines() if ln.strip().startswith("nxt[")]
+    assert len(assigns) == _TICK_CHUNK
+
+
+def test_above_threshold_emits_chunks_full_then_remainder():
+    n = _TICK_CHUNK + 1
+    src = generate_c(chain_circuit(n))
+    assert src.count("SHDLC_NOINLINE\nstatic void tick_chunk_") == 2
+    assert "tick_chunk_2" not in src
+    stmts0 = [
+        ln for ln in _body(src, _CHUNK_SIG.format(0)).splitlines() if "n[G_" in ln
+    ]
+    stmts1 = [
+        ln for ln in _body(src, _CHUNK_SIG.format(1)).splitlines() if "n[G_" in ln
+    ]
+    assert len(stmts0) == _TICK_CHUNK
+    assert len(stmts1) == 1
+    # Every gate statement appears exactly once, in declaration order.
+    assert re.findall(r"n\[G_(g\d+)\] =", src) == [f"g{i}" for i in range(n)]
+    tick = _body(src, "static void tick(void)")
+    assert (
+        tick.index("tick_chunk_0(cur, nxt);")
+        < tick.index("tick_chunk_1(cur, nxt);")
+        < tick.index("tmp = cur;")
+    )
+
+
+def test_input_only_chunks_take_n_only_signature():
+    src = generate_c(input_only_circuit(_TICK_CHUNK + 1))
+    # No unused-parameter bait: c never appears in any chunk signature.
+    assert "restrict c" not in src
+    assert "static void tick_chunk_0(uint8_t *restrict n)" in src
+    assert "static void tick_chunk_1(uint8_t *restrict n)" in src
+    tick = _body(src, "static void tick(void)")
+    assert "tick_chunk_0(nxt);" in tick
+    assert "tick_chunk_1(nxt);" in tick
+    assert "(cur" not in tick
+
+
+def test_chain_crossing_chunk_boundary_reads_previous_cycle_value():
+    src = generate_c(chain_circuit(_TICK_CHUNK + 1))
+    first = _body(src, _CHUNK_SIG.format(1)).strip().splitlines()[0]
+    # The cross-chunk read targets c[] (the committed previous cycle), so the
+    # chunk split cannot change semantics regardless of call order.
+    assert first == (
+        f"n[G_g{_TICK_CHUNK}] = (uint8_t)(c[G_g{_TICK_CHUNK - 1}] ^ 1u);"
+        f" /* g{_TICK_CHUNK}: NOT */"
+    )
+
+
+def test_noinline_macro_block_present_iff_chunked():
+    src = generate_c(chain_circuit(_TICK_CHUNK + 1))
+    for line in (
+        "#if defined(__GNUC__)",
+        "#define SHDLC_NOINLINE __attribute__((noinline))",
+        "#elif defined(_MSC_VER)",
+        "#define SHDLC_NOINLINE __declspec(noinline)",
+    ):
+        assert line in src, line
+    # Placed after the SHDLC_API block, before the chunk functions.
+    assert (
+        src.index("#define SHDLC_API")
+        < src.index("#define SHDLC_NOINLINE")
+        < src.index("static void tick_chunk_0")
+    )
+    for small in (chain_circuit(_TICK_CHUNK), and_circuit(), empty_circuit()):
+        assert "SHDLC_NOINLINE" not in generate_c(small)
+
+
+def test_chunked_emission_is_deterministic():
+    assert generate_c(chain_circuit(_TICK_CHUNK + 1)) == generate_c(
+        chain_circuit(_TICK_CHUNK + 1)
+    )

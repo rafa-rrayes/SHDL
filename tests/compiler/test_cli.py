@@ -129,3 +129,105 @@ def test_unknown_input_path_is_diagnosed(tmp_path):
     assert proc.returncode == 1, (proc.stdout, proc.stderr)
     assert PREFIX in proc.stderr, proc.stderr
     assert "Traceback" not in proc.stderr, proc.stderr
+
+
+# ---------------------------------------------------------------------------
+# CCT-10 holes: --shdl flag, --no-build default .c path, SHDLError surfacing,
+# --base/--shdl exclusion at exit 2 exactly, --cc at the CLI level.
+# ---------------------------------------------------------------------------
+
+
+def test_shdl_flag_forces_flattening_of_non_shdl_extension(tmp_path):
+    # CCT-10: --shdl makes the CLI flatten regardless of extension. Give the
+    # file a .base extension so only the flag selects the SHDL path.
+    shutil.copy(FIXTURES / "add2.shdl", tmp_path / "add2.src")
+    shutil.copy(FIXTURES / "fullAdder.shdl", tmp_path / "fullAdder.shdl")
+    proc = run_shdlc(["--shdl", "add2.src"], cwd=tmp_path)
+    assert proc.returncode == 0, proc.stderr
+    assert (tmp_path / f"add2{lib_suffix()}").exists()
+
+
+def test_no_build_uses_default_c_path(builds, tmp_path):
+    # CCT-10: --no-build with no --emit-c writes "<stem>.c" in the CWD.
+    (tmp_path / "add2.base").write_text(builds.fixture_text("add2"))
+    proc = run_shdlc(["add2.base", "--no-build"], cwd=tmp_path)
+    assert proc.returncode == 0, proc.stderr
+    default_c = tmp_path / "add2.c"
+    assert default_c.exists(), "expected default C at <stem>.c"
+    assert "void tick" in default_c.read_text()
+    assert not (tmp_path / f"add2{lib_suffix()}").exists()
+
+
+def test_shdl_flattener_error_surfaces_as_diagnostic(tmp_path):
+    # CCT-10: the SHDLError-surfacing branch. A .shdl that fails to flatten
+    # (here: imports a sibling that does not exist) -> rc 1, clean diagnostic.
+    (tmp_path / "broken.shdl").write_text(
+        "use missingmod::{Nope};\n"
+        "component Broken(a) -> (y) { n: Nope; connect { a -> n.A; n.O -> y; } }\n"
+    )
+    proc = run_shdlc(["broken.shdl"], cwd=tmp_path)
+    assert proc.returncode == 1, (proc.stdout, proc.stderr)
+    assert PREFIX in proc.stderr, proc.stderr
+    assert "Traceback" not in proc.stderr, proc.stderr
+
+
+def test_base_and_shdl_are_mutually_exclusive_exit_2(tmp_path):
+    # CCT-10: --base and --shdl together is a usage error -> exit 2 exactly.
+    (tmp_path / "x.base").write_text("component X(a) -> (y) { connect { a -> y; } }\n")
+    proc = run_shdlc(["--base", "--shdl", "x.base"], cwd=tmp_path)
+    assert proc.returncode == 2, (proc.returncode, proc.stderr)
+    assert proc.stderr.strip(), "argparse must explain the exclusion"
+    assert "Traceback" not in proc.stderr
+
+
+def test_cc_flag_plumbs_through_to_the_compiler(builds, tmp_path):
+    # CCT-10 + CCT-3: --cc carries the compiler argv prefix (shlex-split), so
+    # warning flags placed there make the CLI build a zero-warning proof under
+    # -Werror -- closing the hole that plain CLI builds used DEFAULT_CFLAGS
+    # with no warning flags. A real strict build that exits 0 IS the proof.
+    (tmp_path / "add2.base").write_text(builds.fixture_text("add2"))
+    proc = run_shdlc(
+        ["add2.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path
+    )
+    assert proc.returncode == 0, proc.stderr  # -Werror passed: warning-free
+    out = tmp_path / f"add2{lib_suffix()}"
+    assert out.exists()
+    check_add2_lib(builds, out)
+
+
+def test_cc_flag_bad_compiler_is_diagnosed(tmp_path):
+    # CCT-10: a bogus --cc value surfaces as a clean CCError diagnostic, rc 1.
+    (tmp_path / "x.base").write_text(
+        "component X(a) -> (y) { connect { a -> y; } }\n"
+    )
+    proc = run_shdlc(["x.base", "--cc", "no-such-compiler-xyz"], cwd=tmp_path)
+    assert proc.returncode == 1, (proc.stdout, proc.stderr)
+    assert PREFIX in proc.stderr, proc.stderr
+    assert "no-such-compiler-xyz" in proc.stderr
+    assert "Traceback" not in proc.stderr
+
+
+def test_chunked_cli_build_is_warning_free_under_strict_cc(tmp_path):
+    # CCT-3 + CCT-17 (CLI angle): a >1024-gate circuit goes through the
+    # chunked tick() emission; building it via the CLI under -Werror proves
+    # the chunk functions compile warning-free on the real CLI path too.
+    n = 1100
+    decls = [f"    g{i}: {'XOR' if i % 2 else 'NOT'};" for i in range(n)]
+    conns = ["        a -> g0.A;"]
+    for i in range(1, n):
+        conns.append(f"        g{i - 1}.O -> g{i}.A;")
+        if i % 2:
+            conns.append(f"        b -> g{i}.B;")
+    conns.append(f"        g{n - 1}.O -> y;")
+    text = (
+        "\n".join(
+            ["component ChunkCli(a, b) -> (y) {", *decls, "    connect {", *conns, "    }", "}"]
+        )
+        + "\n"
+    )
+    (tmp_path / "chunk.base").write_text(text)
+    proc = run_shdlc(
+        ["chunk.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (tmp_path / f"chunk{lib_suffix()}").exists()
