@@ -16,9 +16,7 @@ def test_primitive_shadow(tmp_path):
 
 
 def test_unknown_component_type(tmp_path):
-    expect_error(
-        "E0306", tmp_path, "component C(A) -> (Y) { g: Ghost; connect { A -> Y; } }"
-    )
+    expect_error("E0306", tmp_path, "component C(A) -> (Y) { g: Ghost; connect { A -> Y; } }")
 
 
 def test_missing_connect_block(tmp_path):
@@ -26,9 +24,7 @@ def test_missing_connect_block(tmp_path):
 
 
 def test_two_connect_blocks(tmp_path):
-    expect_error(
-        "E0309", tmp_path, "component C(A) -> (Y) { connect { A -> Y; } connect { } }"
-    )
+    expect_error("E0309", tmp_path, "component C(A) -> (Y) { connect { A -> Y; } connect { } }")
 
 
 def test_two_init_blocks(tmp_path):
@@ -44,8 +40,7 @@ def test_two_top_components(tmp_path):
     expect_error(
         "E0310",
         tmp_path,
-        f"top component C(A) -> (Y) {{ {OK_BODY} }}\n"
-        f"top component D(A) -> (Y) {{ {OK_BODY} }}",
+        f"top component C(A) -> (Y) {{ {OK_BODY} }}\ntop component D(A) -> (Y) {{ {OK_BODY} }}",
     )
 
 
@@ -62,9 +57,7 @@ def test_duplicate_port_names(tmp_path):
 
 
 def test_port_instance_collision(tmp_path):
-    expect_error(
-        "E0301", tmp_path, "component C(A) -> (Y) { A: NOT; connect { A -> Y; } }"
-    )
+    expect_error("E0301", tmp_path, "component C(A) -> (Y) { A: NOT; connect { A -> Y; } }")
 
 
 def test_duplicate_instance_inside_generator_body(tmp_path):
@@ -76,9 +69,7 @@ def test_duplicate_instance_inside_generator_body(tmp_path):
 
 
 def test_constant_overflow_literal_width(tmp_path):
-    d = expect_error(
-        "E0801", tmp_path, "component C(A) -> (Y) { K[2] = 7; connect { A -> Y; } }"
-    )
+    d = expect_error("E0801", tmp_path, "component C(A) -> (Y) { K[2] = 7; connect { A -> Y; } }")
     assert "7" in d.message
 
 
@@ -93,25 +84,19 @@ def test_zero_literal_width(tmp_path):
 
 def test_val1_accepts_underscore_digit_without_trailing_underscore(tmp_path):
     # VAL-1: `X_2` lacks the trailing `_`, so it is NOT the bus pattern.
-    out = flatten_source(
-        tmp_path, "top component C(X_2) -> (Y) { connect { X_2 -> Y; } }"
-    )
+    out = flatten_source(tmp_path, "top component C(X_2) -> (Y) { connect { X_2 -> Y; } }")
     assert out.meta["ports"]["inputs"] == {"X_2": ["X_2"]}
 
 
 def test_val1_accepts_two_digit_groups(tmp_path):
     # VAL-1: `X_2_3` does not match `..._<digits>_$` (ends in a digit).
-    out = flatten_source(
-        tmp_path, "top component C(X_2_3) -> (Y) { connect { X_2_3 -> Y; } }"
-    )
+    out = flatten_source(tmp_path, "top component C(X_2_3) -> (Y) { connect { X_2_3 -> Y; } }")
     assert out.meta["ports"]["inputs"] == {"X_2_3": ["X_2_3"]}
 
 
 def test_val1_accepts_single_leading_underscore(tmp_path):
     # VAL-1: one leading `_` is not the reserved `__` prefix.
-    out = flatten_source(
-        tmp_path, "top component C(_x) -> (Y) { connect { _x -> Y; } }"
-    )
+    out = flatten_source(tmp_path, "top component C(_x) -> (Y) { connect { _x -> Y; } }")
     assert out.meta["ports"]["inputs"] == {"_x": ["_x"]}
 
 
@@ -131,17 +116,13 @@ def test_val2_shadow_each_primitive(tmp_path):
 def test_val2_amb23_vcc_precedence_e0305_over_e0303(tmp_path):
     # AMB-23: `component __VCC__` violates both E0305 (primitive) and E0303
     # (reserved `__`); the more specific E0305 must win.
-    d = expect_error(
-        "E0305", tmp_path, "component __VCC__(A) -> (Y) { connect { A -> Y; } }"
-    )
+    d = expect_error("E0305", tmp_path, "component __VCC__(A) -> (Y) { connect { A -> Y; } }")
     assert "primitive" in d.message
 
 
 def test_val2_amb23_gnd_precedence_e0305_over_e0303(tmp_path):
     # AMB-23: same precedence for `__GND__`.
-    d = expect_error(
-        "E0305", tmp_path, "component __GND__(A) -> (Y) { connect { A -> Y; } }"
-    )
+    d = expect_error("E0305", tmp_path, "component __GND__(A) -> (Y) { connect { A -> Y; } }")
     assert "primitive" in d.message
 
 
@@ -208,8 +189,7 @@ def test_val9_generated_name_collides_with_port(tmp_path):
     expect_error(
         "E0301",
         tmp_path,
-        "top component M(A, b1) -> (Y) { >i[1]{ b{i}: OR; } "
-        "connect { A -> Y; b1 -> Y; } }",
+        "top component M(A, b1) -> (Y) { >i[1]{ b{i}: OR; } connect { A -> Y; b1 -> Y; } }",
     )
 
 
@@ -278,17 +258,13 @@ def test_val6_e0307_all_eight_sites(tmp_path):
 
 def test_val7_negative_port_width(tmp_path):
     # VAL-7: a negative port width literal -> E0403 (non-param component).
-    d = expect_error(
-        "E0403", tmp_path, "component C(A[0-1]) -> (Y) { connect { A -> Y; } }"
-    )
+    d = expect_error("E0403", tmp_path, "component C(A[0-1]) -> (Y) { connect { A -> Y; } }")
     assert "-1" in d.message
 
 
 def test_val7_constant_zero_width_validate_site(tmp_path):
     # VAL-7: zero-width constant literal, validate site -> E0403.
-    expect_error(
-        "E0403", tmp_path, "top component M(A) -> (Y) { K[0] = 1; connect { A -> Y; } }"
-    )
+    expect_error("E0403", tmp_path, "top component M(A) -> (Y) { K[0] = 1; connect { A -> Y; } }")
 
 
 def test_val7_constant_negative_width_validate_site(tmp_path):
@@ -317,7 +293,5 @@ def test_val7_amb31_e0906_inside_specialization(tmp_path):
 def test_val7_amb31_e0403_outside_specialization(tmp_path):
     # VAL-7 / AMB-31: the identical `A[0]` in a non-parameterized component is
     # E0403 (the other branch of the shared monomorphize port-width site).
-    d = expect_error(
-        "E0403", tmp_path, "component C(A[0]) -> (Y) { connect { A -> Y; } }"
-    )
+    d = expect_error("E0403", tmp_path, "component C(A[0]) -> (Y) { connect { A -> Y; } }")
     assert "main::C" in d.message

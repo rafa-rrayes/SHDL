@@ -20,7 +20,9 @@ from .conftest import lockstep
 
 
 def test_alu_add_sub_adc_flag_corners(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         ; ADD: carry + zero
         LI   r1, 0xFFFF
         LI   r2, 1
@@ -59,11 +61,15 @@ def test_alu_add_sub_adc_flag_corners(sr16):
         ADD  r3, r1, r2        ; C=1
         ADC  r3, r1, r0        ; 0x0000, Z=1 C=1
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 def test_alu_logic_mov_cmp(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 0xAAAA
         LI   r2, 0x5555
         AND  r3, r1, r2        ; 0, Z=1
@@ -84,7 +90,9 @@ def test_alu_logic_mov_cmp(sr16):
         LI   r3, 99
         CMP  r3, r3            ; Z=1 C=1, r3 stays 99
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 # --- op 0001: shift group ----------------------------------------------------
@@ -108,7 +116,9 @@ def test_shift_group_all_functs(sr16):
 
 
 def test_shift_not_preserves_carry(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 5
         LI   r2, 3
         CMP  r1, r2        ; C=1
@@ -120,24 +130,32 @@ def test_shift_not_preserves_carry(sr16):
         NOT  r5, r5
         SHL  r5, r5
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 def test_shift_reserved_functs_behave_as_not(sr16):
     # funct 6 / 7 (op=0001, rd=2, rs1=1): ISA.md §3.2 — behave exactly as NOT
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI    r1, 0x1234
         .word 0x1446       ; op=1 rd=2 rs1=1 funct=6
         .word 0x1647       ; op=1 rd=3 rs1=1 funct=7
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 # --- op 0010/0011: immediates ------------------------------------------------
 
 
 def test_immediates_ldi_ldih(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LDI  r1, 0         ; 0x0000, Z untouched (LDI sets no flags)
         LDI  r2, 127       ; 0x007F
         LDI  r3, -128      ; 0xFF80 (sign extension)
@@ -155,14 +173,18 @@ def test_immediates_ldi_ldih(sr16):
         LI   r6, 0x8001
         LI   r1, 0xFFFF
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 # --- op 0100/0101/0110: memory + ADDI ---------------------------------------
 
 
 def test_memory_ld_st_offsets_and_aliasing(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 0x70
         LI   r2, 0xBEEF
         ST   [r1], r2
@@ -184,11 +206,14 @@ def test_memory_ld_st_offsets_and_aliasing(sr16):
         LI   r1, 0x70
         LD   r1, [r1]          ; r1 <- 0xBEEF
         HALT
-    """)
+    """,
+    )
 
 
 def test_addi_edges_and_flags(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 100
         ADDI r2, r1, 31        ; max imm
         ADDI r3, r1, -32       ; min imm
@@ -199,7 +224,9 @@ def test_addi_edges_and_flags(sr16):
         ADDI r6, r1, 1         ; 0x8000, N=1 V=1
         ADDI r1, r1, -1        ; rd == rs1
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 # --- op 0111: all 8 branch conditions, taken and not taken -------------------
@@ -211,7 +238,9 @@ def test_branch_conditions_all_taken_and_not(sr16):
     #   5,5 -> Z=1 C=1 N=0 V=0        5,3 -> C=1 N=0 V=0
     #   3,5 -> C=0 N=1 V=0            0x8000,1 -> N=0 V=1 C=1
     #   0x7FFF,0xFFFF -> N=1 V=1 C=0
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r6, 0
         LI   r1, 5
         LI   r2, 5
@@ -277,11 +306,15 @@ t17:    CMP  r3, r1        ; N=1 V=0
         BGE  t18           ; not taken
         ADDI r6, r6, 18
 t18:    HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 def test_branch_backward(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 4
         LI   r2, 0
 loop:   ADD  r2, r2, r1
@@ -289,14 +322,18 @@ loop:   ADD  r2, r2, r1
         CMP  r1, r0
         BNE  loop          ; backward, taken 3 times
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 # --- op 1000/1001 + MISC jumps: JMP / CALL / JR / RET ------------------------
 
 
 def test_jmp_jr(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         JMP  over
         LI   r1, 99        ; must be skipped
 over:   LI   r2, 7
@@ -305,11 +342,15 @@ over:   LI   r2, 7
         LI   r1, 98        ; must be skipped
 target: LI   r4, 1
         HALT
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
 
 
 def test_call_ret_nested(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         LI   r1, 1
         CALL f
         LI   r4, 4         ; runs after RET
@@ -320,14 +361,17 @@ f:      ADDI r1, r1, 10
         RET
 g:      ADDI r1, r1, 31
         RET
-    """)
+    """,
+    )
 
 
 # --- op 1010: stack & control ------------------------------------------------
 
 
 def test_push_pop_stack_discipline(sr16):
-    lockstep(sr16, """
+    lockstep(
+        sr16,
+        """
         ; R7 = 0 at reset: first PUSH wraps to top of RAM (ISA.md §1)
         LI   r1, 0x1111
         LI   r2, 0x2222
@@ -344,17 +388,22 @@ def test_push_pop_stack_discipline(sr16):
         PUSH r6
         POP  r7            ; r7 = 0x55
         HALT
-    """)
+    """,
+    )
 
 
 def test_nop_and_halt(sr16):
-    golden = lockstep(sr16, """
+    golden = lockstep(
+        sr16,
+        """
         NOP
         LI   r1, 1
         NOP
         HALT
         LI   r2, 99        ; must never run
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
     assert golden.regs[2] == 0
     # HALTED is terminal (ISA.md §4): extra clocks change nothing
     before = sr16.state()
@@ -365,17 +414,25 @@ def test_nop_and_halt(sr16):
 RESERVED_WORDS = [
     0xA006,  # MISC funct 6 (reserved -> HALT)
     0xA007,  # MISC funct 7 (reserved -> HALT)
-    0xB000, 0xC123, 0xDFFF, 0xE000, 0xF00F,  # opcodes 1011..1111
+    0xB000,
+    0xC123,
+    0xDFFF,
+    0xE000,
+    0xF00F,  # opcodes 1011..1111
 ]
 
 
 @pytest.mark.parametrize("word", [hex(w) for w in RESERVED_WORDS])
 def test_reserved_encodings_trap_to_halt(sr16, word):
-    golden = lockstep(sr16, f"""
+    golden = lockstep(
+        sr16,
+        f"""
         LI    r1, 7
         .word {word}
         LI    r2, 99       ; canary: must never run
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
     assert golden.halted and golden.regs[2] == 0
 
 
@@ -385,7 +442,9 @@ def test_pc_wrap_and_fetch_aliasing(sr16):
     JR to 0xFFFF fetches mem[0xFF] (HALT) and the incremented PC wraps to 0.
     JMP to 0x105 fetches mem[0x05].
     """
-    golden = lockstep(sr16, """
+    golden = lockstep(
+        sr16,
+        """
         JMP  0x105         ; lands on the word at physical 0x05
         LI   r1, 99        ; never runs
         .org 0x05
@@ -395,7 +454,9 @@ def test_pc_wrap_and_fetch_aliasing(sr16):
         LI   r1, 98        ; never runs
         .org 0xFF
         .word 0xA005       ; HALT at the top physical word
-    """, check_mem=False)
+    """,
+        check_mem=False,
+    )
     assert golden.regs[2] == 42
     assert golden.regs[1] == 0
     assert golden.pc == 0  # 0xFFFF + 1 wrapped

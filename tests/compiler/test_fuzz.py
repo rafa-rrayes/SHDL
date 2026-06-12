@@ -38,13 +38,10 @@ def test_fuzz_random_circuit(builds, index):
         dual.compare_all()
         random_drive(dual, rng, FUZZ_CYCLES)
     except AssertionError as e:
-        raise AssertionError(
-            f"{e}\n--- fuzz netlist (seed {seed}) ---\n{text}"
-        ) from e
+        raise AssertionError(f"{e}\n--- fuzz netlist (seed {seed}) ---\n{text}") from e
     except Exception as e:
         raise AssertionError(
-            f"fuzz circuit failed to build/run (seed {seed}): {e!r}\n"
-            f"--- fuzz netlist ---\n{text}"
+            f"fuzz circuit failed to build/run (seed {seed}): {e!r}\n--- fuzz netlist ---\n{text}"
         ) from e
 
 
@@ -215,14 +212,9 @@ class _ActionAdversary:
         nframes = self.rng.randint(0, 4)
         cycles = self.rng.randint(0, 5)
         settle = self.rng.random() < 0.5
-        frames = [
-            tuple(self.rng.getrandbits(64) for _ in range(n_in))
-            for _ in range(nframes)
-        ]
+        frames = [tuple(self.rng.getrandbits(64) for _ in range(n_in)) for _ in range(nframes)]
         got = self.d.sim.run_batch(frames, n_out, cycles, settle=settle)
-        self._note(
-            f"run_batch(frames={nframes}, cycles={cycles}, settle={settle})"
-        )
+        self._note(f"run_batch(frames={nframes}, cycles={cycles}, settle={settle})")
         # Replay the scalar-equivalent on the oracle, frame by frame, mirroring
         # the lib's per-frame scatter -> advance -> (lazy) gather precisely.
         for frame, outs in zip(frames, got):
@@ -292,8 +284,7 @@ def test_fuz5_action_sequence_adversary(builds, name):
     except Exception as e:  # noqa: BLE001
         tail = "\n  ".join(adv.actions[-25:])
         raise AssertionError(
-            f"FUZ-5 [{name}] seed={seed!r}: action driver raised {e!r}\n"
-            f"actions:\n  {tail}"
+            f"FUZ-5 [{name}] seed={seed!r}: action driver raised {e!r}\nactions:\n  {tail}"
         ) from e
 
 
@@ -323,8 +314,8 @@ def test_fuz5_step_zero_then_peek_lazy_ticks_once(builds):
         sim.poke("A", 1)
         sim.poke("B", 2)
         sim.poke("Cin", 0)
-    lazy.step(0)        # no-op; dirty stays set
-    explicit.step(1)    # one explicit cycle; dirty cleared
+    lazy.step(0)  # no-op; dirty stays set
+    explicit.step(1)  # one explicit cycle; dirty cleared
     # The lazy side hidden-ticks on this first output peek:
     assert lazy.peek("Sum") == explicit.peek("Sum")
     assert lazy.peek("Cout") == explicit.peek("Cout")

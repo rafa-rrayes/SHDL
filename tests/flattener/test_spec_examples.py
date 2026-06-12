@@ -5,8 +5,6 @@
 comparison is order-insensitive.
 """
 
-from pathlib import Path
-
 from helpers import FIXTURES, flatten_fixture, flatten_source
 
 from shdlc.baseshdl import parse_base
@@ -73,11 +71,18 @@ def test_fa1_hierarchy_ports_match_spec_4_4():
     assert fa1["type"] == "FullAdder"
     assert fa1["prefix"] == "fa1_"
     assert fa1["ports"] == {
-        "A": "A_1_", "B": "B_1_", "Cin": "Cin",
-        "Sum": "Sum_1_", "Cout": "fa1_o1.O",
+        "A": "A_1_",
+        "B": "B_1_",
+        "Cin": "Cin",
+        "Sum": "Sum_1_",
+        "Cout": "fa1_o1.O",
     }
     assert {k: v["type"] for k, v in fa1["instances"].items()} == {
-        "x1": "XOR", "x2": "XOR", "a1": "AND", "a2": "AND", "o1": "OR",
+        "x1": "XOR",
+        "x2": "XOR",
+        "a1": "AND",
+        "a2": "AND",
+        "o1": "OR",
     }
 
 
@@ -131,7 +136,9 @@ def test_srlatch_spec_11_4_compiles(tmp_path):
     # AMB-41: the corrected §11.4 example flattens cleanly with the import.
     stdgates = (FIXTURES / "stdgates.shdl").read_text()
     out = flatten_source(
-        tmp_path, SPEC_11_4_SRLATCH, name="srlatch_spec",
+        tmp_path,
+        SPEC_11_4_SRLATCH,
+        name="srlatch_spec",
         aux={"stdgates": stdgates},
     )
     comp = parse_base(out.text)

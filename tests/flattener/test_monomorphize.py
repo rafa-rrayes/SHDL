@@ -47,9 +47,7 @@ def test_port_width_from_param():
 
 
 def test_top_requires_defaults(tmp_path):
-    expect_error(
-        "E0902", tmp_path, "top component M<N>(A[N]) -> (Y[N]) { connect { A -> Y; } }"
-    )
+    expect_error("E0902", tmp_path, "top component M<N>(A[N]) -> (Y[N]) { connect { A -> Y; } }")
 
 
 def test_unknown_named_argument(tmp_path):
@@ -147,8 +145,7 @@ def test_mon2_primitive_with_params_validate_site(tmp_path):
     d = expect_error(
         "E0901",
         tmp_path,
-        "top component M(A, B) -> (Y) { g: AND<1>; "
-        "connect { A -> g.A; B -> g.B; g.O -> Y; } }",
+        "top component M(A, B) -> (Y) { g: AND<1>; connect { A -> g.A; B -> g.B; g.O -> Y; } }",
     )
     assert "AND" in d.message
 

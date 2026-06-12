@@ -4,8 +4,8 @@ import sys
 
 from helpers import FIXTURES, TS, flatten_fixture
 
-from shdlc.baseshdl import parse_base
 from flattener.cli import main
+from shdlc.baseshdl import parse_base
 
 ADD2 = str(FIXTURES / "add2.shdl")
 STDGATES = str(FIXTURES / "stdgates.shdl")

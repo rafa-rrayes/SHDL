@@ -39,15 +39,23 @@ def main():
     out_dir.mkdir(exist_ok=True)
 
     print("flattening sr16 ...")
-    text = flatten_program(str(REPO / "examples/CPU/sr16.shdl"),
-                           include_dirs=[str(REPO / "examples")],
-                           timestamp="2026-01-01T00:00:00Z").text
+    text = flatten_program(
+        str(REPO / "examples/CPU/sr16.shdl"),
+        include_dirs=[str(REPO / "examples")],
+        timestamp="2026-01-01T00:00:00Z",
+    ).text
 
     print(f"{'variant':<18} {'build':>7} {'us/tick':>8} {'ns/gate':>8} {'vs stock':>8}")
     base_tick = None
     for name, flags in VARIANTS.items():
-        lib = out_dir / (name.replace(" ", "_").replace("(", "").replace(")", "")
-                         .replace("+", "").replace("=", "-") + ".dylib")
+        lib = out_dir / (
+            name.replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+            .replace("+", "")
+            .replace("=", "-")
+            + ".dylib"
+        )
         t0 = time.perf_counter()
         if not lib.exists():
             build_library(text, lib, cflags=tuple(flags))
@@ -55,8 +63,10 @@ def main():
         tick_ns = ns_per_tick(Sim(lib))
         if base_tick is None:
             base_tick = tick_ns
-        print(f"{name:<18} {t_build:6.1f}s {tick_ns / 1e3:8.2f} "
-              f"{tick_ns / N_GATES:8.3f} {base_tick / tick_ns:7.2f}x")
+        print(
+            f"{name:<18} {t_build:6.1f}s {tick_ns / 1e3:8.2f} "
+            f"{tick_ns / N_GATES:8.3f} {base_tick / tick_ns:7.2f}x"
+        )
 
 
 if __name__ == "__main__":

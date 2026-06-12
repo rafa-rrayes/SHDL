@@ -29,10 +29,31 @@ def test_number_literals():
 def test_all_operators():
     text = "-> :: == != <= >= && || < > = : ; , { } [ ] ( ) + - * / ."
     assert kinds(text) == [
-        T.ARROW, T.SCOPE, T.EQEQ, T.NE, T.LE, T.GE, T.ANDAND, T.OROR,
-        T.LT, T.GT, T.EQ, T.COLON, T.SEMI, T.COMMA, T.LBRACE, T.RBRACE,
-        T.LBRACKET, T.RBRACKET, T.LPAREN, T.RPAREN, T.PLUS, T.MINUS,
-        T.STAR, T.SLASH, T.DOT,
+        T.ARROW,
+        T.SCOPE,
+        T.EQEQ,
+        T.NE,
+        T.LE,
+        T.GE,
+        T.ANDAND,
+        T.OROR,
+        T.LT,
+        T.GT,
+        T.EQ,
+        T.COLON,
+        T.SEMI,
+        T.COMMA,
+        T.LBRACE,
+        T.RBRACE,
+        T.LBRACKET,
+        T.RBRACKET,
+        T.LPAREN,
+        T.RPAREN,
+        T.PLUS,
+        T.MINUS,
+        T.STAR,
+        T.SLASH,
+        T.DOT,
     ]
 
 

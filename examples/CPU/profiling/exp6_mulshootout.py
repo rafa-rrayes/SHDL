@@ -106,7 +106,8 @@ def lockstep_ok(cpu, words, max_instr=5000):
         n += 1
         st = cpu.state()
         assert got == want and st["pc"] == g.pc and st["regs"] == g.regs, (
-            f"diverged at instr {n}: {st} vs pc={g.pc} regs={g.regs}")
+            f"diverged at instr {n}: {st} vs pc={g.pc} regs={g.regs}"
+        )
     return n
 
 
@@ -133,15 +134,21 @@ def parallel(ks=(1, 2, 4, 8, 10), k=80):
     print(f"== parallel scaling: N processes x {k} constfold mults each (tuned clock) ==")
     for n in ks:
         t0 = time.perf_counter()
-        procs = [subprocess.Popen([sys.executable, __file__, "--worker", str(k)],
-                                  stdout=subprocess.PIPE, text=True) for _ in range(n)]
+        procs = [
+            subprocess.Popen(
+                [sys.executable, __file__, "--worker", str(k)], stdout=subprocess.PIPE, text=True
+            )
+            for _ in range(n)
+        ]
         outs = [p.communicate()[0] for p in procs]
         wall = time.perf_counter() - t0
         assert all(p.returncode == 0 for p in procs), outs
         sim_s = [float(o.strip().split(",")[3]) for o in outs if o.startswith("WORKER")]
         mults = n * k
-        print(f"  N={n:2}: {mults:4} mults in {wall:5.2f}s wall -> {mults / wall:6.1f} mults/s "
-              f"(mean in-sim {sum(sim_s) / len(sim_s):.2f}s/worker)")
+        print(
+            f"  N={n:2}: {mults:4} mults in {wall:5.2f}s wall -> {mults / wall:6.1f} mults/s "
+            f"(mean in-sim {sum(sim_s) / len(sim_s):.2f}s/worker)"
+        )
 
 
 def main():
@@ -149,18 +156,22 @@ def main():
 
     print("== correctness: golden + gate-level lockstep (tuned clock) ==")
     cpu = SR16(LIB, **TUNED)
-    for name, src, r3 in (("repadd", REPADD, 132), ("shiftadd", sa, 132),
-                          ("constfold", CONSTFOLD, 132),
-                          ("shiftadd worst 65535x65535", SHIFTADD.format(a=65535, b=65535),
-                           (65535 * 65535) & 0xFFFF)):
+    for name, src, r3 in (
+        ("repadd", REPADD, 132),
+        ("shiftadd", sa, 132),
+        ("constfold", CONSTFOLD, 132),
+        ("shiftadd worst 65535x65535", SHIFTADD.format(a=65535, b=65535), (65535 * 65535) & 0xFFFF),
+    ):
         words = assemble(src)
         golden_check(words, r3)
         n = lockstep_ok(cpu, words)
         print(f"  {name:<28} {len(words):>2} words, {n:>3} instr: lockstep-clean, r3 ok")
 
     print("== single-multiply latency (reset+load+run, one 12x11) ==")
-    print(f"  {'algorithm':<10} {'budget':<6} {'clocks':>6} {'load ms':>8} {'run ms':>8} "
-          f"{'total ms':>9} {'mults/s':>8}")
+    print(
+        f"  {'algorithm':<10} {'budget':<6} {'clocks':>6} {'load ms':>8} {'run ms':>8} "
+        f"{'total ms':>9} {'mults/s':>8}"
+    )
     for name, src in (("repadd", REPADD), ("shiftadd", sa), ("constfold", CONSTFOLD)):
         words = assemble(src)
         for label, kw in (("stock", {}), ("tuned", TUNED)):
@@ -168,8 +179,10 @@ def main():
             cycles, t_load, t_run = run_timed(c, words)
             assert c.state()["regs"][3] == 132
             tot = t_load + t_run
-            print(f"  {name:<10} {label:<6} {cycles:>6} {t_load * 1e3:>8.1f} "
-                  f"{t_run * 1e3:>8.1f} {tot * 1e3:>9.1f} {1 / tot:>8.1f}")
+            print(
+                f"  {name:<10} {label:<6} {cycles:>6} {t_load * 1e3:>8.1f} "
+                f"{t_run * 1e3:>8.1f} {tot * 1e3:>9.1f} {1 / tot:>8.1f}"
+            )
 
     print("== back-to-back throughput (K mults in one program, run phase only) ==")
     for name, tmpl, k in (("shiftadd", SHIFTADD_LOOP, 30), ("constfold", CONSTFOLD_LOOP, 80)):
@@ -179,15 +192,19 @@ def main():
             c = SR16(LIB, **kw)
             cycles, _, t_run = run_timed(c, words)
             assert c.state()["regs"][3] == 132
-            print(f"  {name:<10} {label:<6} K={k}: {cycles:>6} clocks "
-                  f"({cycles / k:5.1f}/mult), {t_run:6.2f}s -> {k / t_run:6.1f} mults/s")
+            print(
+                f"  {name:<10} {label:<6} K={k}: {cycles:>6} clocks "
+                f"({cycles / k:5.1f}/mult), {t_run:6.2f}s -> {k / t_run:6.1f} mults/s"
+            )
 
     print("== worst-case operands (65535 x 65535), tuned ==")
     words = assemble(SHIFTADD.format(a=65535, b=65535))
     c = SR16(LIB, **TUNED)
     cycles, _, t_run = run_timed(c, words)
-    print(f"  shiftadd: {cycles} clocks, {t_run * 1e3:.0f} ms "
-          f"(repadd would be 6+6x65535 = 393,216 clocks ~ {393216 * 68 * 23.2e-6:.0f}s tuned)")
+    print(
+        f"  shiftadd: {cycles} clocks, {t_run * 1e3:.0f} ms "
+        f"(repadd would be 6+6x65535 = 393,216 clocks ~ {393216 * 68 * 23.2e-6:.0f}s tuned)"
+    )
 
 
 if __name__ == "__main__":

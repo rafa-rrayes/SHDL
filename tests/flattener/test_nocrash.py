@@ -51,12 +51,64 @@ NOCRASH_COUNT = int(os.environ.get("SHDLC_NOCRASH", "200"))
 #: The SHDL surface alphabet: keywords, operators, punctuation, literals,
 #: identifiers — the raw material for "structured garbage" token soup.
 _TOKEN_SOUP = [
-    "component", "top", "connect", "when", "else", "init", "use", "meta",
-    "->", "==", "!=", "<=", ">=", "&&", "||", "<", ">", "=",
-    "(", ")", "{", "}", "[", "]", ",", ";", ":", ".", "+", "-", "*", "/",
-    "0", "1", "255", "0xFF", "0b101", "10", "A", "B", "Y", "g", "i", "N",
-    "AND", "OR", "NOT", "XOR", "__VCC__", "__GND__",
-    " ", "\n", "\t", "#c\n", '"s"', "²", "é", "٣",
+    "component",
+    "top",
+    "connect",
+    "when",
+    "else",
+    "init",
+    "use",
+    "meta",
+    "->",
+    "==",
+    "!=",
+    "<=",
+    ">=",
+    "&&",
+    "||",
+    "<",
+    ">",
+    "=",
+    "(",
+    ")",
+    "{",
+    "}",
+    "[",
+    "]",
+    ",",
+    ";",
+    ":",
+    ".",
+    "+",
+    "-",
+    "*",
+    "/",
+    "0",
+    "1",
+    "255",
+    "0xFF",
+    "0b101",
+    "10",
+    "A",
+    "B",
+    "Y",
+    "g",
+    "i",
+    "N",
+    "AND",
+    "OR",
+    "NOT",
+    "XOR",
+    "__VCC__",
+    "__GND__",
+    " ",
+    "\n",
+    "\t",
+    "#c\n",
+    '"s"',
+    "²",
+    "é",
+    "٣",
 ]
 
 #: Unicode oddities that have bitten the lexer/loader before (AMB-14/15).
@@ -148,8 +200,18 @@ def _garbage_bytes(rng: random.Random) -> bytes:
         ]
         return rng.choice(choices)
     # numeric/literal edge soup
-    parts = ["0x", "0b", "0xG", "0b2", "99" * rng.randint(1, 5), "0x" + "F" * 30,
-             "1_000", "12ab", "²", ""]
+    parts = [
+        "0x",
+        "0b",
+        "0xG",
+        "0b2",
+        "99" * rng.randint(1, 5),
+        "0x" + "F" * 30,
+        "1_000",
+        "12ab",
+        "²",
+        "",
+    ]
     return (" ".join(rng.sample(parts, k=rng.randint(1, len(parts))))).encode("utf-8")
 
 
@@ -224,8 +286,7 @@ def test_fuz4_lex_and_parse_layers_never_crash(tmp_path):
                 pass
             except BaseException as e:  # noqa: BLE001
                 raise AssertionError(
-                    f"FUZ-4 {layer} crash [{i}]: {type(e).__name__}\n"
-                    f"--- input (repr) ---\n{text!r}"
+                    f"FUZ-4 {layer} crash [{i}]: {type(e).__name__}\n--- input (repr) ---\n{text!r}"
                 ) from e
 
 

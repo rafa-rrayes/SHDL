@@ -17,9 +17,7 @@ from sr16tools.golden import Golden
 CPU_DIR = Path(__file__).resolve().parents[1]
 LIB = sys.argv[1] if len(sys.argv) > 1 else "/tmp/sr16.dylib"
 
-PROGRAMS = {
-    p.stem: assemble(p.read_text()) for p in sorted((CPU_DIR / "programs").glob("*.s"))
-}
+PROGRAMS = {p.stem: assemble(p.read_text()) for p in sorted((CPU_DIR / "programs").glob("*.s"))}
 
 
 def lockstep_ok(cpu: SR16, words: list[int], max_instr: int = 2000) -> tuple[bool, str]:
@@ -98,8 +96,10 @@ def main():
     min_gap = 0 if ok else search("t_gap", 0, 4, lambda v: (min_settle, min_cap, v))
 
     total = min_settle + 2 * min_cap + min_gap * 2
-    print(f"== minimal clock: settle={min_settle} cap={min_cap} gap={min_gap} "
-          f"-> {total} ticks/clock (stock 240) ==")
+    print(
+        f"== minimal clock: settle={min_settle} cap={min_cap} gap={min_gap} "
+        f"-> {total} ticks/clock (stock 240) =="
+    )
 
     # re-verify at the found minimum and time mul.s there + at a 25% margin
     for label, ts, tc, tg in (
@@ -116,9 +116,11 @@ def main():
         st = cpu.state()
         assert st["regs"][3] == 132, st
         per_clock = ts + 2 * tc + 2 * tg
-        print(f"  {label:13} settle={ts:3} cap={tc:2} gap={tg}: {per_clock:3} ticks/clock, "
-              f"mul.s run = {dt * 1e3:6.1f} ms ({cycles} clocks)  "
-              f"speedup vs stock {240 / per_clock:.1f}x")
+        print(
+            f"  {label:13} settle={ts:3} cap={tc:2} gap={tg}: {per_clock:3} ticks/clock, "
+            f"mul.s run = {dt * 1e3:6.1f} ms ({cycles} clocks)  "
+            f"speedup vs stock {240 / per_clock:.1f}x"
+        )
 
 
 if __name__ == "__main__":

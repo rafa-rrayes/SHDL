@@ -27,9 +27,7 @@ def test_add2_timing_exact():
     assert t["output_depths"] == {"Sum_1_": 2, "Sum_2_": 4, "Cout": 5}
     assert t["is_combinational"] is True
     assert t["has_feedback"] is False
-    assert t["critical_path"] == [
-        "A_1_", "fa1_x1", "fa1_a2", "fa1_o1", "fa2_a2", "fa2_o1", "Cout"
-    ]
+    assert t["critical_path"] == ["A_1_", "fa1_x1", "fa1_a2", "fa1_o1", "fa2_a2", "fa2_o1", "Cout"]
 
 
 def test_adder8_ripple_depth():
@@ -101,6 +99,7 @@ def test_settle_counts_match_functional_need():
 # step(max_depth−1) still differs from the settled value. Without this, a
 # max_depth reported one too large would pass the sufficiency test silently.
 
+
 def test_settle_bound_is_tight_on_add2_cout():
     # TIM-5
     from shdlc.baseshdl import parse_base
@@ -115,17 +114,25 @@ def test_settle_bound_is_tight_on_add2_cout():
     # must ripple the whole chain. (Seed-stable: a fixed, hand-found vector.)
     def cout_after(steps: int) -> int:
         ev = BaseEval(comp)
-        ev.poke("A", 0); ev.poke("B", 0); ev.poke("Cin", 0)
+        ev.poke("A", 0)
+        ev.poke("B", 0)
+        ev.poke("Cin", 0)
         ev.settle()
-        ev.poke("A", 0); ev.poke("B", 3); ev.poke("Cin", 1)
+        ev.poke("A", 0)
+        ev.poke("B", 3)
+        ev.poke("Cin", 1)
         ev.step(steps)
         return ev.peek("Cout")
 
     def fixpoint() -> int:
         ev = BaseEval(comp)
-        ev.poke("A", 0); ev.poke("B", 0); ev.poke("Cin", 0)
+        ev.poke("A", 0)
+        ev.poke("B", 0)
+        ev.poke("Cin", 0)
         ev.settle()
-        ev.poke("A", 0); ev.poke("B", 3); ev.poke("Cin", 1)
+        ev.poke("A", 0)
+        ev.poke("B", 3)
+        ev.poke("Cin", 1)
         ev.settle()
         return ev.peek("Cout")
 
@@ -144,6 +151,7 @@ def test_settle_bound_is_tight_on_add2_cout():
 # path may start at a feedback gate or a power pin rather than an input wire.
 # Pin the exact per-output depths and the critical path on the two minimal
 # feedback fixtures.
+
 
 def test_srlatch_timing_content_pinned():
     # TIM-6: critical_path starts at a feedback gate (the NOR's NOT), not input.
@@ -179,16 +187,14 @@ def test_ring_oscillator_timing_content_pinned():
 # A zero-output top and a power-pin-driven output: both flatten to specific,
 # live-verified timing values that nothing currently pins.
 
+
 def test_zero_output_top_has_empty_timing(tmp_path):
     # TIM-7
     from helpers import flatten_source
 
     out = flatten_source(
         tmp_path,
-        "component Sink(A) -> () {\n"
-        "    g: AND;\n"
-        "    connect { A -> g.A;  A -> g.B; }\n"
-        "}\n",
+        "component Sink(A) -> () {\n    g: AND;\n    connect { A -> g.A;  A -> g.B; }\n}\n",
     )
     t = out.timing
     assert t["max_depth"] == 0
@@ -204,10 +210,7 @@ def test_power_pin_output_has_depth_one(tmp_path):
 
     out = flatten_source(
         tmp_path,
-        "component PinOut() -> (Y) {\n"
-        "    ONE = 1;\n"
-        "    connect { ONE[1] -> Y; }\n"
-        "}\n",
+        "component PinOut() -> (Y) {\n    ONE = 1;\n    connect { ONE[1] -> Y; }\n}\n",
     )
     t = out.timing
     # The single gate is the __VCC__ power pin feeding Y; pins have depth 1.

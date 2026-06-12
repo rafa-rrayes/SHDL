@@ -29,9 +29,12 @@ def _chain_text(n: int) -> str:
         if i % 2:
             conns.append(f"        b -> g{i}.B;")
     conns.append(f"        g{n - 1}.O -> y;")
-    return "\n".join(
-        ["component ChunkChain(a, b) -> (y) {", *decls, "    connect {", *conns, "    }", "}"]
-    ) + "\n"
+    return (
+        "\n".join(
+            ["component ChunkChain(a, b) -> (y) {", *decls, "    connect {", *conns, "    }", "}"]
+        )
+        + "\n"
+    )
 
 
 def test_chunked_build_is_warning_free_and_matches_oracle(builds):

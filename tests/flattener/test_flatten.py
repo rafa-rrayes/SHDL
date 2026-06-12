@@ -52,7 +52,11 @@ def test_hierarchy_ports_canonical_wires():
     out = flatten_fixture("add2")
     inst = out.meta["hierarchy"]["Add2"]["instances"]
     assert inst["fa1"]["ports"] == {
-        "A": "A_1_", "B": "B_1_", "Cin": "Cin", "Sum": "Sum_1_", "Cout": "fa1_o1.O"
+        "A": "A_1_",
+        "B": "B_1_",
+        "Cin": "Cin",
+        "Sum": "Sum_1_",
+        "Cout": "fa1_o1.O",
     }
     assert inst["fa2"]["ports"]["Cin"] == "fa1_o1.O"
 
@@ -141,8 +145,7 @@ def test_init_value_overflow(tmp_path):
     expect_error(
         "E0A03",
         tmp_path,
-        "top component M(A) -> (Y) { n: NOT; init { n.O = 2; } "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 2; } connect { A -> n.A; n.O -> Y; } }",
     )
 
 
@@ -173,8 +176,7 @@ def test_flt6_e0a01_instance_input_pin(tmp_path):
     d = expect_error(
         "E0A01",
         tmp_path,
-        "top component M(A) -> (Y) { n: NOT; init { n.A = 1; } "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "top component M(A) -> (Y) { n: NOT; init { n.A = 1; } connect { A -> n.A; n.O -> Y; } }",
     )
     assert "instance input" in d.message
 

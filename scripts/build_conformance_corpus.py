@@ -220,10 +220,10 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/passthru.shdl"},
         traces=[
             TraceDef(
-                "exhaustive", "B",
+                "exhaustive",
+                "B",
                 "All four values of A; B mirrors A and C is the parity A[1] XOR A[2].",
-                [R(), E("B"), E("C")]
-                + sum((combo({"A": a}, ["B", "C"]) for a in range(4)), []),
+                [R(), E("B"), E("C")] + sum((combo({"A": a}, ["B", "C"]) for a in range(4)), []),
             )
         ],
     ),
@@ -239,11 +239,10 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{EX}/inverter.shdl"},
         traces=[
             TraceDef(
-                "cycle_semantics", "B",
+                "cycle_semantics",
+                "B",
                 "O is 0 at cycle 0 (no tick yet), 1 after one cycle with A=0, then follows NOT A.",
-                [R(), E("O"), S(1), E("O"),
-                 P("A", 1), S(1), E("O"),
-                 P("A", 0), S(1), E("O")],
+                [R(), E("O"), S(1), E("O"), P("A", 1), S(1), E("O"), P("A", 0), S(1), E("O")],
             )
         ],
     ),
@@ -257,13 +256,18 @@ CASE_DEFS: list[CaseDef] = [
         ),
         tiers=("A", "B"),
         features=(
-            "primitive:and", "primitive:or", "primitive:xor", "primitive:not",
-            "primitive:vcc", "primitive:gnd",
+            "primitive:and",
+            "primitive:or",
+            "primitive:xor",
+            "primitive:not",
+            "primitive:vcc",
+            "primitive:gnd",
         ),
         sources={"circuit.shdl": ("inline", ALLGATES_SHDL)},
         traces=[
             TraceDef(
-                "truth_tables", "B",
+                "truth_tables",
+                "B",
                 "All four (A, B) combinations after settling; Hi/Lo pin VCC=1, GND=0.",
                 [R(), S(1)]
                 + sum(
@@ -275,7 +279,8 @@ CASE_DEFS: list[CaseDef] = [
                 ),
             ),
             TraceDef(
-                "cycle0", "B",
+                "cycle0",
+                "B",
                 "At cycle 0 every gate output reads 0 — including __VCC__ — until the first tick.",
                 [R(), E("Hi"), E("Lo"), E("NotO"), S(1), E("Hi"), E("NotO")],
             ),
@@ -296,7 +301,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "truth_tables", "B",
+                "truth_tables",
+                "B",
                 "All four (A, B) combinations; Na/No/Xn are NAND/NOR/XNOR of A, B.",
                 [R()]
                 + sum(
@@ -322,11 +328,31 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": ("inline", REPEATED_NAMES_SHDL)},
         traces=[
             TraceDef(
-                "propagation_wave", "B",
+                "propagation_wave",
+                "B",
                 "From all-zero, the three NOTs settle to O=1 over 3 cycles; after "
                 "poking A=1 the new wave needs 3 more cycles to reach O=0.",
-                [R(), E("O"), S(1), E("O"), S(1), E("O"), S(1), E("O"), S(1), E("O"),
-                 P("A", 1), S(1), E("O"), S(1), E("O"), S(1), E("O"), S(1), E("O")],
+                [
+                    R(),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    P("A", 1),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                    S(1),
+                    E("O"),
+                ],
             )
         ],
     ),
@@ -343,11 +369,15 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/splitByte.shdl"},
         traces=[
             TraceDef(
-                "nibbles", "B",
+                "nibbles",
+                "B",
                 "Low/High are the low/high nibble of In for several byte patterns.",
                 [R()]
                 + sum(
-                    (combo({"In": v}, ["Low", "High"], settle=1) for v in (0xA5, 0xF0, 0x0F, 0xFF, 0x00)),
+                    (
+                        combo({"In": v}, ["Low", "High"], settle=1)
+                        for v in (0xA5, 0xF0, 0x0F, 0xFF, 0x00)
+                    ),
                     [],
                 ),
             )
@@ -365,7 +395,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{EX}/busOps.shdl"},
         traces=[
             TraceDef(
-                "sign_extend", "B",
+                "sign_extend",
+                "B",
                 "Negative bytes (MSB set) extend with ones, positive with zeros.",
                 [R()]
                 + sum(
@@ -388,7 +419,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/concatDemo.shdl"},
         traces=[
             TraceDef(
-                "wiring", "B",
+                "wiring",
+                "B",
                 "Word/Ext/High/Low are rewirings of In and Sign; X = In[1] XOR Sign.",
                 [R()]
                 + sum(
@@ -413,7 +445,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/constDemo.shdl"},
         traces=[
             TraceDef(
-                "const_bits", "B",
+                "const_bits",
+                "B",
                 "With A=1: O1=FIVE[1]=1, O2=FIVE[2]=0, O3=FIVE[9]=0 (beyond width); all 0 when A=0.",
                 [R(), S(SETTLE)]
                 + combo({"A": 1}, ["O1", "O2", "O3"])
@@ -436,7 +469,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "sums", "B",
+                "sums",
+                "B",
                 "A + 100: 0->100, 100->200, 156->0 carry 1, 255->99 carry 1.",
                 [R()]
                 + sum(
@@ -456,13 +490,21 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{EX}/mux2.shdl"},
         traces=[
             TraceDef(
-                "select", "B",
+                "select",
+                "B",
                 "O follows A when S=0 and B when S=1.",
                 [R()]
                 + sum(
                     (
                         combo({"A": a, "B": b, "S": s}, ["O"])
-                        for a, b, s in ((1, 0, 0), (1, 0, 1), (0, 1, 0), (0, 1, 1), (1, 1, 1), (0, 0, 0))
+                        for a, b, s in (
+                            (1, 0, 0),
+                            (1, 0, 1),
+                            (0, 1, 0),
+                            (0, 1, 1),
+                            (1, 1, 1),
+                            (0, 0, 0),
+                        )
                     ),
                     [],
                 ),
@@ -481,7 +523,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{EX}/muxN.shdl"},
         traces=[
             TraceDef(
-                "select_tree", "B",
+                "select_tree",
+                "B",
                 "With D0..D3 = 0x11/0x22/0x44/0x88, O equals the bus picked by S.",
                 [R(), P("D0", 0x11), P("D1", 0x22), P("D2", 0x44), P("D3", 0x88)]
                 + sum((combo({"S": s}, ["O"]) for s in range(4)), []),
@@ -503,7 +546,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "equality", "B",
+                "equality",
+                "B",
                 "EQ=1 iff A==B: equal pairs, one-bit difference, full complement.",
                 [R()]
                 + sum(
@@ -529,12 +573,30 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/pipe.shdl"},
         traces=[
             TraceDef(
-                "latency", "B",
+                "latency",
+                "B",
                 "A new In value reaches Out exactly 3 cycles later (one per stage).",
-                [R(), P("In", 3),
-                 S(1), E("Out"), S(1), E("Out"), S(1), E("Out"), S(1), E("Out"),
-                 P("In", 1),
-                 S(1), E("Out"), S(1), E("Out"), S(1), E("Out"), S(1), E("Out")],
+                [
+                    R(),
+                    P("In", 3),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                    P("In", 1),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                    S(1),
+                    E("Out"),
+                ],
             )
         ],
     ),
@@ -550,10 +612,10 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/repeater.shdl"},
         traces=[
             TraceDef(
-                "replication", "B",
+                "replication",
+                "B",
                 "Out = each In bit repeated 3 times: 1->7 (0b000111), 2->56 (0b111000), 3->63, 0->0.",
-                [R()]
-                + sum((combo({"In": v}, ["Out"]) for v in (1, 2, 3, 0)), []),
+                [R()] + sum((combo({"In": v}, ["Out"]) for v in (1, 2, 3, 0)), []),
             )
         ],
     ),
@@ -567,13 +629,16 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/fullAdder.shdl"},
         traces=[
             TraceDef(
-                "truth_table", "B",
+                "truth_table",
+                "B",
                 "Sum/Cout for every (A, B, Cin).",
                 [R()]
                 + sum(
                     (
                         combo({"A": a, "B": b, "Cin": c}, ["Sum", "Cout"])
-                        for a in (0, 1) for b in (0, 1) for c in (0, 1)
+                        for a in (0, 1)
+                        for b in (0, 1)
+                        for c in (0, 1)
                     ),
                     [],
                 ),
@@ -592,7 +657,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "sums", "B",
+                "sums",
+                "B",
                 "Sums covering no carry, internal carry, and carry out.",
                 [R()]
                 + sum(
@@ -616,7 +682,9 @@ CASE_DEFS: list[CaseDef] = [
         ),
         tiers=("A", "B"),
         features=(
-            "adder:ripple-carry-per-cycle", "lang:hierarchy", "lang:imports",
+            "adder:ripple-carry-per-cycle",
+            "lang:hierarchy",
+            "lang:imports",
             "lang:multibit-ports",
         ),
         sources={
@@ -625,27 +693,41 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "sums", "B",
+                "sums",
+                "B",
                 "Settled sums: carries crossing each boundary, overflow wrap.",
                 [R()]
                 + sum(
                     (
                         combo({"A": a, "B": b, "Cin": c}, ["Sum", "Cout"])
                         for a, b, c in (
-                            (0, 0, 0), (1, 2, 0), (0x7F, 0x01, 0),
-                            (0xFF, 0x01, 0), (0xFF, 0xFF, 1), (0xA5, 0x5A, 0),
+                            (0, 0, 0),
+                            (1, 2, 0),
+                            (0x7F, 0x01, 0),
+                            (0xFF, 0x01, 0),
+                            (0xFF, 0xFF, 1),
+                            (0xA5, 0x5A, 0),
                         )
                     ),
                     [],
                 ),
             ),
             TraceDef(
-                "carry_wave", "B",
+                "carry_wave",
+                "B",
                 "Settle A=0xFF + 0, then poke Cin=1 and observe Sum/Cout after "
                 "every cycle: the carry advances one full-adder stage at a time "
                 "(never instantly), ending at Sum=0, Cout=1.",
-                [R(), P("A", 0xFF), P("B", 0), P("Cin", 0), S(SETTLE), E("Sum"), E("Cout"),
-                 P("Cin", 1)]
+                [
+                    R(),
+                    P("A", 0xFF),
+                    P("B", 0),
+                    P("Cin", 0),
+                    S(SETTLE),
+                    E("Sum"),
+                    E("Cout"),
+                    P("Cin", 1),
+                ]
                 + sum(([S(1), E("Sum"), E("Cout")] for _ in range(20)), []),
             ),
         ],
@@ -654,8 +736,7 @@ CASE_DEFS: list[CaseDef] = [
         name="adder_n_default",
         title="Parameterized ripple adder at its default binding (N=4)",
         description=(
-            "AdderN's generator with the when/else carry boundary, elaborated at "
-            "the default N=4."
+            "AdderN's generator with the when/else carry boundary, elaborated at the default N=4."
         ),
         tiers=("A", "B"),
         features=("lang:hierarchy", "lang:imports", "lang:multibit-ports"),
@@ -665,7 +746,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "sums", "B",
+                "sums",
+                "B",
                 "4-bit sums including wraparound (15+1) and carry in.",
                 [R()]
                 + sum(
@@ -688,8 +770,10 @@ CASE_DEFS: list[CaseDef] = [
         ),
         tiers=("A", "B"),
         features=(
-            "lang:generators-multi-binding", "lang:conditionals-multi-binding",
-            "lang:hierarchy", "lang:imports",
+            "lang:generators-multi-binding",
+            "lang:conditionals-multi-binding",
+            "lang:hierarchy",
+            "lang:imports",
         ),
         sources={
             "circuit.shdl": ("inline", ADDER_N_MIXED_SHDL),
@@ -698,13 +782,13 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "both_widths", "B",
+                "both_widths",
+                "B",
                 "2-bit and 3-bit sums computed by the two bindings independently.",
                 [R()]
                 + sum(
                     (
-                        combo({"A": a, "B": b, "C": c, "D": d},
-                              ["SumS", "CoutS", "SumL", "CoutL"])
+                        combo({"A": a, "B": b, "C": c, "D": d}, ["SumS", "CoutS", "SumL", "CoutL"])
                         for a, b, c, d in ((3, 1, 5, 3), (1, 1, 3, 4), (0, 0, 7, 1), (2, 2, 0, 0))
                     ),
                     [],
@@ -728,13 +812,30 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "set_hold_reset", "B",
+                "set_hold_reset",
+                "B",
                 "Power-on seeded Q=0/Qn=1; S sets, inputs drop and the latch holds, R resets.",
-                [R(), E("Q"), E("Qn"),
-                 P("S", 1), S(4), E("Q"), E("Qn"),
-                 P("S", 0), S(4), E("Q"), E("Qn"),
-                 P("R", 1), S(4), E("Q"), E("Qn"),
-                 P("R", 0), S(4), E("Q"), E("Qn")],
+                [
+                    R(),
+                    E("Q"),
+                    E("Qn"),
+                    P("S", 1),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                    P("S", 0),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                    P("R", 1),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                    P("R", 0),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                ],
             )
         ],
     ),
@@ -751,11 +852,27 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "track_and_hold", "B",
+                "track_and_hold",
+                "B",
                 "EN=1: Q tracks D. EN=0: Q holds the captured value through D changes.",
-                [R(), P("D", 1), P("EN", 1), S(6), E("Q"), E("Qn"),
-                 P("EN", 0), S(2), P("D", 0), S(6), E("Q"), E("Qn"),
-                 P("EN", 1), S(6), E("Q"), E("Qn")],
+                [
+                    R(),
+                    P("D", 1),
+                    P("EN", 1),
+                    S(6),
+                    E("Q"),
+                    E("Qn"),
+                    P("EN", 0),
+                    S(2),
+                    P("D", 0),
+                    S(6),
+                    E("Q"),
+                    E("Qn"),
+                    P("EN", 1),
+                    S(6),
+                    E("Q"),
+                    E("Qn"),
+                ],
             )
         ],
     ),
@@ -773,11 +890,24 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "load_hold_load", "B",
+                "load_hold_load",
+                "B",
                 "Load 0xA5; with LD low, D=0xFF must not disturb Q; reloading takes 0xFF.",
-                [R(), P("D", 0xA5), P("LD", 1), S(8), E("Q"),
-                 P("LD", 0), S(2), P("D", 0xFF), S(8), E("Q"),
-                 P("LD", 1), S(8), E("Q")],
+                [
+                    R(),
+                    P("D", 0xA5),
+                    P("LD", 1),
+                    S(8),
+                    E("Q"),
+                    P("LD", 0),
+                    S(2),
+                    P("D", 0xFF),
+                    S(8),
+                    E("Q"),
+                    P("LD", 1),
+                    S(8),
+                    E("Q"),
+                ],
             )
         ],
     ),
@@ -794,7 +924,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{EX}/ringClock.shdl"},
         traces=[
             TraceDef(
-                "oscillation", "B",
+                "oscillation",
+                "B",
                 "After a 1-cycle seed pulse, out is one-hot and rotates one stage "
                 "per cycle, wrapping from stage 8 back to stage 1 (period 8).",
                 [R(), E("out"), P("seed", 1), S(1), P("seed", 0)]
@@ -821,19 +952,45 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "two_phase_load", "B",
+                "two_phase_load",
+                "B",
                 "Phi1 captures D into the masters (LD=1), Phi2 publishes to Q; "
                 "with LD=0 a full clock leaves Q untouched; reloading takes the new D.",
-                [R(),
-                 P("D", 0xBEEF), P("LD", 1),
-                 P("Phi1", 1), S(12), P("Phi1", 0), S(2),
-                 P("Phi2", 1), S(12), P("Phi2", 0), S(2), E("Q"),
-                 P("LD", 0), P("D", 0x1234),
-                 P("Phi1", 1), S(12), P("Phi1", 0), S(2),
-                 P("Phi2", 1), S(12), P("Phi2", 0), S(2), E("Q"),
-                 P("LD", 1),
-                 P("Phi1", 1), S(12), P("Phi1", 0), S(2),
-                 P("Phi2", 1), S(12), P("Phi2", 0), S(2), E("Q")],
+                [
+                    R(),
+                    P("D", 0xBEEF),
+                    P("LD", 1),
+                    P("Phi1", 1),
+                    S(12),
+                    P("Phi1", 0),
+                    S(2),
+                    P("Phi2", 1),
+                    S(12),
+                    P("Phi2", 0),
+                    S(2),
+                    E("Q"),
+                    P("LD", 0),
+                    P("D", 0x1234),
+                    P("Phi1", 1),
+                    S(12),
+                    P("Phi1", 0),
+                    S(2),
+                    P("Phi2", 1),
+                    S(12),
+                    P("Phi2", 0),
+                    S(2),
+                    E("Q"),
+                    P("LD", 1),
+                    P("Phi1", 1),
+                    S(12),
+                    P("Phi1", 0),
+                    S(2),
+                    P("Phi2", 1),
+                    S(12),
+                    P("Phi2", 0),
+                    S(2),
+                    E("Q"),
+                ],
             )
         ],
     ),
@@ -849,8 +1006,12 @@ CASE_DEFS: list[CaseDef] = [
         ),
         tiers=("A", "B"),
         features=(
-            "composite:large", "lang:named-constants", "lang:hierarchy",
-            "lang:imports", "lang:conditionals-multi-binding", "lang:multibit-ports",
+            "composite:large",
+            "lang:named-constants",
+            "lang:hierarchy",
+            "lang:imports",
+            "lang:conditionals-multi-binding",
+            "lang:multibit-ports",
         ),
         sources={
             "circuit.shdl": f"{EX}/alu.shdl",
@@ -860,7 +1021,8 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "all_ops", "B",
+                "all_ops",
+                "B",
                 "Op=0..3 over A=0xCC, B=0xAA: AND 0x88, OR 0xEE, XOR 0x66, "
                 "ADD 0x76 carry 1; then XOR of equal operands raises Zero, and "
                 "ADD 0+0 raises Zero with no carry.",
@@ -892,12 +1054,25 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": ("inline", MASK_PROBE_SHDL)},
         traces=[
             TraceDef(
-                "masking", "C",
+                "masking",
+                "C",
                 "poke 255 -> In reads 3; poke 4 -> In reads 0 (bit 3 dropped); "
                 "in-range pokes pass through unchanged.",
-                [R(), P("In", 255), E("In"), S(1), E("Out"),
-                 P("In", 4), E("In"), S(1), E("Out"),
-                 P("In", 2), S(1), E("Out"), E("In")],
+                [
+                    R(),
+                    P("In", 255),
+                    E("In"),
+                    S(1),
+                    E("Out"),
+                    P("In", 4),
+                    E("In"),
+                    S(1),
+                    E("Out"),
+                    P("In", 2),
+                    S(1),
+                    E("Out"),
+                    E("In"),
+                ],
             )
         ],
     ),
@@ -915,15 +1090,27 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/clock.shdl"},
         traces=[
             TraceDef(
-                "hidden_tick_iff_dirty", "C",
+                "hidden_tick_iff_dirty",
+                "C",
                 "reset: peek is tickless (0). After poke clk=1: first peek ticks "
                 "once (1), second peek is clean (still 1). step(1) -> 3. A re-poke "
                 "of the same value re-arms dirty (7); double-poke still ticks once (15).",
-                [R(), E("out"),
-                 P("clk", 1), E("out"), E("out"),
-                 S(1), E("out"), E("out"),
-                 P("clk", 1), E("out"),
-                 P("clk", 1), P("clk", 1), E("out"), E("out")],
+                [
+                    R(),
+                    E("out"),
+                    P("clk", 1),
+                    E("out"),
+                    E("out"),
+                    S(1),
+                    E("out"),
+                    E("out"),
+                    P("clk", 1),
+                    E("out"),
+                    P("clk", 1),
+                    P("clk", 1),
+                    E("out"),
+                    E("out"),
+                ],
             )
         ],
     ),
@@ -941,7 +1128,8 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/clock.shdl"},
         traces=[
             TraceDef(
-                "input_peek_tickless", "C",
+                "input_peek_tickless",
+                "C",
                 "Input peeks return 1 with no ticks; the later output peek shows "
                 "exactly one hidden tick happened in total.",
                 [R(), P("clk", 1), E("clk"), E("clk"), E("out"), E("clk"), E("out")],
@@ -962,11 +1150,22 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": f"{FIX}/clock.shdl"},
         traces=[
             TraceDef(
-                "step_zero_noop", "C",
+                "step_zero_noop",
+                "C",
                 "poke; step(0); step(0); peek -> 1 proves no-op + dirty preserved; "
                 "then poke; step(1); peek -> 3 proves step(n>0) cleared dirty.",
-                [R(), P("clk", 1), S(0), S(0), E("out"), E("out"),
-                 P("clk", 1), S(1), E("out"), E("out")],
+                [
+                    R(),
+                    P("clk", 1),
+                    S(0),
+                    S(0),
+                    E("out"),
+                    E("out"),
+                    P("clk", 1),
+                    S(1),
+                    E("out"),
+                    E("out"),
+                ],
             )
         ],
     ),
@@ -987,14 +1186,29 @@ CASE_DEFS: list[CaseDef] = [
         },
         traces=[
             TraceDef(
-                "reset_restores_seeds", "C",
+                "reset_restores_seeds",
+                "C",
                 "Seeds visible at cycle 0; double reset identical; after S=1 set "
                 "and reset, stepping shows S was cleared (latch stays Q=0).",
-                [R(), E("Q"), E("Qn"),
-                 R(), R(), E("Q"), E("Qn"),
-                 P("S", 1), S(4), E("Q"), E("Qn"),
-                 R(), E("Q"), E("Qn"),
-                 S(4), E("Q"), E("Qn")],
+                [
+                    R(),
+                    E("Q"),
+                    E("Qn"),
+                    R(),
+                    R(),
+                    E("Q"),
+                    E("Qn"),
+                    P("S", 1),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                    R(),
+                    E("Q"),
+                    E("Qn"),
+                    S(4),
+                    E("Q"),
+                    E("Qn"),
+                ],
             )
         ],
     ),
@@ -1012,12 +1226,23 @@ CASE_DEFS: list[CaseDef] = [
         sources={"circuit.shdl": ("inline", VCC_PROBE_SHDL)},
         traces=[
             TraceDef(
-                "vcc_wave", "C",
+                "vcc_wave",
+                "C",
                 "Hi: 0 then 1 forever. HiInv: 0, 1, 0, then stable 0.",
-                [R(), E("Hi"), E("HiInv"),
-                 S(1), E("Hi"), E("HiInv"),
-                 S(1), E("Hi"), E("HiInv"),
-                 S(3), E("Hi"), E("HiInv")],
+                [
+                    R(),
+                    E("Hi"),
+                    E("HiInv"),
+                    S(1),
+                    E("Hi"),
+                    E("HiInv"),
+                    S(1),
+                    E("Hi"),
+                    E("HiInv"),
+                    S(3),
+                    E("Hi"),
+                    E("HiInv"),
+                ],
             )
         ],
     ),
@@ -1075,9 +1300,7 @@ def build_case(case_def: CaseDef) -> None:
         else:
             shutil.copyfile(REPO / src, case_dir / dest)
 
-    base_text = flatten_program(
-        str(case_dir / "circuit.shdl"), top=case_def.top, timestamp=TS
-    ).text
+    base_text = flatten_program(str(case_dir / "circuit.shdl"), top=case_def.top, timestamp=TS).text
     (case_dir / "expected.base.shdl").write_text(base_text, encoding="utf-8")
 
     settle = max(1, parse_base(base_text).meta["timing"]["max_depth"])
@@ -1118,9 +1341,7 @@ def build_case(case_def: CaseDef) -> None:
         "features": list(case_def.features),
         "provenance": {"expected_base": PROV_BASE, "traces": PROV_TRACES},
     }
-    (case_dir / "case.json").write_text(
-        json.dumps(case_json, indent=2) + "\n", encoding="utf-8"
-    )
+    (case_dir / "case.json").write_text(json.dumps(case_json, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -1151,15 +1372,15 @@ def main() -> int:
             }
         ],
     }
-    (CONF / "MANIFEST.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
+    (CONF / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote MANIFEST.json ({len(names)} cases)")
 
     suite = load_suite()  # loud self-check: schema, manifest<->disk, coverage
     total_traces = sum(len(c.traces) for c in suite.cases)
-    print(f"validated: {len(suite.cases)} cases, {total_traces} traces, "
-          f"{len(suite.manifest.required_features)} required features covered")
+    print(
+        f"validated: {len(suite.cases)} cases, {total_traces} traces, "
+        f"{len(suite.manifest.required_features)} required features covered"
+    )
     return 0
 
 

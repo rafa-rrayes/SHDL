@@ -17,9 +17,11 @@ LIB = sys.argv[1] if len(sys.argv) > 1 else "/tmp/sr16.dylib"
 
 
 def timeit(fn, reps=5):
-    return statistics.median(min((time.perf_counter(), fn(), time.perf_counter()))
-                             if False else
-                             [_one(fn) for _ in range(reps)])
+    return statistics.median(
+        min((time.perf_counter(), fn(), time.perf_counter()))
+        if False
+        else [_one(fn) for _ in range(reps)]
+    )
 
 
 def _one(fn):
@@ -40,11 +42,17 @@ def main():
         t_raw = timeit(lambda: cpu.step(n_ticks))
 
         print(f"== {label}: {per_clock} ticks/clock, 74 clocks = {n_ticks} ticks ==")
-        print(f"  step({n_ticks}) single call : {t_raw * 1e3:7.1f} ms  (floor: zero host involvement)")
-        print(f"  clock(74) Python loop    : {t_loop * 1e3:7.1f} ms  "
-              f"(+{(t_loop - t_raw) / t_raw * 100:.2f}% = poke/step orchestration)")
-        print(f"  37x step_instruction()   : {t_instr * 1e3:7.1f} ms  "
-              f"(+{(t_instr - t_raw) / t_raw * 100:.2f}% = + Halted/State peeks)")
+        print(
+            f"  step({n_ticks}) single call : {t_raw * 1e3:7.1f} ms  (floor: zero host involvement)"
+        )
+        print(
+            f"  clock(74) Python loop    : {t_loop * 1e3:7.1f} ms  "
+            f"(+{(t_loop - t_raw) / t_raw * 100:.2f}% = poke/step orchestration)"
+        )
+        print(
+            f"  37x step_instruction()   : {t_instr * 1e3:7.1f} ms  "
+            f"(+{(t_instr - t_raw) / t_raw * 100:.2f}% = + Halted/State peeks)"
+        )
 
 
 if __name__ == "__main__":

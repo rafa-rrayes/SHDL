@@ -299,9 +299,7 @@ def _gen_composite(
 
     # Input ports: a few literal-width buses.
     n_in = rng.randint(1, 3)
-    inputs: list[tuple[str, int]] = [
-        (_PORT_LETTERS[k], rng.randint(1, 4)) for k in range(n_in)
-    ]
+    inputs: list[tuple[str, int]] = [(_PORT_LETTERS[k], rng.randint(1, 4)) for k in range(n_in)]
 
     scope = Scope()
     for nm, w in inputs:
@@ -348,9 +346,7 @@ def _gen_composite(
     # (declaration- or connection-context) using the full operator set. The
     # condition is constant-folded at flatten time; we pick comparisons that
     # are TRUE for the bound parameter/literal so the wiring above is emitted.
-    body = _assemble_body(
-        rng, name, is_top, param, inputs, outputs, decls, conns, pval
-    )
+    body = _assemble_body(rng, name, is_top, param, inputs, outputs, decls, conns, pval)
     return CompSpec(name, module, inputs, outputs, param, body, used)
 
 
@@ -496,9 +492,7 @@ def _gen_generator_comp(rng: random.Random, name: str, module: str, *, is_top: b
     elif depth == 2:
         lines.append(f"        >i[{w}] {{ >j[1] {{ B[{{i}}] -> Z[{{i}}]; }} }}")
     else:
-        lines.append(
-            f"        >i[{w}] {{ >j[1] {{ >k[1] {{ B[{{i}}] -> Z[{{i}}]; }} }} }}"
-        )
+        lines.append(f"        >i[{w}] {{ >j[1] {{ >k[1] {{ B[{{i}}] -> Z[{{i}}]; }} }} }}")
     lines.append("    }")
     lines.append("}")
     return CompSpec(
@@ -558,9 +552,7 @@ def gen_program(rng: random.Random) -> tuple[dict[str, str], str]:
     if rng.random() < 0.3:
         top = _gen_generator_comp(rng, "Top", main_mod, is_top=True)
     else:
-        top = _gen_composite(
-            rng, "Top", main_mod, below, is_top=True, use_param=rng.random() < 0.5
-        )
+        top = _gen_composite(rng, "Top", main_mod, below, is_top=True, use_param=rng.random() < 0.5)
 
     all_comps = leaves + mids + [top]
 

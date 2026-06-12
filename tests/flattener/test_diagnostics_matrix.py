@@ -25,12 +25,10 @@ CASES: dict[str, dict] = {
     "E0201": dict(source="component M(A) -> Y) { connect { A -> Y; } }"),
     # E03xx — names and references
     "E0301": dict(
-        source="top component M(A) -> (Y) { n: NOT; n: NOT; "
-        "connect { A -> n.A; n.O -> Y; } }",
+        source="top component M(A) -> (Y) { n: NOT; n: NOT; connect { A -> n.A; n.O -> Y; } }",
     ),
     "E0303": dict(
-        source="top component M(A) -> (Y) { __g: NOT; "
-        "connect { A -> __g.A; __g.O -> Y; } }",
+        source="top component M(A) -> (Y) { __g: NOT; connect { A -> __g.A; __g.O -> Y; } }",
     ),
     "E0304": dict(source="top component M(A_1_) -> (Y) { connect { A_1_ -> Y; } }"),
     "E0305": dict(
@@ -38,8 +36,7 @@ CASES: dict[str, dict] = {
         "connect { A -> o1.A; B -> o1.B; o1.O -> O; } }",
     ),
     "E0306": dict(
-        source="top component M(A) -> (Y) { u: Mystery; "
-        "connect { A -> u.A; u.O -> Y; } }",
+        source="top component M(A) -> (Y) { u: Mystery; connect { A -> u.A; u.O -> Y; } }",
     ),
     "E0307": dict(source="top component M(A) -> (Y) { connect { Ghost -> Y; } }"),
     "E0308": dict(
@@ -53,8 +50,7 @@ CASES: dict[str, dict] = {
         "top component B1(X) -> (Y) { connect { X -> Y; } }",
     ),
     "E0311": dict(
-        source="top component R(A) -> (Y) { r: R; "
-        "connect { A -> r.A; r.Y -> Y; } }",
+        source="top component R(A) -> (Y) { r: R; connect { A -> r.A; r.Y -> Y; } }",
     ),
     # E04xx — widths and indices
     "E0401": dict(source="top component M(A[2]) -> (Y[3]) { connect { A -> Y; } }"),
@@ -68,8 +64,7 @@ CASES: dict[str, dict] = {
         source="top component M(A, B) -> (Y) { connect { A -> Y; B -> Y; } }",
     ),
     "E0502": dict(
-        source="top component M(A) -> (Y) { g: AND; "
-        "connect { A -> g.A; g.O -> Y; } }",
+        source="top component M(A) -> (Y) { g: AND; connect { A -> g.A; g.O -> Y; } }",
     ),
     "E0503": dict(source="top component M(A) -> (Y, Z) { connect { A -> Y; } }"),
     "E0505": dict(source="top component M(A, B) -> (Y) { connect { A -> B; A -> Y; } }"),
@@ -80,21 +75,17 @@ CASES: dict[str, dict] = {
     ),
     # E06xx — generators and conditionals
     "E0601": dict(
-        source="top component M(A) -> (Y) { >i[2:1]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        source="top component M(A) -> (Y) { >i[2:1]{ b{i}: OR; } connect { A -> Y; } }",
     ),
     "E0602": dict(
-        source="top component M(A) -> (Y) { >i[2:]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        source="top component M(A) -> (Y) { >i[2:]{ b{i}: OR; } connect { A -> Y; } }",
     ),
     "E0603": dict(source="top component M(A[2]) -> (Y) { connect { A[{j}] -> Y; } }"),
     "E0604": dict(
-        source="top component M(A) -> (Y) { >i[2]{ {x} -> Y; } "
-        "connect { A -> Y; } }",
+        source="top component M(A) -> (Y) { >i[2]{ {x} -> Y; } connect { A -> Y; } }",
     ),
     "E0605": dict(
-        source="top component M(A) -> (Y) { >i[4/0]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        source="top component M(A) -> (Y) { >i[4/0]{ b{i}: OR; } connect { A -> Y; } }",
     ),
     # E07xx — imports
     "E0701": dict(
@@ -170,8 +161,7 @@ def test_self_connection_guard(tmp_path, monkeypatch):
     expect_error(
         "E0504",
         tmp_path,
-        "top component M(A) -> (Y) { n: NOT; "
-        "connect { A -> n.A; n.O -> n.O; n.O -> Y; } }",
+        "top component M(A) -> (Y) { n: NOT; connect { A -> n.A; n.O -> n.O; n.O -> Y; } }",
     )
 
 
@@ -241,8 +231,7 @@ _NAME_FREE_CODES: dict[str, str] = {
     "category) rather than the user's range/var — the matrix trigger hits the "
     "declaration-context form; position is the locator (DIA-8).",
     "E0605": "'division by zero' — an arithmetic category, no name/value.",
-    "E0903": "'positional argument after named argument' — a structural rule, "
-    "no specific name.",
+    "E0903": "'positional argument after named argument' — a structural rule, no specific name.",
     "E0504": "'a signal may not drive itself' — structural; the backstop is "
     "exercised by test_self_connection_guard, position carries the net.",
 }

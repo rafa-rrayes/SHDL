@@ -59,13 +59,9 @@ def find_cc(cc: str | None = None) -> list[str]:
     def _resolve(value: str, source: str) -> list[str]:
         argv = shlex.split(value)
         if not argv:
-            raise CCError(
-                f"C compiler not found: {source} ({value!r}) is empty after splitting"
-            )
+            raise CCError(f"C compiler not found: {source} ({value!r}) is empty after splitting")
         head = argv[0]
-        if shutil.which(head) is None and not (
-            os.path.isabs(head) and os.path.exists(head)
-        ):
+        if shutil.which(head) is None and not (os.path.isabs(head) and os.path.exists(head)):
             raise CCError(
                 f"C compiler not found: {head!r} (from {source}: {value!r}) "
                 f"is not on PATH and is not an existing absolute path"

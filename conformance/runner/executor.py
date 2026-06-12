@@ -68,8 +68,7 @@ def mismatches(observations: list[Observation], sim_name: str) -> list[str]:
         got = obs.values[sim_name]
         if got != obs.expected:
             lines.append(
-                f"op[{obs.op_index}] expect {obs.signal}: "
-                f"golden {obs.expected}, {sim_name} {got}"
+                f"op[{obs.op_index}] expect {obs.signal}: golden {obs.expected}, {sim_name} {got}"
             )
     return lines
 
@@ -80,7 +79,5 @@ def disagreements(observations: list[Observation], left: str, right: str) -> lis
     for obs in observations:
         a, b = obs.values[left], obs.values[right]
         if a != b:
-            lines.append(
-                f"op[{obs.op_index}] expect {obs.signal}: {left} {a}, {right} {b}"
-            )
+            lines.append(f"op[{obs.op_index}] expect {obs.signal}: {left} {a}, {right} {b}")
     return lines

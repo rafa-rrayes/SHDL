@@ -103,10 +103,7 @@ def test_run_batch_matches_scalar_sequence(builds, settle):
     batch = builds.sim_fixture("add2")
     scalar = builds.sim_fixture("add2")
     rng = random.Random(0xF00D if settle else 0xFEED)
-    frames = [
-        (rng.getrandbits(2), rng.getrandbits(2), rng.getrandbits(1))
-        for _ in range(50)
-    ]
+    frames = [(rng.getrandbits(2), rng.getrandbits(2), rng.getrandbits(1)) for _ in range(50)]
     # Mid-settle budget on purpose: results must match the scalar sequence
     # even when `cycles` is too small for the circuit to have settled.
     for cycles in (3, 20):

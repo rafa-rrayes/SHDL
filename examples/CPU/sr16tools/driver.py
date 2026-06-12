@@ -34,9 +34,15 @@ __all__ = ["SR16", "T_CAP", "T_GAP", "T_SETTLE"]
 
 
 class SR16:
-    def __init__(self, lib_path: str | Path, *,
-                 t_cap: int = T_CAP, t_gap: int = T_GAP, t_settle: int = T_SETTLE,
-                 fast_settle: bool = False):
+    def __init__(
+        self,
+        lib_path: str | Path,
+        *,
+        t_cap: int = T_CAP,
+        t_gap: int = T_GAP,
+        t_settle: int = T_SETTLE,
+        fast_settle: bool = False,
+    ):
         """``fast_settle=True`` routes every wait through the library's
         ``step_settle`` (fixed-point early exit): the budgets above become
         ceilings instead of exact tick counts. Observably identical — the
@@ -102,7 +108,7 @@ class SR16:
         for addr, word in enumerate(words):
             self.poke("LdAddr", addr)
             self.poke("LdData", word & 0xFFFF)
-            self.step(self.t_settle)        # address decode before the strobe
+            self.step(self.t_settle)  # address decode before the strobe
             self.poke("Phi1", 1)
             self.step(self.t_cap)
             self.poke("Phi1", 0)

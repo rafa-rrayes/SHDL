@@ -46,9 +46,7 @@ def test_baseeval_poke_overflow_raises_unlike_the_abi():
     # ROB-2: a value too wide for the port is a ValueError in the oracle. The
     # compiled C ABI masks the same value modulo 2**width (AMB-2) -- DualSim
     # bridges the two deliberately. This is the explicit pin the row asks for.
-    oracle = _oracle(
-        NOT1, {"ports": {"inputs": {"A": ["A"]}, "outputs": {"Q": ["Q"]}}}
-    )
+    oracle = _oracle(NOT1, {"ports": {"inputs": {"A": ["A"]}, "outputs": {"Q": ["Q"]}}})
     with pytest.raises(ValueError, match=r"does not fit 1-bit port 'A'"):
         oracle.poke("A", 2)  # 1-bit port: 2 overflows
     # The boundary value fits and does not raise.

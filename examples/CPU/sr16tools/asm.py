@@ -39,11 +39,16 @@ class AsmError(Exception):
 _ALU_FUNCT = {"ADD": 0, "SUB": 1, "AND": 2, "OR": 3, "XOR": 4, "ADC": 7}
 _SHIFT_FUNCT = {"SHL": 0, "SHR": 1, "SAR": 2, "ROL": 3, "ROR": 4, "NOT": 5}
 _COND = {
-    "BEQ": 0, "BNE": 1,
-    "BCS": 2, "BHS": 2,
-    "BCC": 3, "BLO": 3,
-    "BMI": 4, "BPL": 5,
-    "BLT": 6, "BGE": 7,
+    "BEQ": 0,
+    "BNE": 1,
+    "BCS": 2,
+    "BHS": 2,
+    "BCC": 3,
+    "BLO": 3,
+    "BMI": 4,
+    "BPL": 5,
+    "BLT": 6,
+    "BGE": 7,
 }
 
 _OP_ALU, _OP_SHIFT, _OP_LDI, _OP_LDIH = 0, 1, 2, 3
@@ -144,7 +149,7 @@ def assemble(source: str) -> list[int]:
             if name in labels:
                 raise AsmError(num, f"duplicate label {name!r}")
             labels[name] = addr
-            text = text[len(head):].strip()
+            text = text[len(head) :].strip()
         if not text:
             continue
 

@@ -66,13 +66,17 @@ def census(cpu: SR16, words: list[int], title: str) -> None:
         s[2] += dt
     total_clk = sum(s[1] for s in stats.values())
     total_t = sum(s[2] for s in stats.values())
-    print(f"== {title}: {sum(s[0] for s in stats.values())} instr, "
-          f"{total_clk} clocks, {total_t * 1e3:.0f} ms ==")
+    print(
+        f"== {title}: {sum(s[0] for s in stats.values())} instr, "
+        f"{total_clk} clocks, {total_t * 1e3:.0f} ms =="
+    )
     print(f"  {'op':<10} {'n':>4} {'clk':>5} {'clk/n':>6} {'ms':>8} {'ms/op':>7} {'%time':>6}")
     for m in sorted(stats, key=lambda k: -stats[k][2]):
         n, clk, t = stats[m]
-        print(f"  {m:<10} {n:>4} {clk:>5} {clk / n:>6.1f} {t * 1e3:>8.1f} "
-              f"{t / n * 1e3:>7.2f} {t / total_t * 100:>5.1f}%")
+        print(
+            f"  {m:<10} {n:>4} {clk:>5} {clk / n:>6.1f} {t * 1e3:>8.1f} "
+            f"{t / n * 1e3:>7.2f} {t / total_t * 100:>5.1f}%"
+        )
 
 
 def main():

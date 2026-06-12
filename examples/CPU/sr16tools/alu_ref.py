@@ -26,15 +26,22 @@ def alu_ref(op: int, a: int, b: int, cin: int) -> tuple[int, int, int, int, int]
     v = 1 if ((~(a ^ b2)) & (a ^ sum16) & 0x8000) else 0
 
     results = {
-        ADD: sum16, SUB: sum16, ADC: sum16,
-        AND: a & b, OR: a | b, XOR: a ^ b,
-        MOV: a, NOT: (~a) & MASK,
+        ADD: sum16,
+        SUB: sum16,
+        ADC: sum16,
+        AND: a & b,
+        OR: a | b,
+        XOR: a ^ b,
+        MOV: a,
+        NOT: (~a) & MASK,
         SHL: (a << 1) & MASK,
         SHR: a >> 1,
         SAR: (a >> 1) | (a & 0x8000),
         ROL: ((a << 1) & MASK) | (a >> 15),
         ROR: (a >> 1) | ((a & 1) << 15),
-        13: sum16, 14: sum16, 15: sum16,
+        13: sum16,
+        14: sum16,
+        15: sum16,
     }
     r = results[op]
 

@@ -305,7 +305,10 @@ def test_exp13_instance_port_slice_pairing(tmp_path):
     assert conn_strs(out) == ["In_2_ -> Y_2_", "In_1_ -> Y_1_"]
     # And the instance-port→wire pairing is recorded in the hierarchy metadata.
     assert out.meta["hierarchy"]["M"]["instances"]["c"]["ports"]["O"] == [
-        "In_1_", "In_2_", "In_3_", "In_4_"
+        "In_1_",
+        "In_2_",
+        "In_3_",
+        "In_4_",
     ]
 
 

@@ -155,7 +155,9 @@ def run(name_filter: str | None = None, tier: str | None = None) -> tuple[list[s
         for case in cases:
             if "A" in case.tiers and tier in (None, "A"):
                 report.result(
-                    "A", case.name, "expected.base.shdl",
+                    "A",
+                    case.name,
+                    "expected.base.shdl",
                     tier_a_failures(case, suite.manifest.flatten_timestamp),
                 )
             trace_tiers = {t.tier for t in case.traces}
@@ -167,7 +169,8 @@ def run(name_filter: str | None = None, tier: str | None = None) -> tuple[list[s
                 for trace in case.traces:
                     if tier in (None, trace.tier):
                         report.skip(
-                            trace.tier, case.name,
+                            trace.tier,
+                            case.name,
                             trace.path.relative_to(case.dir).as_posix(),
                             f"compiling {rel(case.expected_base)} failed: {exc}",
                         )
@@ -184,7 +187,9 @@ def run(name_filter: str | None = None, tier: str | None = None) -> tuple[list[s
                 sim = build.fresh_sim()
                 observations = executor.replay(trace.ops, {"lib": sim})
                 report.result(
-                    trace.tier, case.name, artifact,
+                    trace.tier,
+                    case.name,
+                    artifact,
                     executor.mismatches(observations, "lib"),
                 )
     finally:
@@ -217,7 +222,8 @@ def verify_oracle(name_filter: str | None = None) -> tuple[list[str], int]:
             except Exception as exc:
                 for trace in case.traces:
                     report.skip(
-                        trace.tier, case.name,
+                        trace.tier,
+                        case.name,
                         trace.path.relative_to(case.dir).as_posix(),
                         f"compiling {rel(case.expected_base)} failed: {exc}",
                     )
@@ -256,7 +262,5 @@ def list_cases() -> list[str]:
     lines = _header(suite, "list", len(suite.cases))
     for case in suite.cases:
         tiers = "".join(case.tiers)
-        lines.append(
-            f"{case.name:<24} tiers={tiers:<3} traces={len(case.traces):<2} {case.title}"
-        )
+        lines.append(f"{case.name:<24} tiers={tiers:<3} traces={len(case.traces):<2} {case.title}")
     return lines

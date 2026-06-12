@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 
 import pytest
-
 from sr16tools.alu_ref import alu_ref
 
 SETTLE = 100  # ripple-carry + mux tree + Z-reduce

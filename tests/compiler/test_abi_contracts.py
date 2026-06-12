@@ -295,7 +295,7 @@ def test_run_batch_zero_output_ports(builds):
     got = sim.run_batch(frames, 0, 4)
     assert got == [(), (), ()]  # zero outputs gathered per frame
     # The input state ends up matching the last frame, stepped, vs the oracle.
-    for v, in frames:
+    for (v,) in frames:
         oracle.poke("a", v)
         oracle.step(4)
     assert sim.peek("a") == oracle.peek("a") == 1
@@ -328,13 +328,10 @@ def test_65bit_port_flattens_but_shdlc_rejects(tmp_path):
     # then prove shdlc's model layer rejects it with a structured error
     # naming the port and width.
     from flattener.pipeline import flatten_program
-
     from shdlc.compile import compile_text
 
     src = tmp_path / "wide65.shdl"
-    src.write_text(
-        "component Wide65(A[65]) -> (Y[65]) {\n    connect { A -> Y; }\n}\n"
-    )
+    src.write_text("component Wide65(A[65]) -> (Y[65]) {\n    connect { A -> Y; }\n}\n")
     base_text = flatten_program(str(src), timestamp="2026-01-01T00:00:00Z").text
     assert base_text, "flattener must accept the 65-bit port"
     with pytest.raises(ModelError) as ei:

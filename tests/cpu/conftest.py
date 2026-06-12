@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from compiler.harness import STRICT_CFLAGS, Sim, load_fresh_copy
+
 from flattener.pipeline import flatten_program
 from shdlc.cc import lib_suffix
 

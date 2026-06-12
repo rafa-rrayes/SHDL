@@ -30,6 +30,30 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
-# The formatter owns line wrapping; E501 would only flag long Base-SHDL string
-# literals (golden netlist text) that are intentionally kept on one line.
-ignore = ["E501"]
+ignore = [
+    # The formatter owns line wrapping; E501 would only flag long Base-SHDL
+    # string literals (golden netlist text) intentionally kept on one line.
+    "E501",
+    # zip()-without-strict is pure style here: every flagged site zips
+    # structurally equal-length sequences. A blanket strict=False would just
+    # restate the default; auditing for strict=True risks a behavior change.
+    "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Standalone benchmark/profiling scripts bootstrap sys.path before importing the
+# toolchain (so imports cannot come first, E402) and use throwaway timing /
+# assembler closures that capture loop variables for immediate use (B023).
+"examples/**" = ["E402", "B023"]
+# flattener/ line numbers are a pinned contract: tests/flattener/
+# test_diagnostic_sites.py (DIA-2/DIA-8) registers the exact (line, col) of
+# every `raise err(...)` site. The only two rules whose autofixes currently
+# fire here both shift lines (import sorting, deprecated-import rewrites), so
+# they are off for this tree. All other lint stays on; the formatter is
+# excluded below for the same reason.
+"flattener/**" = ["I001", "UP035"]
+
+[tool.ruff.format]
+# See the flattener per-file-ignores note: reformatting shifts the raise-site
+# line numbers pinned by test_diagnostic_sites.py.
+exclude = ["flattener/**"]

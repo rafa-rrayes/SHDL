@@ -6,10 +6,7 @@ from flattener.loader import load_program
 from flattener.pipeline import flatten_program
 
 INV = "component Inv(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> O; } }"
-MAIN = (
-    "use lib::{Inv};\n"
-    "top component M(X) -> (Y) { i1: Inv; connect { X -> i1.A; i1.O -> Y; } }"
-)
+MAIN = "use lib::{Inv};\ntop component M(X) -> (Y) { i1: Inv; connect { X -> i1.A; i1.O -> Y; } }"
 
 
 def test_import_resolution(tmp_path):
@@ -37,9 +34,7 @@ def test_importing_file_directory_searched_first(tmp_path):
         "component Inv(A) -> (O) { n1: NOT; n2: NOT; connect "
         "{ A -> n1.A; n1.O -> n2.A; n2.O -> O; } }"
     )
-    out = flatten_source(
-        tmp_path, MAIN, aux={"lib": INV}, include_dirs=[str(other)]
-    )
+    out = flatten_source(tmp_path, MAIN, aux={"lib": INV}, include_dirs=[str(other)])
     assert list(out.flat.netlist.gates) == ["i1_n"]
 
 
@@ -181,8 +176,7 @@ def test_imp8_cross_module_import_collision(tmp_path):
     _write(tmp_path / "b.shdl", "component X(A) -> (O) { connect { A -> O; } }")
     main = _write(
         tmp_path / "main.shdl",
-        "use a::{X};\nuse b::{X};\n"
-        "top component M(A) -> (O) { connect { A -> O; } }",
+        "use a::{X};\nuse b::{X};\ntop component M(A) -> (O) { connect { A -> O; } }",
     )
     assert _load_err(main).code is ErrorCode.E0301
 
@@ -213,8 +207,7 @@ def test_imp9_earlier_include_dir_wins(tmp_path):
     )
     main = _write(
         tmp_path / "main.shdl",
-        "use lib::{W};\ntop component M(A) -> (O) { w: W; "
-        "connect { A -> w.A; w.O -> O; } }",
+        "use lib::{W};\ntop component M(A) -> (O) { w: W; connect { A -> w.A; w.O -> O; } }",
     )
     prog = load_program(
         str(main),
@@ -299,8 +292,7 @@ def test_amb27_same_name_two_files_is_e0701(tmp_path):
     )
     main = _write(
         tmp_path / "main.shdl",
-        "use b::{B};\nuse c::{C};\n"
-        "top component M(A) -> (O) { connect { A -> O; } }",
+        "use b::{B};\nuse c::{C};\ntop component M(A) -> (O) { connect { A -> O; } }",
     )
     d = _load_err(
         main,

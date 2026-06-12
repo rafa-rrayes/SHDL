@@ -110,26 +110,26 @@ class Golden:
                 regs[rd] = a ^ b
                 self._flags_zn(regs[rd])
             elif funct == 5:
-                regs[rd] = a                      # MOV: no flags
+                regs[rd] = a  # MOV: no flags
             elif funct == 6:
-                self._sub_flags(a, b)             # CMP: flags only
+                self._sub_flags(a, b)  # CMP: flags only
             else:
                 regs[rd] = self._add(a, b, self.c)
 
         elif op == 1:  # shifts / NOT (rs2 ignored; V never changes)
             a = regs[rs1]
-            if funct == 0:                        # SHL
+            if funct == 0:  # SHL
                 r, c = (a << 1) & _MASK16, (a >> 15) & 1
-            elif funct == 1:                      # SHR
+            elif funct == 1:  # SHR
                 r, c = a >> 1, a & 1
-            elif funct == 2:                      # SAR
+            elif funct == 2:  # SAR
                 r, c = (a >> 1) | (a & 0x8000), a & 1
-            elif funct == 3:                      # ROL
+            elif funct == 3:  # ROL
                 r, c = ((a << 1) | (a >> 15)) & _MASK16, (a >> 15) & 1
-            elif funct == 4:                      # ROR
+            elif funct == 4:  # ROR
                 r, c = (a >> 1) | ((a & 1) << 15), a & 1
-            else:                                 # NOT (5; 6-7 behave as NOT)
-                r, c = (~a) & _MASK16, self.c     # C unchanged
+            else:  # NOT (5; 6-7 behave as NOT)
+                r, c = (~a) & _MASK16, self.c  # C unchanged
             regs[rd] = r
             self.c = c
             self._flags_zn(r)
@@ -151,10 +151,14 @@ class Golden:
 
         elif op == 7:  # Bcc
             taken = {
-                0: self.z == 1, 1: self.z == 0,
-                2: self.c == 1, 3: self.c == 0,
-                4: self.n == 1, 5: self.n == 0,
-                6: self.n != self.v, 7: self.n == self.v,
+                0: self.z == 1,
+                1: self.z == 0,
+                2: self.c == 1,
+                3: self.c == 0,
+                4: self.n == 1,
+                5: self.n == 0,
+                6: self.n != self.v,
+                7: self.n == self.v,
             }[rd]
             if taken:
                 self.pc = (self.pc + _sext(ir, 9)) & _MASK16
@@ -168,24 +172,24 @@ class Golden:
             self.pc = ir & 0xFFF
 
         elif op == 10:  # MISC
-            if funct == 0:                        # PUSH (old value, even R7)
+            if funct == 0:  # PUSH (old value, even R7)
                 value = regs[rd]
                 regs[7] = (regs[7] - 1) & _MASK16
                 self._wr_mem(regs[7], value)
-            elif funct == 1:                      # POP (load wins for R7)
+            elif funct == 1:  # POP (load wins for R7)
                 value = self._rd_mem(regs[7])
                 regs[7] = (regs[7] + 1) & _MASK16
                 regs[rd] = value
                 cycles = 3
-            elif funct == 2:                      # RET
+            elif funct == 2:  # RET
                 self.pc = self._rd_mem(regs[7])
                 regs[7] = (regs[7] + 1) & _MASK16
                 cycles = 3
-            elif funct == 3:                      # JR (register in rs1 field)
+            elif funct == 3:  # JR (register in rs1 field)
                 self.pc = regs[rs1]
-            elif funct == 4:                      # NOP
+            elif funct == 4:  # NOP
                 pass
-            else:                                 # HALT (5; 6-7 reserved)
+            else:  # HALT (5; 6-7 reserved)
                 self.halted = True
 
         else:  # opcodes B..F: reserved, trap to HALTED

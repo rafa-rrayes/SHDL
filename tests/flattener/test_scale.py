@@ -35,20 +35,16 @@ from __future__ import annotations
 
 import os
 import random
-import tempfile
 import time
 import zlib
-from pathlib import Path
 
 import pytest
+from helpers import flatten_source  # tests/ is on sys.path (pytest prepend mode)
 
 from flattener.diagnostics import ErrorCode, SHDLError
 from flattener.parser import MAX_NESTING_DEPTH, parse_source
 from flattener.phases.expand import MAX_RANGE_VALUES
-from flattener.pipeline import flatten_program
 from flattener.source import SourceFile
-
-from helpers import flatten_source  # tests/ is on sys.path (pytest prepend mode)
 
 TS = "2026-01-01T00:00:00Z"
 
@@ -100,9 +96,9 @@ def test_scl3_100k_gate_chunking_engages_at_codegen():
     # SCL-3: a 10^5-gate netlist's generated C must split tick() into chunks
     # (the misched-blowup guard). This half is cheap (no compile), so it runs
     # at commit time; the build+differential half is env-gated below.
+    from shdlc.baseshdl import parse_base
     from shdlc.codegen import _TICK_CHUNK, generate_c
     from shdlc.model import build_circuit
-    from shdlc.baseshdl import parse_base
 
     text = _chain_text(SCL3_GATES)
     circuit = build_circuit(parse_base(text))
@@ -399,11 +395,7 @@ def test_scl7_literal_replication_count_is_guarded(tmp_path):
     # SCL-7: a literal-count replication bomb (1000000000{Sign}) is span-guarded
     # at the RRepl resolve site -- the count is checked before RRepl is built,
     # so no billion-entry bit list can materialize in the expander.
-    source = (
-        "component RBomb(Sign) -> (Y) {\n"
-        "    connect { {1000000000{Sign}} -> Y; }\n"
-        "}\n"
-    )
+    source = "component RBomb(Sign) -> (Y) {\n    connect { {1000000000{Sign}} -> Y; }\n}\n"
     t0 = time.perf_counter()
     with pytest.raises(SHDLError) as ei:
         flatten_source(tmp_path, source)

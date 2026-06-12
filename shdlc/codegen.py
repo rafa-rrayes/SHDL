@@ -51,9 +51,7 @@ def _gate_expr(circuit: Circuit, gate: Gate, cur: str = "cur") -> str:
     if gate.type in _BINARY_OPS:
         assert gate.a is not None and gate.b is not None
         op = _BINARY_OPS[gate.type]
-        return (
-            f"(uint8_t)({_src(circuit, gate.a, cur)} {op} {_src(circuit, gate.b, cur)})"
-        )
+        return f"(uint8_t)({_src(circuit, gate.a, cur)} {op} {_src(circuit, gate.b, cur)})"
     if gate.type == "NOT":
         assert gate.a is not None
         return f"(uint8_t)({_src(circuit, gate.a, cur)} ^ 1u)"
@@ -73,11 +71,7 @@ def _reads_gate_outputs(gates: tuple[Gate, ...]) -> bool:
     VCC/GND with no operands) gets an ``n``-only signature: an unused ``c``
     parameter would fail -Wunused-parameter builds.
     """
-    return any(
-        ref is not None and ref.kind == "gate"
-        for gate in gates
-        for ref in (gate.a, gate.b)
-    )
+    return any(ref is not None and ref.kind == "gate" for gate in gates for ref in (gate.a, gate.b))
 
 
 def _wire_array_lines(port_name: str, wire_names: list[str]) -> list[str]:
@@ -239,10 +233,7 @@ def generate_c(circuit: Circuit) -> str:
     if nop == 0:
         w("    /* No output ports. */")
     for port in circuit.out_ports:
-        terms = [
-            f"((uint64_t){_src(circuit, ref)} << {bit})"
-            for bit, ref in enumerate(port.refs)
-        ]
+        terms = [f"((uint64_t){_src(circuit, ref)} << {bit})" for bit, ref in enumerate(port.refs)]
         head = f"    out_vals[OUT_{port.name}] = {terms[0]}"
         if len(terms) == 1:
             w(head + ";")
@@ -269,10 +260,7 @@ def generate_c(circuit: Circuit) -> str:
         for k, chunk in enumerate(chunks):
             w("SHDLC_NOINLINE")
             if _reads_gate_outputs(chunk):
-                w(
-                    f"static void tick_chunk_{k}"
-                    "(const uint8_t *restrict c, uint8_t *restrict n)"
-                )
+                w(f"static void tick_chunk_{k}(const uint8_t *restrict c, uint8_t *restrict n)")
             else:
                 w(f"static void tick_chunk_{k}(uint8_t *restrict n)")
             w("{")

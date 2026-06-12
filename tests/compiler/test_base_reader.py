@@ -107,9 +107,7 @@ MALFORMED_META = [
 ]
 
 
-@pytest.mark.parametrize(
-    "text", [t for _, t in MALFORMED_META], ids=[i for i, _ in MALFORMED_META]
-)
+@pytest.mark.parametrize("text", [t for _, t in MALFORMED_META], ids=[i for i, _ in MALFORMED_META])
 def test_malformed_meta_json_wrapped(text: str):
     # CCT-7 / ROB-6: the wrapper catches json.JSONDecodeError specifically;
     # any escape would be a raw exception, not a BaseParseError.
@@ -187,20 +185,24 @@ meta { "ports": { "inputs": { "a": ["a"] }, "outputs": { "y": ["y"] } } }
 # MET-8 (consumer half): unknown meta keys tolerated; no consumer reads version.
 # ---------------------------------------------------------------------------
 
-FUTURE_META_TEXT = """\
+FUTURE_META_TEXT = (
+    """\
 component Met(a) -> (y) {
     g: NOT;
     connect { a -> g.A; g.O -> y; }
 }
-meta """ + json.dumps(
-    {
-        "version": "999.0-from-the-future",
-        "ports": {"inputs": {"a": ["a"]}, "outputs": {"y": ["y"]}},
-        "init": {"g.O": 1},
-        "some_future_block": {"anything": [1, 2, 3]},
-        "monitors": {"unknown": "schema"},
-    }
-) + "\n"
+meta """
+    + json.dumps(
+        {
+            "version": "999.0-from-the-future",
+            "ports": {"inputs": {"a": ["a"]}, "outputs": {"y": ["y"]}},
+            "init": {"g.O": 1},
+            "some_future_block": {"anything": [1, 2, 3]},
+            "monitors": {"unknown": "schema"},
+        }
+    )
+    + "\n"
+)
 
 
 def test_baseeval_tolerates_unknown_meta_keys_and_version():

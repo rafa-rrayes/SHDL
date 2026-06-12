@@ -39,8 +39,7 @@ class ConformanceError(Exception):
         self.problems = list(problems)
         super().__init__(
             "conformance suite integrity check failed "
-            f"({len(self.problems)} problem(s)):\n"
-            + "\n".join(f"  - {p}" for p in self.problems)
+            f"({len(self.problems)} problem(s)):\n" + "\n".join(f"  - {p}" for p in self.problems)
         )
 
 
@@ -161,9 +160,7 @@ def _validate_op(op, index: int, where: str, problems: list[str]) -> None:
         return
     kind = op.get("op")
     if kind not in OPS:
-        problems.append(
-            f"{where}: ops[{index}] has unknown op {kind!r} (one of {', '.join(OPS)})"
-        )
+        problems.append(f"{where}: ops[{index}] has unknown op {kind!r} (one of {', '.join(OPS)})")
         return
     expected_keys = {
         "reset": {"op"},
@@ -181,9 +178,7 @@ def _validate_op(op, index: int, where: str, problems: list[str]) -> None:
         if not isinstance(op["signal"], str) or not op["signal"]:
             problems.append(f"{where}: ops[{index}] ({kind}) signal must be a non-empty string")
         if not _int_in_range(op["value"], 0, MAX_VALUE):
-            problems.append(
-                f"{where}: ops[{index}] ({kind}) value must be an integer in [0, 2^64)"
-            )
+            problems.append(f"{where}: ops[{index}] ({kind}) value must be an integer in [0, 2^64)")
     if kind == "step" and not _int_in_range(op["cycles"], 0, MAX_CYCLES):
         problems.append(
             f"{where}: ops[{index}] (step) cycles must be an integer in [0, {MAX_CYCLES}]"
@@ -212,7 +207,7 @@ def load_trace(path: Path, case_tiers: tuple[str, ...], problems: list[str]) -> 
         ops = []
     else:
         if ops[0] != {"op": "reset"}:
-            problems.append(f"{where}: ops[0] must be {{\"op\": \"reset\"}}")
+            problems.append(f'{where}: ops[0] must be {{"op": "reset"}}')
         for i, op in enumerate(ops):
             _validate_op(op, i, where, problems)
     if len(problems) > before:
@@ -232,7 +227,9 @@ def load_trace(path: Path, case_tiers: tuple[str, ...], problems: list[str]) -> 
 # --------------------------------------------------------------------------
 
 
-def load_case(case_dir: Path, required_features: dict[str, str] | None, problems: list[str]) -> Case | None:
+def load_case(
+    case_dir: Path, required_features: dict[str, str] | None, problems: list[str]
+) -> Case | None:
     case_json = case_dir / "case.json"
     where = rel(case_json)
     data = _read_json(case_json, problems)
@@ -274,9 +271,7 @@ def load_case(case_dir: Path, required_features: dict[str, str] | None, problems
     if not isinstance(sources, list) or not all(isinstance(s, str) for s in sources):
         problems.append(f"{where}: sources must be a list of file names")
         sources = []
-    on_disk = sorted(
-        p.name for p in case_dir.glob("*.shdl") if p.name != expected_base.name
-    )
+    on_disk = sorted(p.name for p in case_dir.glob("*.shdl") if p.name != expected_base.name)
     if sources and sorted(sources) != sources:
         problems.append(f"{where}: sources must be sorted")
     for missing in sorted(set(sources) - set(on_disk)):
@@ -289,15 +284,18 @@ def load_case(case_dir: Path, required_features: dict[str, str] | None, problems
         problems.append(f"{where}: circuit {circuit_name!r} must be listed in sources")
 
     features = data.get("features")
-    if not isinstance(features, list) or not features or not all(isinstance(f, str) for f in features):
+    if (
+        not isinstance(features, list)
+        or not features
+        or not all(isinstance(f, str) for f in features)
+    ):
         problems.append(f"{where}: features must be a non-empty list of strings")
         features = []
     if required_features is not None:
         for feature in features:
             if feature not in required_features:
                 problems.append(
-                    f"{where}: unknown feature {feature!r} "
-                    "(not in MANIFEST.json required_features)"
+                    f"{where}: unknown feature {feature!r} (not in MANIFEST.json required_features)"
                 )
 
     provenance = data.get("provenance")
@@ -319,7 +317,9 @@ def load_case(case_dir: Path, required_features: dict[str, str] | None, problems
         problems.append(f"{where}: tiers {tiers} require at least one trace")
     if not needs_traces and trace_names:
         problems.append(f"{where}: traces listed but no B/C tier declared")
-    traces_on_disk = sorted(p.relative_to(case_dir).as_posix() for p in case_dir.glob("traces/*.json"))
+    traces_on_disk = sorted(
+        p.relative_to(case_dir).as_posix() for p in case_dir.glob("traces/*.json")
+    )
     if trace_names and sorted(trace_names) != trace_names:
         problems.append(f"{where}: traces must be sorted")
     for missing in sorted(set(trace_names) - set(traces_on_disk)):
@@ -378,8 +378,10 @@ def load_manifest(problems: list[str]) -> Manifest | None:
         problems.append(f"{where}: cases must be a sorted list of unique case names")
         case_names = []
     required = data.get("required_features")
-    if not isinstance(required, dict) or not required or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in required.items()
+    if (
+        not isinstance(required, dict)
+        or not required
+        or not all(isinstance(k, str) and isinstance(v, str) for k, v in required.items())
     ):
         problems.append(f"{where}: required_features must be a non-empty object of str -> str")
         required = {}
@@ -388,8 +390,10 @@ def load_manifest(problems: list[str]) -> Manifest | None:
         problems.append(f"{where}: changelog must be a non-empty list")
         changelog = []
     golden_hashes = data.get("golden_hashes")
-    if not isinstance(golden_hashes, dict) or not golden_hashes or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in golden_hashes.items()
+    if (
+        not isinstance(golden_hashes, dict)
+        or not golden_hashes
+        or not all(isinstance(k, str) and isinstance(v, str) for k, v in golden_hashes.items())
     ):
         problems.append(
             f"{where}: golden_hashes must be a non-empty object of "
@@ -450,8 +454,7 @@ def load_suite() -> Suite:
     if not problems:  # coverage is only meaningful over a structurally valid corpus
         for uncovered in sorted(set(manifest.required_features) - covered):
             problems.append(
-                f"feature coverage gap: required feature {uncovered!r} "
-                "is not claimed by any case"
+                f"feature coverage gap: required feature {uncovered!r} is not claimed by any case"
             )
 
     # Mechanical drift enforcement (CNF-9): every golden byte is fingerprinted

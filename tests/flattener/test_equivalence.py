@@ -10,9 +10,9 @@ import random
 import pytest
 from helpers import flatten_fixture
 
+from flattener.sim.high_eval import HighEval
 from shdlc.baseshdl import parse_base
 from shdlc.sim.base_eval import BaseEval
-from flattener.sim.high_eval import HighEval
 
 
 def make_evals(name, **kw):
@@ -181,8 +181,7 @@ def test_flt7_combinational_init_visible_then_overwritten(tmp_path):
     # Here n.O is seeded to 1; once A propagates, Y becomes NOT(A).
     out, base, high = _flatten(
         tmp_path,
-        "top component M(A) -> (Y) { n: NOT; init { n.O = 1; } "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 1; } connect { A -> n.A; n.O -> Y; } }",
     )
     assert out.timing["has_feedback"] is False  # purely combinational
     assert out.meta["init"] == {"Y": 1}
@@ -203,8 +202,7 @@ def test_flt8_non_fixed_point_seed_oscillates(tmp_path):
     # independent evaluators agree on the (pinned) oscillation.
     out, base, high = _flatten(
         tmp_path,
-        "top component M(A) -> (Y) { n: NOT; init { n.O = 0; } "
-        "connect { n.O -> n.A; n.O -> Y; } }",
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 0; } connect { n.O -> n.A; n.O -> Y; } }",
     )
     assert out.timing["has_feedback"] is True
     base_trace = [base.peek("Y")]

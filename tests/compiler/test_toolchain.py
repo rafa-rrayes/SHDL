@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -119,9 +118,7 @@ def test_find_cc_env_cc_quoted_empty_string_raises(monkeypatch):
     import shutil
 
     monkeypatch.setenv("CC", '""')
-    monkeypatch.setattr(
-        shutil, "which", lambda cmd, *a, **k: f"/usr/bin/{cmd}" if cmd else None
-    )
+    monkeypatch.setattr(shutil, "which", lambda cmd, *a, **k: f"/usr/bin/{cmd}" if cmd else None)
     with pytest.raises(CCError) as ei:
         find_cc()
     assert "$CC" in str(ei.value)
@@ -178,15 +175,11 @@ _ALLOWED_UNDEFINED = {
 }
 
 
-@pytest.mark.skipif(
-    sys.platform != "darwin", reason="nm -u symbol contract checked on macOS"
-)
+@pytest.mark.skipif(sys.platform != "darwin", reason="nm -u symbol contract checked on macOS")
 def test_built_library_undefined_symbols_subset_of_libc(tmp_path):
     out = tmp_path / f"selfcontained{lib_suffix()}"
     build_library(GOOD_BASE, out, cflags=STRICT_CFLAGS)
-    nm = subprocess.run(
-        ["nm", "-u", str(out)], capture_output=True, text=True, check=True
-    )
+    nm = subprocess.run(["nm", "-u", str(out)], capture_output=True, text=True, check=True)
     undefined = {line.strip() for line in nm.stdout.splitlines() if line.strip()}
     unexpected = undefined - _ALLOWED_UNDEFINED
     assert not unexpected, (

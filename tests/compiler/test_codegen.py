@@ -600,12 +600,8 @@ def test_above_threshold_emits_chunks_full_then_remainder():
     src = generate_c(chain_circuit(n))
     assert src.count("SHDLC_NOINLINE\nstatic void tick_chunk_") == 2
     assert "tick_chunk_2" not in src
-    stmts0 = [
-        ln for ln in _body(src, _CHUNK_SIG.format(0)).splitlines() if "n[G_" in ln
-    ]
-    stmts1 = [
-        ln for ln in _body(src, _CHUNK_SIG.format(1)).splitlines() if "n[G_" in ln
-    ]
+    stmts0 = [ln for ln in _body(src, _CHUNK_SIG.format(0)).splitlines() if "n[G_" in ln]
+    stmts1 = [ln for ln in _body(src, _CHUNK_SIG.format(1)).splitlines() if "n[G_" in ln]
     assert len(stmts0) == _TICK_CHUNK
     assert len(stmts1) == 1
     # Every gate statement appears exactly once, in declaration order.
@@ -636,8 +632,7 @@ def test_chain_crossing_chunk_boundary_reads_previous_cycle_value():
     # The cross-chunk read targets c[] (the committed previous cycle), so the
     # chunk split cannot change semantics regardless of call order.
     assert first == (
-        f"n[G_g{_TICK_CHUNK}] = (uint8_t)(c[G_g{_TICK_CHUNK - 1}] ^ 1u);"
-        f" /* g{_TICK_CHUNK}: NOT */"
+        f"n[G_g{_TICK_CHUNK}] = (uint8_t)(c[G_g{_TICK_CHUNK - 1}] ^ 1u); /* g{_TICK_CHUNK}: NOT */"
     )
 
 
@@ -661,6 +656,4 @@ def test_noinline_macro_block_present_iff_chunked():
 
 
 def test_chunked_emission_is_deterministic():
-    assert generate_c(chain_circuit(_TICK_CHUNK + 1)) == generate_c(
-        chain_circuit(_TICK_CHUNK + 1)
-    )
+    assert generate_c(chain_circuit(_TICK_CHUNK + 1)) == generate_c(chain_circuit(_TICK_CHUNK + 1))

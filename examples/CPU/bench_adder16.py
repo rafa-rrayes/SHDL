@@ -76,8 +76,9 @@ def main() -> None:
         sim.reset()
 
         settle = measure_settle(sim) + SETTLE_MARGIN
-        print(f"settle : {settle} ticks ({settle - SETTLE_MARGIN} measured "
-              f"+ {SETTLE_MARGIN} margin)")
+        print(
+            f"settle : {settle} ticks ({settle - SETTLE_MARGIN} measured + {SETTLE_MARGIN} margin)"
+        )
 
         rng = random.Random(SEED)
         pairs = [(rng.getrandbits(16), rng.getrandbits(16)) for _ in range(N_ADDS)]
@@ -88,15 +89,15 @@ def main() -> None:
                 for (a, b), (s, c) in zip(pairs, results)
                 if s != (a + b) & 0xFFFF or c != (a + b) >> 16
             )
-            assert bad == 0, (
-                f"{mode}: {bad}/{N_ADDS} additions wrong — raise the settle budget"
-            )
+            assert bad == 0, f"{mode}: {bad}/{N_ADDS} additions wrong — raise the settle budget"
 
         def report(mode, elapsed, baseline=None):
             vs = f"  ({baseline / elapsed:5.1f}x scalar)" if baseline else ""
-            print(f"{mode:7s}: {elapsed * 1e3:7.1f} ms   "
-                  f"{N_ADDS / elapsed:11,.0f} adds/sec   "
-                  f"{elapsed / N_ADDS * 1e9:7.1f} ns/add{vs}")
+            print(
+                f"{mode:7s}: {elapsed * 1e3:7.1f} ms   "
+                f"{N_ADDS / elapsed:11,.0f} adds/sec   "
+                f"{elapsed / N_ADDS * 1e9:7.1f} ns/add{vs}"
+            )
 
         # --- mode 1: scalar poke/step/peek loop through ctypes ---------------
         # Raw handles: this measures the circuit + ABI, not Sim's wrappers.
@@ -116,17 +117,13 @@ def main() -> None:
         # --- modes 2 + 3: one run_batch call (exact / fixed-point exit) ------
         # Frames are (A, B, Cin) per add, input-port declaration order; the
         # buffer prep is untimed setup, the C call is the measured work.
-        in_buf = (ctypes.c_uint64 * (N_ADDS * 3))(
-            *(v for a, b in pairs for v in (a, b, 0))
-        )
+        in_buf = (ctypes.c_uint64 * (N_ADDS * 3))(*(v for a, b in pairs for v in (a, b, 0)))
         out_buf = (ctypes.c_uint64 * (N_ADDS * 2))()
         for mode, early in (("batch", 0), ("settle", 1)):
             t0 = time.perf_counter()
             sim._lib.run_batch(in_buf, out_buf, N_ADDS, settle, early)
             elapsed = time.perf_counter() - t0
-            verify(
-                [(out_buf[2 * k], out_buf[2 * k + 1]) for k in range(N_ADDS)], mode
-            )
+            verify([(out_buf[2 * k], out_buf[2 * k + 1]) for k in range(N_ADDS)], mode)
             report(mode, elapsed, baseline=t_scalar)
 
         print(f"verify : {N_ADDS:,} / {N_ADDS:,} additions correct in all 3 modes")

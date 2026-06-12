@@ -136,9 +136,7 @@ def random_drive(dual: DualSim, rng, cycles: int, *, p_reset: float = 0.02) -> N
             dual.reset()
             dual.compare_all()  # safe: reset clears dirty on both sides
         if dual.in_ports:
-            for port in rng.sample(
-                dual.in_ports, k=rng.randint(0, min(2, len(dual.in_ports)))
-            ):
+            for port in rng.sample(dual.in_ports, k=rng.randint(0, min(2, len(dual.in_ports)))):
                 dual.poke(port, rng.getrandbits(64))
         n = rng.randint(1, 3)
         dual.step_compare(n)

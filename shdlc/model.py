@@ -178,9 +178,7 @@ def build_circuit(comp: BaseComponent) -> Circuit:
         elif src in in_slot or src in out_set:
             pass
         elif src in gate_types:
-            raise ModelError(
-                f"connection source {src!r} is a gate; read its output as '{src}.O'"
-            )
+            raise ModelError(f"connection source {src!r} is a gate; read its output as '{src}.O'")
         else:
             raise ModelError(f"unknown connection source {src!r}")
 
@@ -210,9 +208,7 @@ def build_circuit(comp: BaseComponent) -> Circuit:
         elif dst in in_slot:
             raise ModelError(f"cannot drive input wire {dst!r}")
         elif dst in gate_types:
-            raise ModelError(
-                f"connection destination {dst!r} is a gate, not an output wire"
-            )
+            raise ModelError(f"connection destination {dst!r} is a gate, not an output wire")
         else:
             raise ModelError(f"unknown connection destination {dst!r}")
 
@@ -280,9 +276,7 @@ def build_circuit(comp: BaseComponent) -> Circuit:
 
         def build_group(direction: str) -> tuple[PortGroup, ...]:
             if direction not in ports_meta:
-                raise ModelError(
-                    f"meta.ports is present but missing the {direction!r} key"
-                )
+                raise ModelError(f"meta.ports is present but missing the {direction!r} key")
             group = ports_meta[direction]
             if not isinstance(group, dict):
                 raise ModelError(f"meta.ports.{direction} must be a JSON object")
@@ -293,14 +287,11 @@ def build_circuit(comp: BaseComponent) -> Circuit:
                 if port_name in port_names:
                     raise ModelError(f"duplicate port name {port_name!r}")
                 port_names.add(port_name)
-                if not isinstance(wires, list) or not all(
-                    isinstance(w, str) for w in wires
-                ):
+                if not isinstance(wires, list) or not all(isinstance(w, str) for w in wires):
                     raise ModelError(f"port {port_name!r}: wires must be an array of wire names")
                 if not 1 <= len(wires) <= _MAX_PORT_WIDTH:
                     raise ModelError(
-                        f"port {port_name!r}: width {len(wires)} out of range "
-                        f"1..{_MAX_PORT_WIDTH}"
+                        f"port {port_name!r}: width {len(wires)} out of range 1..{_MAX_PORT_WIDTH}"
                     )
                 refs: list[Ref] = []
                 for wire in wires:
@@ -340,9 +331,7 @@ def build_circuit(comp: BaseComponent) -> Circuit:
         in_ports = tuple(
             PortGroup(name=name, refs=(Ref("in", i),)) for i, name in enumerate(comp.inputs)
         )
-        out_ports = tuple(
-            PortGroup(name=name, refs=(resolve_out(name),)) for name in comp.outputs
-        )
+        out_ports = tuple(PortGroup(name=name, refs=(resolve_out(name),)) for name in comp.outputs)
 
     # --- invariant 8: init seeds -------------------------------------------
     init_entries: list[tuple[int, int]] = []
@@ -370,13 +359,10 @@ def build_circuit(comp: BaseComponent) -> Circuit:
                     )
                 index = ref.index
             else:
-                raise ModelError(
-                    f"unknown init key {key!r}: not a gate output or output wire"
-                )
+                raise ModelError(f"unknown init key {key!r}: not a gate output or output wire")
             if index in seeded:
                 raise ModelError(
-                    f"init keys {seeded[index]!r} and {key!r} both seed gate "
-                    f"{gate_names[index]!r}"
+                    f"init keys {seeded[index]!r} and {key!r} both seed gate {gate_names[index]!r}"
                 )
             seeded[index] = key
             init_entries.append((index, value))

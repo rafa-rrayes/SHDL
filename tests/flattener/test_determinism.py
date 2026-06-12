@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from helpers import FIXTURES, TS, flatten_fixture
 
 from shdlc.baseshdl import parse_base
@@ -47,14 +46,18 @@ def test_source_date_epoch_pins_output(monkeypatch):
 # PYTHONHASHSEED values and compare raw bytes. A timestamp is pinned so only
 # the hash seed varies.
 
+
 def _flatten_subprocess(fixture: str, seed: str) -> bytes:
     """Run `python -m flattener` in a child interpreter; return stdout bytes."""
     env = os.environ | {"PYTHONHASHSEED": seed, "PYTHONPATH": str(REPO)}
     proc = subprocess.run(
         [
-            sys.executable, "-m", "flattener",
+            sys.executable,
+            "-m",
+            "flattener",
             str(FIXTURES / f"{fixture}.shdl"),
-            "--timestamp", TS,
+            "--timestamp",
+            TS,
         ],
         env=env,
         capture_output=True,  # bytes, compared exactly
@@ -82,12 +85,7 @@ def test_flattener_byte_identical_across_hash_seeds(name):
 # path writes UTF-8 through sys.stdout.buffer — both must succeed even under
 # LC_ALL=C with PYTHONUTF8=0 (locale coercion off).
 
-_NON_ASCII_SRC = (
-    '"""Café — ½ adder ²"""\n'
-    "component Main(A) -> (Y) {\n"
-    "    connect { A -> Y; }\n"
-    "}\n"
-)
+_NON_ASCII_SRC = '"""Café — ½ adder ²"""\ncomponent Main(A) -> (Y) {\n    connect { A -> Y; }\n}\n'
 # Force the locale path: LC_ALL=C alone is overridden by PEP 540 UTF-8 mode, so
 # PYTHONUTF8=0 is required to actually get an ASCII stdout codec.
 _NON_UTF8_ENV = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONIOENCODING": "ascii"}
@@ -101,8 +99,14 @@ def test_non_ascii_output_file_is_utf8_under_c_locale(tmp_path):
     env = os.environ | {"PYTHONPATH": str(REPO), **_NON_UTF8_ENV}
     proc = subprocess.run(
         [
-            sys.executable, "-m", "flattener", str(main),
-            "--timestamp", TS, "-o", str(out_path),
+            sys.executable,
+            "-m",
+            "flattener",
+            str(main),
+            "--timestamp",
+            TS,
+            "-o",
+            str(out_path),
         ],
         env=env,
         capture_output=True,
@@ -129,9 +133,7 @@ def test_non_ascii_stdout_never_raises_under_c_locale(tmp_path):
         timeout=120,
     )
     # A raw UnicodeEncodeError traceback on stderr is the failure we forbid.
-    assert b"UnicodeEncodeError" not in proc.stderr, proc.stderr.decode(
-        errors="replace"
-    )
+    assert b"UnicodeEncodeError" not in proc.stderr, proc.stderr.decode(errors="replace")
     assert proc.returncode == 0, proc.stderr.decode(errors="replace")
 
 
@@ -139,6 +141,7 @@ def test_non_ascii_stdout_never_raises_under_c_locale(tmp_path):
 # Emitted Base SHDL must parse via shdlc.parse_base AND validate via
 # build_circuit for every fixture — not just the 10 that ride the differential
 # tier. stdgates carries several components, so it is flattened per top.
+
 
 @pytest.mark.parametrize("name", ALL_TOPS)
 def test_emitted_base_shdl_crosses_seam(name):

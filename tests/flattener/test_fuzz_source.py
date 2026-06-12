@@ -33,13 +33,12 @@ import random
 from pathlib import Path
 
 import pytest
-
 from fuzz_source_gen import gen_program
 
-from shdlc.baseshdl import parse_base
-from shdlc.sim.base_eval import BaseEval
 from flattener.pipeline import flatten_program
 from flattener.sim.high_eval import HighEval
+from shdlc.baseshdl import parse_base
+from shdlc.sim.base_eval import BaseEval
 
 FUZZ_COUNT = int(os.environ.get("SHDLC_SOURCE_FUZZ", "25"))
 FUZZ_CYCLES = int(os.environ.get("SHDLC_SOURCE_FUZZ_CYCLES", "20"))
@@ -246,8 +245,8 @@ def test_generator_feature_coverage():
         "gen_single": False,
         "gen_compound": False,
         "gen_open": False,
-        "gen_nested": False,      # >=2 levels
-        "gen_nested3": False,     # 3 levels (the obligation's "nesting to 3")
+        "gen_nested": False,  # >=2 levels
+        "gen_nested3": False,  # 3 levels (the obligation's "nesting to 3")
         "when": False,
         "relop_eq": False,
         "relop_ne": False,
@@ -258,8 +257,8 @@ def test_generator_feature_coverage():
         "bool_and": False,
         "bool_or": False,
         "paren_bool": False,
-        "slice_range": False,    # [a:b]
-        "slice_bit": False,      # [k]
+        "slice_range": False,  # [a:b]
+        "slice_bit": False,  # [k]
         "concat": False,
         "replication": False,
         "constant": False,
@@ -323,9 +322,7 @@ def test_generator_feature_coverage():
                     seen["paren_bool"] = True
             if re.search(r"\[\d+:\d+\]", txt):
                 seen["slice_range"] = True
-            if re.search(r"\.\w+\[\d+\]|[A-Z]\[\d+\]\s*->", txt) or re.search(
-                r"K\[\d+\]", txt
-            ):
+            if re.search(r"\.\w+\[\d+\]|[A-Z]\[\d+\]\s*->", txt) or re.search(r"K\[\d+\]", txt):
                 seen["slice_bit"] = True
             if re.search(r"\{[^}]*,[^}]*\}", txt):
                 seen["concat"] = True
@@ -358,7 +355,6 @@ def test_all_generated_programs_flatten_and_agree(tmp_path):
             out = _flatten_program(sub, modules, main)
         except Exception as e:  # noqa: BLE001
             raise AssertionError(
-                f"FUZ-3 flatten failed (seed {seed:#x}): {e!r}\n"
-                f"--- program ---\n{blob}"
+                f"FUZ-3 flatten failed (seed {seed:#x}): {e!r}\n--- program ---\n{blob}"
             ) from e
         _lockstep_high_vs_base(out, seed, blob, 8)

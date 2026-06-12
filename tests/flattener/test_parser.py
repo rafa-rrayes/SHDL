@@ -23,9 +23,7 @@ def the_component(text: str) -> A.Component:
 
 
 def test_component_header():
-    c = the_component(
-        "top component Mux<N = 8, SEL>(A[N], Sel[SEL], En) -> (Y[N]) { connect { } }"
-    )
+    c = the_component("top component Mux<N = 8, SEL>(A[N], Sel[SEL], En) -> (Y[N]) { connect { } }")
     assert c.is_top
     assert c.name == "Mux"
     assert [(p.name, p.default) for p in c.params] == [("N", 8), ("SEL", None)]
@@ -56,9 +54,7 @@ def test_instance_and_constant_decls():
 
 def test_generator_with_multi_range():
     c = the_component(
-        "component C(A[16]) -> (Y[16]) { connect {\n"
-        "    >i[1:4, 8, 12:]{ A[{i}] -> Y[{i}]; }\n"
-        "} }"
+        "component C(A[16]) -> (Y[16]) { connect {\n    >i[1:4, 8, 12:]{ A[{i}] -> Y[{i}]; }\n} }"
     )
     (gen,) = c.connect_blocks[0][1]
     assert isinstance(gen, A.Generator) and gen.var == "i"
@@ -174,10 +170,7 @@ def test_declaration_context_when():
     # PAR-1 + GEN-12 (parse only): a `when` block directly in a component body
     # (declaration context) parses as a Conditional holding declarations.
     c = the_component(
-        "component C<W>(A) -> (Y) {\n"
-        "    when {W == 1} { g: AND; }\n"
-        "    connect { A -> Y; }\n"
-        "}"
+        "component C<W>(A) -> (Y) {\n    when {W == 1} { g: AND; }\n    connect { A -> Y; }\n}"
     )
     (cond,) = c.decls
     assert isinstance(cond, A.Conditional)
@@ -313,9 +306,7 @@ def test_par10_eof_in_init_body():
 
 def test_par11_connect_before_declaration():
     # PAR-11: declarations may follow the connect block (any order accepted).
-    c = the_component(
-        "component C(A) -> (Y) { connect { A -> g.A; g.O -> Y; } g: NOT; }"
-    )
+    c = the_component("component C(A) -> (Y) { connect { A -> g.A; g.O -> Y; } g: NOT; }")
     assert isinstance(c.decls[0], A.InstanceDecl)
     assert len(c.connect_blocks) == 1
 
@@ -393,9 +384,7 @@ def test_par8_nesting_just_below_cap_is_accepted():
 
     depth = MAX_NESTING_DEPTH - 1
     expr = "{" * depth + "1" + "}" * depth
-    c = the_component(
-        f"component M(A[2]) -> (Y) {{ connect {{ A[{expr}] -> Y; }} }}"
-    )
+    c = the_component(f"component M(A[2]) -> (Y) {{ connect {{ A[{expr}] -> Y; }} }}")
     assert len(c.connect_blocks) == 1
 
 

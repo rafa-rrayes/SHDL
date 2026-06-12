@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import random
+import subprocess
 import zlib
 
 import pytest
@@ -41,13 +42,42 @@ NOCRASH_COUNT = int(os.environ.get("SHDLC_NOCRASH", "200"))
 #: Base SHDL surface alphabet (base_shdl.md §3.2): keywords, the six
 #: primitive type names, operators, punctuation, names, and a JSON-ish tail.
 _BASE_SOUP = [
-    "component", "connect", "meta",
-    "->", "(", ")", "{", "}", ",", ":", ";", ".",
-    "AND", "OR", "NOT", "XOR", "__VCC__", "__GND__",
-    "A", "B", "Y", "g", "x1", "o1", "n",
-    " ", "\n", "\t",
-    '{"ports":{"inputs":{},"outputs":{}}}', '{', '}', '"', '[', ']',
-    "²", "é",
+    "component",
+    "connect",
+    "meta",
+    "->",
+    "(",
+    ")",
+    "{",
+    "}",
+    ",",
+    ":",
+    ";",
+    ".",
+    "AND",
+    "OR",
+    "NOT",
+    "XOR",
+    "__VCC__",
+    "__GND__",
+    "A",
+    "B",
+    "Y",
+    "g",
+    "x1",
+    "o1",
+    "n",
+    " ",
+    "\n",
+    "\t",
+    '{"ports":{"inputs":{},"outputs":{}}}',
+    "{",
+    "}",
+    '"',
+    "[",
+    "]",
+    "²",
+    "é",
 ]
 
 # A small set of valid Base SHDL components, flattened from fixtures at import
@@ -133,7 +163,7 @@ _CORRUPT_META = [
     "meta }",
     'meta {"ports": }',
     'meta {"ports": {"inputs"}}',
-    'meta [1,2,3]',
+    "meta [1,2,3]",
     "meta 12.",
     "meta {\x00}",
     'meta {"ports": {"inputs": {"A": [1,2]}, "outputs": {}}} trailing junk',
@@ -147,9 +177,7 @@ def _garbage(rng: random.Random) -> bytes:
         n = rng.randint(0, 50)
         return "".join(rng.choice(_BASE_SOUP) for _ in range(n)).encode("utf-8")
     if kind == 1:  # unbalanced brackets / partial components
-        body = rng.choice(
-            ["component M(A)->(Y){connect{", "component M", "->", "", "}}}", "A->Y;"]
-        )
+        body = rng.choice(["component M(A)->(Y){connect{", "component M", "->", "", "}}}", "A->Y;"])
         extra = "".join(rng.choice("(){}") for _ in range(rng.randint(0, 30)))
         return (body + extra).encode("utf-8")
     if kind == 2:  # valid component head + corrupted meta JSON (CCT-7/ROB-6)
@@ -203,7 +231,7 @@ def _assert_no_crash(label: str, raw: bytes) -> None:
     # parsed: now lower to the model.
     try:
         build_circuit(comp)
-    except (ModelError, BaseParseError):
+    except ModelError, BaseParseError:
         return
     except BaseException as e:  # noqa: BLE001
         raise AssertionError(
@@ -234,8 +262,7 @@ def test_fuz4_corrupt_meta_json_is_baseparseerror():
             continue
         except BaseException as e:  # noqa: BLE001
             raise AssertionError(
-                f"corrupt meta {tail!r} raised {type(e).__name__}, "
-                f"not BaseParseError"
+                f"corrupt meta {tail!r} raised {type(e).__name__}, not BaseParseError"
             ) from e
         # If it parsed cleanly (e.g. valid JSON with junk our scanner missed),
         # that is acceptable — the contract is "no non-BaseParseError escape".
@@ -253,9 +280,7 @@ def test_fuz4_unknown_primitive_type_is_baseparseerror():
 # --------------------------------------------------------------------------- #
 
 
-def _run_cli(module: str, args: list[str], cwd) -> "subprocess.CompletedProcess":
-    import subprocess
-
+def _run_cli(module: str, args: list[str], cwd) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["uv", "run", "--project", str(REPO), "python", "-m", module, *map(str, args)],
         cwd=cwd,
@@ -273,11 +298,17 @@ _CLI_INPUTS = [
     ("unbalanced", b"component M(A)->(Y){connect{", False),
     ("corrupt_meta", (_VALID_HEAD + "meta {not json}").encode("utf-8"), False),
     ("empty", b"", False),
-    ("deep_nest", (
-        "top component M(A[2]) -> (Y) { connect { A["
-        + "{" * 1000 + "1" + "}" * 1000
-        + "] -> Y; } }"
-    ).encode("utf-8"), False),
+    (
+        "deep_nest",
+        (
+            "top component M(A[2]) -> (Y) { connect { A["
+            + "{" * 1000
+            + "1"
+            + "}" * 1000
+            + "] -> Y; } }"
+        ).encode("utf-8"),
+        False,
+    ),
 ]
 
 
@@ -287,12 +318,9 @@ def test_fuz4_flattener_cli_no_traceback(name, raw, _xfail, tmp_path):
     src = tmp_path / "in.shdl"
     src.write_bytes(raw)
     proc = _run_cli("flattener", [str(src)], cwd=tmp_path)
-    assert proc.returncode in (0, 1, 2), (
-        f"[{name}] exit {proc.returncode}\nstderr:\n{proc.stderr}"
-    )
+    assert proc.returncode in (0, 1, 2), f"[{name}] exit {proc.returncode}\nstderr:\n{proc.stderr}"
     assert "Traceback (most recent call last)" not in proc.stderr, (
-        f"[{name}] flattener CLI leaked a traceback:\n{proc.stderr}\n"
-        f"--- input (repr) ---\n{raw!r}"
+        f"[{name}] flattener CLI leaked a traceback:\n{proc.stderr}\n--- input (repr) ---\n{raw!r}"
     )
 
 
@@ -302,12 +330,9 @@ def test_fuz4_shdlc_cli_no_traceback(name, raw, _xfail, tmp_path):
     src = tmp_path / "in.base"
     src.write_bytes(raw)
     proc = _run_cli("shdlc", [str(src), "--base", "--no-build"], cwd=tmp_path)
-    assert proc.returncode in (0, 1, 2), (
-        f"[{name}] exit {proc.returncode}\nstderr:\n{proc.stderr}"
-    )
+    assert proc.returncode in (0, 1, 2), f"[{name}] exit {proc.returncode}\nstderr:\n{proc.stderr}"
     assert "Traceback (most recent call last)" not in proc.stderr, (
-        f"[{name}] shdlc CLI leaked a traceback:\n{proc.stderr}\n"
-        f"--- input (repr) ---\n{raw!r}"
+        f"[{name}] shdlc CLI leaked a traceback:\n{proc.stderr}\n--- input (repr) ---\n{raw!r}"
     )
 
 

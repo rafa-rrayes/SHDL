@@ -134,9 +134,7 @@ def _drive_trace(oracle: BaseEval, in_ports, out_ports, script, *, settle_each=1
     ],
     ids=["combinational-fa", "feedback-srlatch"],
 )
-def test_declaration_order_independence_oracle(
-    canon, scrambled, in_ports, out_ports, feedback
-):
+def test_declaration_order_independence_oracle(canon, scrambled, in_ports, out_ports, feedback):
     # SIM-6: identical port traces under permuted declaration/connection order.
     # Done at the oracle level, where "compute then commit" is the contract;
     # the lib's order independence rides on this plus its lockstep tests.
@@ -246,13 +244,10 @@ def test_single_bit_wires_are_always_two_state(builds):
     # comes from the poke per-bit `&1u` scatter plus Boolean closure of the
     # gate ops; here we witness it never producing a non-Boolean at a 1-bit
     # port. (Full internal-gate coverage is staged in FUT V.1's debug build.)
-    comp = parse_with_ports(open_text := builds.fixture_text("srlatch"))
+    comp = parse_with_ports(builds.fixture_text("srlatch"))
     ports = comp.meta["ports"]
     single_bit = [
-        p
-        for grp in ("inputs", "outputs")
-        for p, wires in ports[grp].items()
-        if len(wires) == 1
+        p for grp in ("inputs", "outputs") for p, wires in ports[grp].items() if len(wires) == 1
     ]
     assert single_bit, "expected single-bit ports on srlatch"
     sim = builds.sim_fixture("srlatch")

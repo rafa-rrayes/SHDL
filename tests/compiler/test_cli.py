@@ -79,7 +79,7 @@ def test_emit_c_writes_hot_path_clean_c(builds, tmp_path):
     assert "malloc" not in c
     m = re.search(r"void\s+tick\s*\(", c)
     assert m, "generated C must define the evaluation function 'void tick(...)'"
-    body = c[m.start():]
+    body = c[m.start() :]
     end = body.find("\n}")
     assert end != -1, "could not delimit tick() body"
     body = body[: end + 2]
@@ -186,9 +186,7 @@ def test_cc_flag_plumbs_through_to_the_compiler(builds, tmp_path):
     # -Werror -- closing the hole that plain CLI builds used DEFAULT_CFLAGS
     # with no warning flags. A real strict build that exits 0 IS the proof.
     (tmp_path / "add2.base").write_text(builds.fixture_text("add2"))
-    proc = run_shdlc(
-        ["add2.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path
-    )
+    proc = run_shdlc(["add2.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path)
     assert proc.returncode == 0, proc.stderr  # -Werror passed: warning-free
     out = tmp_path / f"add2{lib_suffix()}"
     assert out.exists()
@@ -197,9 +195,7 @@ def test_cc_flag_plumbs_through_to_the_compiler(builds, tmp_path):
 
 def test_cc_flag_bad_compiler_is_diagnosed(tmp_path):
     # CCT-10: a bogus --cc value surfaces as a clean CCError diagnostic, rc 1.
-    (tmp_path / "x.base").write_text(
-        "component X(a) -> (y) { connect { a -> y; } }\n"
-    )
+    (tmp_path / "x.base").write_text("component X(a) -> (y) { connect { a -> y; } }\n")
     proc = run_shdlc(["x.base", "--cc", "no-such-compiler-xyz"], cwd=tmp_path)
     assert proc.returncode == 1, (proc.stdout, proc.stderr)
     assert PREFIX in proc.stderr, proc.stderr
@@ -226,8 +222,6 @@ def test_chunked_cli_build_is_warning_free_under_strict_cc(tmp_path):
         + "\n"
     )
     (tmp_path / "chunk.base").write_text(text)
-    proc = run_shdlc(
-        ["chunk.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path
-    )
+    proc = run_shdlc(["chunk.base", "--cc", "cc -Wall -Wextra -Werror -pedantic"], cwd=tmp_path)
     assert proc.returncode == 0, proc.stderr
     assert (tmp_path / f"chunk{lib_suffix()}").exists()

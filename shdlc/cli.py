@@ -110,8 +110,7 @@ def main(argv: list[str] | None = None) -> int:
                 base_text = in_path.read_bytes().decode("utf-8")
             except UnicodeDecodeError as e:
                 raise BaseParseError(
-                    f"{in_path}: Base SHDL input is not valid UTF-8 "
-                    f"(byte offset {e.start})"
+                    f"{in_path}: Base SHDL input is not valid UTF-8 (byte offset {e.start})"
                 ) from None
 
         emit_c = args.emit_c

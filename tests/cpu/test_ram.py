@@ -9,9 +9,9 @@ def ram_write(s, addr, data):
     s.poke("Addr", addr)
     s.poke("WData", data)
     s.poke("WE", 1)
-    s.step(SETTLE)          # decode settles before the strobe
+    s.step(SETTLE)  # decode settles before the strobe
     s.poke("Phi1", 1)
-    s.step(10)              # latch capture
+    s.step(10)  # latch capture
     s.poke("Phi1", 0)
     s.poke("WE", 0)
     s.step(4)
@@ -50,6 +50,6 @@ def test_ram_no_write_without_strobe(cpu_builds):
     s.poke("Addr", 42)
     s.poke("WData", 0x7777)
     s.poke("WE", 1)
-    s.step(SETTLE)          # WE high but Phi1 never pulsed
+    s.step(SETTLE)  # WE high but Phi1 never pulsed
     s.poke("WE", 0)
     assert ram_read(s, 42) == 0

@@ -173,8 +173,7 @@ def test_ram_write_isolation_all_offsets(cpu_builds):
 
 
 def test_sr16_poweron_state(cpu_builds, sr16):
-    pins = ["Halted", "PCout", "IRout", "Flags", "State", "MemOut",
-            *(f"R{i}out" for i in range(8))]
+    pins = ["Halted", "PCout", "IRout", "Flags", "State", "MemOut", *(f"R{i}out" for i in range(8))]
     for off in OFFSETS:
         sr16.reset()
         sr16.step(off)

@@ -17,12 +17,26 @@ SRLATCH_SCRIPT = (
 # (Q, Qn) observed AFTER each scripted cycle, derived from BaseEval
 # (scratch run 2026-06-10). Fresh power-on state is Q=0, Qn=1 (meta.init).
 SRLATCH_TRACE = [
-    (1, 1), (0, 1),                  # idle transient from the init seeds
-    (0, 0), (0, 0), (1, 0), (1, 0),  # set: Q reaches 1 on the 3rd set cycle
-    (1, 0), (1, 0), (1, 0),          # idle: holds the set state
-    (1, 0), (0, 0), (0, 0), (0, 1),  # reset: Qn reaches 1 on the 4th cycle
-    (0, 1), (0, 1), (0, 1),          # idle: holds the reset state
-    (0, 1), (0, 0), (0, 0), (1, 0),  # set again
+    (1, 1),
+    (0, 1),  # idle transient from the init seeds
+    (0, 0),
+    (0, 0),
+    (1, 0),
+    (1, 0),  # set: Q reaches 1 on the 3rd set cycle
+    (1, 0),
+    (1, 0),
+    (1, 0),  # idle: holds the set state
+    (1, 0),
+    (0, 0),
+    (0, 0),
+    (0, 1),  # reset: Qn reaches 1 on the 4th cycle
+    (0, 1),
+    (0, 1),
+    (0, 1),  # idle: holds the reset state
+    (0, 1),
+    (0, 0),
+    (0, 0),
+    (1, 0),  # set again
 ]
 
 RING_BITS = 20

@@ -30,9 +30,7 @@ def test_multi_range(tmp_path):
 
 def test_nested_generators_and_computed_indices():
     out = flatten_fixture("repeater")
-    assert gate_names(out) == [
-        "buf1_1", "buf1_2", "buf1_3", "buf2_1", "buf2_2", "buf2_3"
-    ]
+    assert gate_names(out) == ["buf1_1", "buf1_2", "buf1_3", "buf2_1", "buf2_2", "buf2_3"]
     # Out[(i-1)*M + j] covers all six output bits exactly once.
     assert sorted(out.flat.netlist.outputs) == sorted(f"Out_{k}_" for k in range(1, 7))
 
@@ -119,9 +117,7 @@ def test_division_by_zero_in_range(tmp_path):
 
 
 def test_unknown_signal_reference(tmp_path):
-    expect_error(
-        "E0307", tmp_path, "top component M(A) -> (Y) { connect { Ghost -> Y; } }"
-    )
+    expect_error("E0307", tmp_path, "top component M(A) -> (Y) { connect { Ghost -> Y; } }")
 
 
 # A minimal FullAdder used by the carry-chain generator tests (the fixtures
@@ -477,7 +473,13 @@ def test_gen14_inner_loop_var_shadowing():
     # scan logic is asserted directly on _governing_widths (driving the exact
     # shadow path end-to-end is brittle; the unit is the contract).
     from flattener.ast_nodes import (
-        Connection, Generator, IndexBit, Name, NameTemplate, Primary, RangeOpen,
+        Connection,
+        Generator,
+        IndexBit,
+        Name,
+        NameTemplate,
+        Primary,
+        RangeOpen,
     )
     from flattener.phases.expand import _governing_widths
     from flattener.source import Pos
@@ -489,12 +491,18 @@ def test_gen14_inner_loop_var_shadowing():
 
     # Outer >i body: A[{i}] -> X, plus an inner >i (shadowing) over B[{i}].
     inner = Generator(
-        "i", p, (RangeOpen(Name("dummy", p), p),),
-        (Connection(prim("B", "i"), prim("X", "i"), p),), p,
+        "i",
+        p,
+        (RangeOpen(Name("dummy", p), p),),
+        (Connection(prim("B", "i"), prim("X", "i"), p),),
+        p,
     )
     outer = Generator(
-        "i", p, (RangeOpen(Name("dummy", p), p),),
-        (Connection(prim("A", "i"), prim("X", "i"), p), inner), p,
+        "i",
+        p,
+        (RangeOpen(Name("dummy", p), p),),
+        (Connection(prim("A", "i"), prim("X", "i"), p), inner),
+        p,
     )
     widths = _governing_widths(outer, {}, lambda b, _port: {"A": 3, "B": 5}.get(b))
     # Only A (width 3) governs the outer i; B under the shadowed inner i is skipped.
@@ -510,7 +518,6 @@ def test_scl7_range_bomb_capped(tmp_path):
     d = expect_error(
         "E0601",
         tmp_path,
-        "top component M(A) -> (Y) { >i[1:1000000000]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        "top component M(A) -> (Y) { >i[1:1000000000]{ b{i}: OR; } connect { A -> Y; } }",
     )
     assert "cap" in d.message and "1000000000" in d.message

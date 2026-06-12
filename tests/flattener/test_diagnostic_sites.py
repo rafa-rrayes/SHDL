@@ -36,10 +36,10 @@ import traceback
 from pathlib import Path
 
 import pytest
+from helpers import flatten_source
 
 import flattener.pipeline as pipeline
 from flattener.diagnostics import ErrorCode, SHDLError
-from helpers import flatten_source
 
 FLATTENER = Path(pipeline.__file__).parent
 
@@ -55,11 +55,7 @@ def _site_code(call: ast.Call) -> str | None:
     if not call.args:
         return None
     a = call.args[0]
-    if (
-        isinstance(a, ast.Attribute)
-        and isinstance(a.value, ast.Name)
-        and a.value.id == "ErrorCode"
-    ):
+    if isinstance(a, ast.Attribute) and isinstance(a.value, ast.Name) and a.value.id == "ErrorCode":
         return a.attr
     return None  # dynamic code (resolved at runtime)
 
@@ -103,9 +99,7 @@ def _t(
     (DIA-8). ``needs`` names a monkeypatch recipe for a site that is otherwise
     unreachable from user input; ``note`` documents why.
     """
-    return dict(
-        code=code, line=line, col=col, source=source, aux=aux, needs=needs, note=note
-    )
+    return dict(code=code, line=line, col=col, source=source, aux=aux, needs=needs, note=note)
 
 
 # Each key is the (relpath, raise-line) the trigger must reach. The line equals
@@ -114,57 +108,81 @@ def _t(
 REGISTRY: dict[tuple[str, int], dict] = {
     # --- flattener/expr.py ------------------------------------------------- #
     ("flattener/expr.py", 22): _t(
-        "E0603", 1, 45,
+        "E0603",
+        1,
+        45,
         "top component M(A[2]) -> (Y) { connect { A[{j}] -> Y; } }",
     ),
     ("flattener/expr.py", 40): _t(
-        "E0605", 1, 32,
+        "E0605",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[4/0]{ b{i}: OR; } connect { A -> Y; } }",
     ),
     # --- flattener/lexer.py ------------------------------------------------ #
     ("flattener/lexer.py", 159): _t(
-        "E0101", 1, 1,
+        "E0101",
+        1,
+        1,
         '"""unterminated triple comment\ntop component M(A) -> (Y) { connect { A -> Y; } }',
     ),
     ("flattener/lexer.py", 169): _t(
-        "E0101", 2, 1,
+        "E0101",
+        2,
+        1,
         'top component M(A) -> (Y) { connect { A -> Y; } }\n"unterminated string',
     ),
     ("flattener/lexer.py", 185): _t(
-        "E0101", 1, 19,
+        "E0101",
+        1,
+        19,
         "top component M(A[0x]) -> (Y) { connect { A -> Y; } }",
     ),
     ("flattener/lexer.py", 193): _t(
-        "E0101", 1, 19,
+        "E0101",
+        1,
+        19,
         "top component M(A[0b]) -> (Y) { connect { A -> Y; } }",
     ),
     ("flattener/lexer.py", 200): _t(
-        "E0101", 1, 19,
+        "E0101",
+        1,
+        19,
         "top component M(A[12ab]) -> (Y) { connect { A -> Y; } }",
     ),
     ("flattener/lexer.py", 230): _t(
-        "E0101", 2, 1,
+        "E0101",
+        2,
+        1,
         "top component M(A) -> (Y) { connect { A -> Y; } }\n$",
     ),
     # --- flattener/loader.py ----------------------------------------------- #
     ("flattener/loader.py", 81): _t(
-        "E0101", 2, 1,
+        "E0101",
+        2,
+        1,
         # Invalid UTF-8 bytes after a newline: the read-boundary diagnostic.
         None,  # built by a bytes path below (see _build_source)
         note="invalid UTF-8 source; bytes trigger built specially",
     ),
     ("flattener/loader.py", 93): _t(
-        "E0701", 1, 1,
+        "E0701",
+        1,
+        1,
         None,  # missing main file; built specially (no on-disk main)
         note="main file not found; trigger points at a nonexistent path",
     ),
     ("flattener/loader.py", 110): _t(
-        "E0701", 1, 5,
+        "E0701",
+        1,
+        5,
         None,  # resolved-path conflict; built specially with two lib.shdl files
         note="resolved-path conflict; built specially with two lib.shdl files",
     ),
     ("flattener/loader.py", 120): _t(
-        "E0702", 1, 5,
+        "E0702",
+        1,
+        5,
         "use a::{A};\ntop component M(A) -> (Y) { connect { A -> Y; } }",
         aux={
             "a": "use b::{B};\ncomponent A(X) -> (Y) { connect { X -> Y; } }",
@@ -172,7 +190,9 @@ REGISTRY: dict[tuple[str, int], dict] = {
         },
     ),
     ("flattener/loader.py", 131): _t(
-        "E0301", 2, 1,
+        "E0301",
+        2,
+        1,
         "use lib::{Foo};\ntop component M(A) -> (Y) { connect { A -> Y; } }",
         aux={
             "lib": "component Foo(A) -> (Y) { connect { A -> Y; } }\n"
@@ -180,27 +200,34 @@ REGISTRY: dict[tuple[str, int], dict] = {
         },
     ),
     ("flattener/loader.py", 144): _t(
-        "E0701", 1, 5,
+        "E0701",
+        1,
+        5,
         "use missing::{X};\ntop component M(A) -> (Y) { connect { A -> Y; } }",
     ),
     ("flattener/loader.py", 155): _t(
-        "E0701", 1, 5,
+        "E0701",
+        1,
+        5,
         None,  # case-mismatch import; built specially
         note="case-mismatch resolution; needs a real on-disk file",
     ),
     ("flattener/loader.py", 165): _t(
-        "E0703", 1, 11,
+        "E0703",
+        1,
+        11,
         "use lib::{Bar};\ntop component M(A) -> (Y) { connect { A -> Y; } }",
         aux={"lib": "component Foo(A) -> (Y) { connect { A -> Y; } }"},
     ),
     ("flattener/loader.py", 171): _t(
-        "E0301", 2, 9,
+        "E0301",
+        2,
+        9,
         # Two imports bring in the same component name: the second `use`'s
         # name collides with the first in module.visible. (A local-vs-import
         # collision can't reach here — `imports must precede components`, the
         # parser E0201, fires first.)
-        "use a::{X};\nuse b::{X};\n"
-        "top component M(A) -> (Y) { connect { A -> Y; } }",
+        "use a::{X};\nuse b::{X};\ntop component M(A) -> (Y) { connect { A -> Y; } }",
         aux={
             "a": "component X(A) -> (Y) { connect { A -> Y; } }",
             "b": "component X(A) -> (Y) { connect { A -> Y; } }",
@@ -209,64 +236,89 @@ REGISTRY: dict[tuple[str, int], dict] = {
     ),
     # --- flattener/parser.py ----------------------------------------------- #
     ("flattener/parser.py", 80): _t(
-        "E0201", 1, 231,
+        "E0201",
+        1,
+        231,
         None,  # 300-deep nesting; built specially
         # col 231 = the `{` whose entry crosses the 200-level cap (the inner
         # constant-width expr starts at col 31; the 201st `{` is at col 231).
         note="parser nesting cap; built from a deeply-nested expression",
     ),
     ("flattener/parser.py", 105): _t(
-        "E0201", 1, 19,
+        "E0201",
+        1,
+        19,
         "component M(A) -> Y) { connect { A -> Y; } }",
     ),
     ("flattener/parser.py", 114): _t(
-        "E0201", 1, 1,
+        "E0201",
+        1,
+        1,
         # A leading non-keyword where parse_module expects a component:
         # expect_keyword('component') fires at the offending token.
         "foo",
         note="expect_keyword 'component'; reached by a leading non-keyword",
     ),
     ("flattener/parser.py", 133): _t(
-        "E0201", 2, 1,
+        "E0201",
+        2,
+        1,
         "component M(A) -> (Y) { connect { A -> Y; } }\nuse lib::{X};",
         aux={"lib": "component X(A) -> (Y) { connect { A -> Y; } }"},
     ),
     ("flattener/parser.py", 170): _t(
-        "E0201", 2, 7,
+        "E0201",
+        2,
+        7,
         "component M(A) -> (Y) { connect { A -> Y; } }\nmeta {",
     ),
     ("flattener/parser.py", 181): _t(
-        "E0201", 2, 9,
+        "E0201",
+        2,
+        9,
         "component M(A) -> (Y) { connect { A -> Y; } }\nmeta {} junk",
     ),
     ("flattener/parser.py", 326): _t(
-        "E0604", 1, 36,
+        "E0604",
+        1,
+        36,
         "top component M(A) -> (Y) { >i[2]{ 5 -> b; } connect { A -> Y; } }",
     ),
     ("flattener/parser.py", 334): _t(
-        "E0604", 1, 54,
+        "E0604",
+        1,
+        54,
         "top component M(A) -> (Y) { n: NOT; connect { >i[2]{ 5 -> Y; } } }",
     ),
     ("flattener/parser.py", 352): _t(
-        "E0201", 1, 29,
+        "E0201",
+        1,
+        29,
         "top component M(A) -> (Y) { c{i} = 1; connect { A -> Y; } }",
     ),
     ("flattener/parser.py", 366): _t(
-        "E0201", 1, 33,
+        "E0201",
+        1,
+        33,
         "top component M(A) -> (Y) { foo bar; connect { A -> Y; } }",
     ),
     ("flattener/parser.py", 591): _t(
-        "E0201", 1, 31,
+        "E0201",
+        1,
+        31,
         "top component M(A) -> (Y) { K[+] = 1; connect { A -> Y; } }",
     ),
     ("flattener/parser.py", 635): _t(
-        "E0201", 1, 43,
-        "top component M(A) -> (Y) { >i[2]{ when {i} { x: OR; } } "
-        "connect { A -> Y; } }",
+        "E0201",
+        1,
+        43,
+        "top component M(A) -> (Y) { >i[2]{ when {i} { x: OR; } } connect { A -> Y; } }",
     ),
     # --- flattener/phases/constants.py ------------------------------------- #
     ("flattener/phases/constants.py", 56): _t(
-        "E0308", 1, 36,
+        "E0308",
+        1,
+        36,
         # A constant K referenced at bit 1 materializes a power pin named
         # 'K_bit1'; declaring an instance with that exact name collides.
         "top component M(A) -> (Y) { K = 1; K_bit1: NOT; "
@@ -275,46 +327,60 @@ REGISTRY: dict[tuple[str, int], dict] = {
     ),
     # --- flattener/phases/expand.py ---------------------------------------- #
     ("flattener/phases/expand.py", 65): _t(
-        "E0601", 1, 32,
-        "top component M(A) -> (Y) { >i[1:1000001]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        "E0601",
+        1,
+        32,
+        "top component M(A) -> (Y) { >i[1:1000001]{ b{i}: OR; } connect { A -> Y; } }",
         note="SCL-7 instance-count cap (MAX_RANGE_VALUES) via _guard_span",
     ),
     ("flattener/phases/expand.py", 132): _t(
-        "E0601", 1, 37,
-        "top component M(A) -> (Y) { >i[1:3, 0-1]{ b{i}: OR; } "
-        "connect { A -> Y; } }",
+        "E0601",
+        1,
+        37,
+        "top component M(A) -> (Y) { >i[1:3, 0-1]{ b{i}: OR; } connect { A -> Y; } }",
         note="bare negative value in a multi-range list",
     ),
     ("flattener/phases/expand.py", 138): _t(
-        "E0601", 1, 32,
+        "E0601",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[0]{ b{i}: OR; } connect { A -> Y; } }",
         note="count range [0] is empty",
     ),
     ("flattener/phases/expand.py", 149): _t(
-        "E0601", 1, 32,
+        "E0601",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[0-1:3]{ b{i}: OR; } connect { A -> Y; } }",
         note="RangeAB lower bound negative",
     ),
     ("flattener/phases/expand.py", 151): _t(
-        "E0601", 1, 32,
+        "E0601",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[2:1]{ b{i}: OR; } connect { A -> Y; } }",
         note="RangeAB ill-ordered",
     ),
     ("flattener/phases/expand.py", 161): _t(
-        "E0601", 1, 32,
+        "E0601",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[:0]{ b{i}: OR; } connect { A -> Y; } }",
         note="RangeTo bound < 1",
     ),
     ("flattener/phases/expand.py", 171): _t(
-        "E0601", 1, 61,
+        "E0601",
+        1,
+        61,
         "top component M(A[2]) -> (Y) { b1: OR; b2: OR; "
         "connect { >i[0-1:]{ A[{i}] -> b{i}.A; } A[1] -> b1.B; A[2] -> b2.B; "
         "b1.O -> Y; } }",
         note="RangeOpen lower bound negative",
     ),
     ("flattener/phases/expand.py", 174): _t(
-        "E0601", 1, 53,
+        "E0601",
+        1,
+        53,
         # Open range [5:] over governing signal A of width 2 resolves to the
         # empty [5:2]: the lower bound exceeds the scanned governing width.
         "top component M(A[2]) -> (Y) { b5: OR; "
@@ -322,17 +388,23 @@ REGISTRY: dict[tuple[str, int], dict] = {
         note="open range resolves to empty after governing-signal scan",
     ),
     ("flattener/phases/expand.py", 314): _t(
-        "E0307", 1, 57,
+        "E0307",
+        1,
+        57,
         "top component M(A) -> (Y) { n: NOT; connect { A -> n.A; n -> Y; } }",
         note="signal_width: instance used as a whole signal",
     ),
     ("flattener/phases/expand.py", 320): _t(
-        "E0307", 1, 39,
+        "E0307",
+        1,
+        39,
         "top component M(A) -> (Y) { connect { Ghost -> Y; } }",
         note="signal_width: unknown whole signal",
     ),
     ("flattener/phases/expand.py", 323): _t(
-        "E0307", 1, 47,
+        "E0307",
+        1,
+        47,
         "top component M(A) -> (Y) { connect { A -> Y; ghost.O -> Y; } }",
         needs="disable_check_role",
         note="signal_width port-branch backstop: unknown instance. Shadowed by "
@@ -340,14 +412,18 @@ REGISTRY: dict[tuple[str, int], dict] = {
         "the same port first.",
     ),
     ("flattener/phases/expand.py", 328): _t(
-        "E0307", 1, 57,
+        "E0307",
+        1,
+        57,
         "top component M(A) -> (Y) { n: NOT; connect { A -> n.A; n.Z -> Y; } }",
         needs="disable_check_role",
         note="signal_width port-branch backstop: primitive has no such port. "
         "Shadowed by instance_port_dir (expand.py:357).",
     ),
     ("flattener/phases/expand.py", 336): _t(
-        "E0307", 2, 55,
+        "E0307",
+        2,
+        55,
         "component C(A) -> (O) { connect { A -> O; } }\n"
         "top component M(A) -> (Y) { c: C; connect { A -> c.A; c.Z -> Y; } }",
         needs="disable_check_role",
@@ -355,23 +431,31 @@ REGISTRY: dict[tuple[str, int], dict] = {
         "Shadowed by instance_port_dir (expand.py:365).",
     ),
     ("flattener/phases/expand.py", 350): _t(
-        "E0307", 1, 44,
+        "E0307",
+        1,
+        44,
         "top component M(A) -> (Y) { connect { A -> ghost.A; A -> Y; } }",
         note="instance_port_dir: unknown instance (destination)",
     ),
     ("flattener/phases/expand.py", 357): _t(
-        "E0307", 1, 52,
+        "E0307",
+        1,
+        52,
         "top component M(A) -> (Y) { n: NOT; connect { A -> n.Z; n.O -> Y; } }",
         note="instance_port_dir: primitive has no such port (destination)",
     ),
     ("flattener/phases/expand.py", 365): _t(
-        "E0307", 2, 50,
+        "E0307",
+        2,
+        50,
         "component C(A) -> (O) { connect { A -> O; } }\n"
         "top component M(A) -> (Y) { c: C; connect { A -> c.Z; c.O -> Y; } }",
         note="instance_port_dir: component has no such port (destination)",
     ),
     ("flattener/phases/expand.py", 394): _t(
-        "E0301", 1, 29,
+        "E0301",
+        1,
+        29,
         "top component M(A) -> (Y) { A: NOT; connect { A -> A.A; A.O -> Y; } }",
         needs="disable_validate",
         note="declare_name backstop: instance name collides with a port. "
@@ -379,42 +463,55 @@ REGISTRY: dict[tuple[str, int], dict] = {
         "expand-phase guard is the shadowed backstop.",
     ),
     ("flattener/phases/expand.py", 400): _t(
-        "E0301", 1, 37,
-        "top component M(A) -> (Y) { n: NOT; n: NOT; "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "E0301",
+        1,
+        37,
+        "top component M(A) -> (Y) { n: NOT; n: NOT; connect { A -> n.A; n.O -> Y; } }",
         needs="disable_validate",
         note="declare_name backstop: duplicate instance/constant name. "
         "Shadowed by the per-component name check at validate.py:99.",
     ),
     ("flattener/phases/expand.py", 425): _t(
-        "E0403", 1, 29,
+        "E0403",
+        1,
+        29,
         "top component M(A) -> (Y) { K[1-2] = 0; connect { A -> Y; } }",
         note="on_constant: derived (expand-phase) non-positive width",
     ),
     ("flattener/phases/expand.py", 431): _t(
-        "E0801", 1, 29,
+        "E0801",
+        1,
+        29,
         "top component M(A) -> (Y) { K[1+1] = 9; connect { A -> Y; } }",
         note="on_constant: derived-width overflow at the expand phase",
     ),
     ("flattener/phases/expand.py", 459): _t(
-        "E0602", 1, 50,
+        "E0602",
+        1,
+        50,
         "top component M(A) -> (Y) { b1: OR; "
         "connect { >i[1:]{ A -> b1.A; } A -> b1.B; b1.O -> Y; } }",
         note="resolve_open_conn: no governing signal",
     ),
     ("flattener/phases/expand.py", 466): _t(
-        "E0602", 1, 75,
+        "E0602",
+        1,
+        75,
         "top component M(A[2], C[3]) -> (Y) { b1: OR; b2: OR; b3: OR; "
         "connect { >i[1:]{ A[{i}] -> b{i}.A; C[{i}] -> b{i}.B; } b1.O -> Y; } }",
         note="resolve_open_conn: ambiguous (multiple widths)",
     ),
     ("flattener/phases/expand.py", 500): _t(
-        "E0601", 1, 40,
+        "E0601",
+        1,
+        40,
         "top component M(A) -> (Y) { connect { {0{A}} -> Y; } }",
         note="resolve_concat_item: replication count < 1",
     ),
     ("flattener/phases/expand.py", 543): _t(
-        "E0602", 1, 32,
+        "E0602",
+        1,
+        32,
         "top component M(A) -> (Y) { >i[1:]{ b{i}: OR; } connect { A -> Y; } }",
         needs="disable_mono_open_reject",
         note="_reject_open_decl backstop: open range in declaration context. "
@@ -424,185 +521,247 @@ REGISTRY: dict[tuple[str, int], dict] = {
     ),
     # --- flattener/phases/expander.py -------------------------------------- #
     ("flattener/phases/expander.py", 77): _t(
-        "E0402", 1, 42,
+        "E0402",
+        1,
+        42,
         "top component M(A[2]) -> (Y) { connect { A[5] -> Y; } }",
     ),
     ("flattener/phases/expander.py", 86): _t(
-        "E0404", 1, 45,
+        "E0404",
+        1,
+        45,
         "top component M(A[4]) -> (Y[2]) { connect { A[3:2] -> Y; } }",
     ),
     ("flattener/phases/expander.py", 92): _t(
-        "E0402", 1, 45,
+        "E0402",
+        1,
+        45,
         "top component M(A[2]) -> (Y[3]) { connect { A[1:3] -> Y; } }",
         note="slice upper bound past the signal width",
     ),
     ("flattener/phases/expander.py", 169): _t(
-        "E0505", 1, 67,
-        "top component M(A) -> (Y) { g: AND; "
-        "connect { A -> g.A; A -> g.B; g.A -> Y; } }",
+        "E0505",
+        1,
+        67,
+        "top component M(A) -> (Y) { g: AND; connect { A -> g.A; A -> g.B; g.A -> Y; } }",
         note="_check_role: instance input as a source",
     ),
     ("flattener/phases/expander.py", 176): _t(
-        "E0505", 1, 52,
+        "E0505",
+        1,
+        52,
         "top component M(A) -> (Y) { n: NOT; connect { A -> n.O; n.O -> Y; } }",
         note="_check_role: instance output as a destination",
     ),
     ("flattener/phases/expander.py", 185): _t(
-        "E0505", 1, 51,
+        "E0505",
+        1,
+        51,
         "top component M(A) -> (Y) { K = 1; connect { A -> K; A -> Y; } }",
         note="_check_role: constant as a destination",
     ),
     ("flattener/phases/expander.py", 197): _t(
-        "E0505", 1, 50,
+        "E0505",
+        1,
+        50,
         "top component M(A) -> (Y, Z) { connect { A -> Y; Y -> Z; } }",
         note="_check_role: output port as a source",
     ),
     ("flattener/phases/expander.py", 203): _t(
-        "E0505", 1, 47,
+        "E0505",
+        1,
+        47,
         "top component M(A, B) -> (Y) { connect { A -> B; A -> Y; } }",
         note="_check_role: input port as a destination",
     ),
     ("flattener/phases/expander.py", 214): _t(
-        "E0505", 1, 47,
+        "E0505",
+        1,
+        47,
         "top component M(A) -> (Y[2]) { connect { A -> {2{Y}}; } }",
         note="replication in a connection destination",
     ),
     ("flattener/phases/expander.py", 227): _t(
-        "E0401", 1, 45,
+        "E0401",
+        1,
+        45,
         "top component M(A[2]) -> (Y[3]) { connect { A -> Y; } }",
     ),
     ("flattener/phases/expander.py", 236): _t(
-        "E0504", 1, 57,
-        "top component M(A) -> (Y) { n: NOT; "
-        "connect { A -> n.A; n.O -> n.O; n.O -> Y; } }",
+        "E0504",
+        1,
+        57,
+        "top component M(A) -> (Y) { n: NOT; connect { A -> n.A; n.O -> n.O; n.O -> Y; } }",
         needs="self_connection",
         note="self-connection backstop; role checks normally fire first (EXP-9)",
     ),
     ("flattener/phases/expander.py", 256): _t(
-        "E0501", 1, 50,
+        "E0501",
+        1,
+        50,
         "top component M(A, B) -> (Y) { connect { A -> Y; B -> Y; } }",
     ),
     ("flattener/phases/expander.py", 268): _t(
-        "E0503", 1, 1,
+        "E0503",
+        1,
+        1,
         "top component M(A) -> (Y, Z) { connect { A -> Y; } }",
     ),
     ("flattener/phases/expander.py", 283): _t(
-        "E0502", 1, 29,
+        "E0502",
+        1,
+        29,
         "top component M(A) -> (Y) { g: AND; connect { A -> g.A; g.O -> Y; } }",
     ),
     # --- flattener/phases/flatten.py --------------------------------------- #
     ("flattener/phases/flatten.py", 111): _t(
-        "E0308", 2, 40,
+        "E0308",
+        2,
+        40,
         "component FA(A) -> (Y) { x1: NOT; connect { A -> x1.A; x1.O -> Y; } }\n"
         "top component M(A) -> (Y, Z) { fa: FA; fa_x1: NOT; "
         "connect { A -> fa.A; fa.Y -> Y; A -> fa_x1.A; fa_x1.O -> Z; } }",
         note="flattened gate name collides with an existing gate",
     ),
     ("flattener/phases/flatten.py", 118): _t(
-        "E0308", 1, 25,
+        "E0308",
+        1,
+        25,
         "component C(A) -> (O) { b: NOT; connect { A -> b.A; b.O -> O; } }\n"
         "top component M(A) -> (a_b) { a: C; connect { A -> a.A; a.O -> a_b; } }",
         note="flattened gate name collides with a top-level port wire (FLT-9)",
     ),
     ("flattener/phases/flatten.py", 189): _t(
-        "E0501", 1, 50,
+        "E0501",
+        1,
+        50,
         "top component M(A, B) -> (Y) { connect { A -> Y; B -> Y; } }",
         needs="disable_conn_validate",
         note="flatten-path multi-driver backstop; per-component check fires first",
     ),
     ("flattener/phases/flatten.py", 227): _t(
-        "E0506", 2, 87,
+        "E0506",
+        2,
+        87,
         f"{WIRE}\n"
         "top component M(X) -> (Y) { w1: W; w2: W; "
         "connect { w1.Out -> w2.In; w2.Out -> w1.In; w1.Out -> Y; } }",
         note="pure alias cycle with no gate",
     ),
     ("flattener/phases/flatten.py", 237): _t(
-        "E0502", 1, 43,
+        "E0502",
+        1,
+        43,
         "component C(A) -> (O) { g: AND; connect { A -> g.A; g.O -> O; } }\n"
         "top component M(A) -> (Y) { c: C; connect { c.O -> Y; } }",
         needs="disable_conn_validate",
         note="flatten-path floating-input backstop; per-component check fires first",
     ),
     ("flattener/phases/flatten.py", 259): _t(
-        "E0503", 1, 1,
+        "E0503",
+        1,
+        1,
         "top component M(A) -> (Y, Z) { connect { A -> Y; } }",
         needs="disable_conn_validate",
         note="flatten-path floating-output backstop; per-component check fires first",
     ),
     ("flattener/phases/flatten.py", 292): _t(
-        "E0A03", 1, 44,
-        "top component M(A) -> (Y) { n: NOT; init { n.O = 2; } "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "E0A03",
+        1,
+        44,
+        "top component M(A) -> (Y) { n: NOT; init { n.O = 2; } connect { A -> n.A; n.O -> Y; } }",
     ),
     ("flattener/phases/flatten.py", 303): _t(
-        "E0A01", 1, 36,
+        "E0A01",
+        1,
+        36,
         "top component M(A) -> (Y) { init { Y = 1; } connect { A -> Y; } }",
         note="seeded output aliases straight back to an input (resolve-time)",
     ),
     ("flattener/phases/flatten.py", 310): _t(
-        "E0A02", 1, 53,
+        "E0A02",
+        1,
+        53,
         "top component M(A) -> (Y) { n: NOT; init { n.O = 1; Y = 0; } "
         "connect { A -> n.A; n.O -> Y; } }",
     ),
     ("flattener/phases/flatten.py", 366): _t(
-        "E0A01", 1, 44,
-        "top component M(A) -> (Y) { n: NOT; init { n.A = 1; } "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "E0A01",
+        1,
+        44,
+        "top component M(A) -> (Y) { n: NOT; init { n.A = 1; } connect { A -> n.A; n.O -> Y; } }",
         note="_check_init_target: instance input pin",
     ),
     ("flattener/phases/flatten.py", 374): _t(
-        "E0A01", 1, 54,
+        "E0A01",
+        1,
+        54,
         "top component M(A) -> (Y, Z) { K = 1; n: NOT; init { K = 1; } "
         "connect { A -> n.A; n.O -> Y; K -> Z; } }",
         note="_check_init_target: constant target",
     ),
     ("flattener/phases/flatten.py", 381): _t(
-        "E0A01", 1, 36,
+        "E0A01",
+        1,
+        36,
         "top component M(A) -> (Y) { init { A = 1; } connect { A -> Y; } }",
         note="_check_init_target: input port target",
     ),
     # --- flattener/phases/monomorphize.py ---------------------------------- #
     ("flattener/phases/monomorphize.py", 130): _t(
-        "E0903", 2, 41,
+        "E0903",
+        2,
+        41,
         "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P<N = 1, 2>; "
         "connect { A -> p.A; p.Y -> Y; } }",
         note="positional argument after named",
     ),
     ("flattener/phases/monomorphize.py", 136): _t(
-        "E0903", 2, 37,
+        "E0903",
+        2,
+        37,
         "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P<1, 2>; connect { A -> p.A; p.Y -> Y; } }",
         note="too many positional arguments",
     ),
     ("flattener/phases/monomorphize.py", 147): _t(
-        "E0901", 2, 34,
+        "E0901",
+        2,
+        34,
         "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P<Q = 3>; connect { A -> p.A; p.Y -> Y; } }",
         note="named argument matches no parameter",
     ),
     ("flattener/phases/monomorphize.py", 154): _t(
-        "E0904", 2, 37,
+        "E0904",
+        2,
+        37,
         "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P<1, N = 2>; "
         "connect { A -> p.A; p.Y -> Y; } }",
         note="parameter bound twice",
     ),
     ("flattener/phases/monomorphize.py", 161): _t(
-        "E0905", 2, 34,
+        "E0905",
+        2,
+        34,
         "component P<N = 1>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P<0 - 3>; connect { A -> p.A; p.Y -> Y; } }",
         note="argument evaluates to a negative integer",
     ),
     ("flattener/phases/monomorphize.py", 172): _t(
-        "E0902", 2, 29,
+        "E0902",
+        2,
+        29,
         "component P<N>(A) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { p: P; connect { A -> p.A; p.Y -> Y; } }",
         note="parameter unbound (no arg, no default)",
     ),
     ("flattener/phases/monomorphize.py", 380): _t(
-        "E0902", 1, 13,
+        "E0902",
+        1,
+        13,
         # --top selects a non-top-marked parameterized component without a
         # default. validate.py:88 only rejects `top`-marked params, so this
         # selection-path E0902 is the one that fires. Position is the param.
@@ -612,11 +771,15 @@ REGISTRY: dict[tuple[str, int], dict] = {
         note="monomorphize top selection: parameterized top without defaults",
     ),
     ("flattener/phases/monomorphize.py", 399): _t(
-        "E0311", 1, 29,
+        "E0311",
+        1,
+        29,
         "top component R(A) -> (Y) { r: R; connect { A -> r.A; r.Y -> Y; } }",
     ),
     ("flattener/phases/monomorphize.py", 421): _t(
-        "E0901", 1, 32,
+        "E0901",
+        1,
+        32,
         "top component M(A) -> (Y) { g: AND<1>; connect { A -> g.A; g.O -> Y; } }",
         needs="disable_validate",
         note="primitive-with-params backstop at the monomorphize discovery "
@@ -624,7 +787,9 @@ REGISTRY: dict[tuple[str, int], dict] = {
         "not); reached only with validation disabled.",
     ),
     ("flattener/phases/monomorphize.py", 429): _t(
-        "E0306", 1, 32,
+        "E0306",
+        1,
+        32,
         "top component M(A) -> (Y) { u: Mystery; connect { A -> u.A; u.O -> Y; } }",
         needs="disable_validate",
         note="unknown-type backstop at the monomorphize discovery site. "
@@ -632,7 +797,9 @@ REGISTRY: dict[tuple[str, int], dict] = {
         "disabled.",
     ),
     ("flattener/phases/monomorphize.py", 458): _t(
-        "E0602", 1, 32,
+        "E0602",
+        1,
+        32,
         # Open range in a declaration-context generator: monomorphize's
         # discovery walk rejects it during specialization (this is the live
         # site; the expand-phase twin at expand.py:543 is the backstop).
@@ -640,89 +807,117 @@ REGISTRY: dict[tuple[str, int], dict] = {
         note="_reject_open_decl_range: open decl-range during specialization",
     ),
     ("flattener/phases/monomorphize.py", 475): _t(
-        "E0403", 1, 13,
+        "E0403",
+        1,
+        13,
         "component C(A[0]) -> (Y) { connect { A -> Y; } }\n"
         "top component M(A) -> (Y) { c: C; connect { A -> c.A; c.Y -> Y; } }",
         note="_resolve_port_widths: non-positive width, non-param (E0403)",
     ),
     # --- flattener/pipeline.py --------------------------------------------- #
     ("flattener/pipeline.py", 48): _t(
-        "E0001", 1, 1,
+        "E0001",
+        1,
+        1,
         "top component M(A) -> (Y) { connect { A -> Y; } }",
         needs="top_not_found",
         note="--top names a component that does not exist",
     ),
     ("flattener/pipeline.py", 60): _t(
-        "E0001", 1, 1,
+        "E0001",
+        1,
+        1,
         "component A1(X) -> (Y) { connect { X -> Y; } }\n"
         "component B1(X) -> (Y) { connect { X -> Y; } }",
         note="ambiguous top: no marker, multiple components",
     ),
     ("flattener/pipeline.py", 82): _t(
-        "E0001", 1, 1,
+        "E0001",
+        1,
+        1,
         "top component M(A) -> (Y) { connect { A -> Y; } }",
         needs="bad_source_date_epoch",
         note="garbage SOURCE_DATE_EPOCH (ROB-6)",
     ),
     # --- flattener/validate.py --------------------------------------------- #
     ("flattener/validate.py", 34): _t(
-        "E0303", 1, 29,
-        "top component M(A) -> (Y) { __g: NOT; "
-        "connect { A -> __g.A; __g.O -> Y; } }",
+        "E0303",
+        1,
+        29,
+        "top component M(A) -> (Y) { __g: NOT; connect { A -> __g.A; __g.O -> Y; } }",
     ),
     ("flattener/validate.py", 40): _t(
-        "E0304", 1, 17,
+        "E0304",
+        1,
+        17,
         "top component M(A_1_) -> (Y) { connect { A_1_ -> Y; } }",
     ),
     ("flattener/validate.py", 55): _t(
-        "E0310", 2, 1,
+        "E0310",
+        2,
+        1,
         "top component A1(X) -> (Y) { connect { X -> Y; } }\n"
         "top component B1(X) -> (Y) { connect { X -> Y; } }",
     ),
     ("flattener/validate.py", 66): _t(
-        "E0305", 1, 1,
-        "component AND(A, B) -> (O) { o1: OR; "
-        "connect { A -> o1.A; B -> o1.B; o1.O -> O; } }",
+        "E0305",
+        1,
+        1,
+        "component AND(A, B) -> (O) { o1: OR; connect { A -> o1.A; B -> o1.B; o1.O -> O; } }",
     ),
     ("flattener/validate.py", 74): _t(
-        "E0309", 1, 1,
+        "E0309",
+        1,
+        1,
         "top component M(A) -> (Y) { n: NOT; }",
         note="zero connect blocks",
     ),
     ("flattener/validate.py", 81): _t(
-        "E0309", 1, 45,
-        "top component M(A) -> (Y) { n: NOT; init {} init {} "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "E0309",
+        1,
+        45,
+        "top component M(A) -> (Y) { n: NOT; init {} init {} connect { A -> n.A; n.O -> Y; } }",
         note="more than one init block",
     ),
     ("flattener/validate.py", 88): _t(
-        "E0902", 1, 1,
+        "E0902",
+        1,
+        1,
         "top component P<N>(A) -> (Y) { connect { A -> Y; } }",
         note="top-marked parameterized component without defaults",
     ),
     ("flattener/validate.py", 99): _t(
-        "E0301", 1, 37,
-        "top component M(A) -> (Y) { n: NOT; n: NOT; "
-        "connect { A -> n.A; n.O -> Y; } }",
+        "E0301",
+        1,
+        37,
+        "top component M(A) -> (Y) { n: NOT; n: NOT; connect { A -> n.A; n.O -> Y; } }",
         note="duplicate plain name at the validate site",
     ),
     ("flattener/validate.py", 154): _t(
-        "E0901", 1, 32,
+        "E0901",
+        1,
+        32,
         "top component M(A) -> (Y) { g: AND<1>; connect { A -> g.A; g.O -> Y; } }",
         note="primitive instantiated with parameters (validate site)",
     ),
     ("flattener/validate.py", 161): _t(
-        "E0306", 1, 32,
+        "E0306",
+        1,
+        32,
         "top component M(A) -> (Y) { u: Mystery; connect { A -> u.A; u.O -> Y; } }",
         note="unknown component type (validate site)",
     ),
     ("flattener/validate.py", 174): _t(
-        "E0403", 1, 29,
+        "E0403",
+        1,
+        29,
         "top component M(A) -> (Y) { K[0] = 1; connect { A -> Y; } }",
         note="non-positive constant width literal (validate site)",
     ),
     ("flattener/validate.py", 180): _t(
-        "E0801", 1, 29,
+        "E0801",
+        1,
+        29,
         "top component M(A) -> (Y) { K[2] = 9; connect { A -> Y; } }",
         note="constant value overflows its declared width (validate site)",
     ),
@@ -808,46 +1003,31 @@ def _drive_special(entry: dict, tmp_path) -> SHDLError:
         return _capture(lambda: pipeline.flatten_program(str(td)))
     if note.startswith("invalid UTF-8"):
         bad = tmp_path / "main.shdl"
-        bad.write_bytes(
-            b"top component M(A) -> (Y) { connect { A -> Y; } }\n\xff\xfe"
-        )
+        bad.write_bytes(b"top component M(A) -> (Y) { connect { A -> Y; } }\n\xff\xfe")
         return _capture(lambda: pipeline.flatten_program(str(bad)))
     if note.startswith("main file not found"):
-        return _capture(
-            lambda: pipeline.flatten_program(str(tmp_path / "nonexistent.shdl"))
-        )
+        return _capture(lambda: pipeline.flatten_program(str(tmp_path / "nonexistent.shdl")))
     if note.startswith("resolved-path conflict"):
         # `main` imports lib::X and (transitively) a second module whose own
         # `use lib::{X}` resolves a *different* file on disk than the first.
         sub = tmp_path / "sub"
         sub.mkdir()
         # main dir lib.shdl
-        (tmp_path / "lib.shdl").write_text(
-            "component X(A) -> (Y) { connect { A -> Y; } }"
-        )
+        (tmp_path / "lib.shdl").write_text("component X(A) -> (Y) { connect { A -> Y; } }")
         # sub dir lib.shdl (different file, same module name)
-        (sub / "lib.shdl").write_text(
-            "component X(A) -> (Y) { connect { A -> Y; } }"
-        )
+        (sub / "lib.shdl").write_text("component X(A) -> (Y) { connect { A -> Y; } }")
         (sub / "mid.shdl").write_text(
             "use lib::{X};\ncomponent Mid(A) -> (Y) { connect { A -> Y; } }"
         )
         main = tmp_path / "main.shdl"
         main.write_text(
-            "use lib::{X};\nuse mid::{Mid};\n"
-            "top component M(A) -> (Y) { connect { A -> Y; } }"
+            "use lib::{X};\nuse mid::{Mid};\ntop component M(A) -> (Y) { connect { A -> Y; } }"
         )
-        return _capture(
-            lambda: pipeline.flatten_program(str(main), include_dirs=[str(sub)])
-        )
+        return _capture(lambda: pipeline.flatten_program(str(main), include_dirs=[str(sub)]))
     if note.startswith("case-mismatch"):
-        (tmp_path / "lib.shdl").write_text(
-            "component X(A) -> (Y) { connect { A -> Y; } }"
-        )
+        (tmp_path / "lib.shdl").write_text("component X(A) -> (Y) { connect { A -> Y; } }")
         main = tmp_path / "main.shdl"
-        main.write_text(
-            "use Lib::{X};\ntop component M(A) -> (Y) { connect { A -> Y; } }"
-        )
+        main.write_text("use Lib::{X};\ntop component M(A) -> (Y) { connect { A -> Y; } }")
         return _capture(lambda: pipeline.flatten_program(str(main)))
     raise AssertionError(f"no special builder for note {note!r}")
 

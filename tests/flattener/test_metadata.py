@@ -3,14 +3,21 @@ import os
 from pathlib import Path
 
 import pytest
-
 from helpers import FIXTURES, TS, flatten_fixture
 
 from flattener.metadata import MetaValidationError, validate_meta, verify_meta
 
 SPEC_BLOCK_ORDER = [
-    "version", "ports", "hierarchy", "source_map", "constants",
-    "timing", "monitors", "stats", "doc", "init",
+    "version",
+    "ports",
+    "hierarchy",
+    "source_map",
+    "constants",
+    "timing",
+    "monitors",
+    "stats",
+    "doc",
+    "init",
 ]
 
 # Every fixture top (stdgates carries multiple components — flatten one each).
@@ -75,12 +82,8 @@ def test_source_map_includes_instantiation_sites():
     fa_file = find_file_key(sm["lines"], "fullAdder.shdl")
     # fa1 is instantiated on add2.shdl line 5, fa2 on line 6: all gates that
     # the instantiation produced are attributed to that line too.
-    assert sm["lines"][main_file]["5"] == [
-        "fa1_x1", "fa1_a1", "fa1_x2", "fa1_a2", "fa1_o1"
-    ]
-    assert sm["lines"][main_file]["6"] == [
-        "fa2_x1", "fa2_a1", "fa2_x2", "fa2_a2", "fa2_o1"
-    ]
+    assert sm["lines"][main_file]["5"] == ["fa1_x1", "fa1_a1", "fa1_x2", "fa1_a2", "fa1_o1"]
+    assert sm["lines"][main_file]["6"] == ["fa2_x1", "fa2_a1", "fa2_x2", "fa2_a2", "fa2_o1"]
     # Declaration lines inside FullAdder collect the copies from both sites.
     assert sm["lines"][fa_file]["2"] == ["fa1_x1", "fa1_a1", "fa2_x1", "fa2_a1"]
     # line keys are sorted numerically
@@ -122,6 +125,7 @@ def test_stats_block():
 # agree for every fixture: a column-attribution or inverse-index bug would
 # otherwise pass a suite that only spot-checks one fixture.
 
+
 @pytest.mark.parametrize("name", ALL_TOPS)
 def test_source_map_gate_loc_and_lines_inverse_consistent(name):
     # MET-4
@@ -150,6 +154,7 @@ def test_source_map_gate_loc_and_lines_inverse_consistent(name):
 # validator raising MetaValidationError. The pipeline still runs them
 # (verify_meta delegates), so a healthy flatten must pass and each invariant
 # must fire on a targeted corruption — proving the guards are live, not dead.
+
 
 def test_validate_meta_accepts_healthy_metadata():
     # MET-7
@@ -280,6 +285,7 @@ def test_meta_validation_error_survives_optimized_mode():
 
 # ── MET-8 (producer half): the emitter writes a version key ─────────────────
 
+
 @pytest.mark.parametrize("name", ALL_TOPS)
 def test_meta_version_emitted_and_first_block(name):
     # MET-8: producer always writes version; it leads the block order (§4.2).
@@ -289,6 +295,7 @@ def test_meta_version_emitted_and_first_block(name):
 
 
 # ── MET-9: monitors block emitted as {} (AMB-30 pin) ────────────────────────
+
 
 @pytest.mark.parametrize("name", ALL_TOPS)
 def test_monitors_block_emitted_empty(name):
@@ -303,6 +310,7 @@ def test_monitors_block_emitted_empty(name):
 # Lines are pinned exactly elsewhere; columns were only checked `>= 1`. Pin a
 # directly-declared gate and an instantiation-reached gate to hand-counted
 # columns so a column-attribution regression cannot pass the whole suite.
+
 
 def test_source_map_columns_hand_counted_directly_declared():
     # MET-10: gates declared directly in the top component.
@@ -336,6 +344,7 @@ def test_source_map_columns_hand_counted_via_instantiation():
 # checkout-location independent. The fixtures are always loaded from an
 # absolute path, so the test that the absolute directory never appears in the
 # emitted bytes is a real leak detector, not a tautology.
+
 
 @pytest.mark.parametrize("name", ALL_TOPS)
 def test_no_absolute_paths_in_emitted_metadata(name):

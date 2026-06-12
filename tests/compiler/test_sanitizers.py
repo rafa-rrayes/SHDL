@@ -130,8 +130,9 @@ def _emit_driver(frames) -> str:
                 f'fprintf(stderr, "mismatch {port}\\n"); return 2; }}'
             )
     steps = "\n".join(body)
-    return textwrap.dedent(
-        """\
+    return (
+        textwrap.dedent(
+            """\
         #include <stdint.h>
         #include <stdio.h>
         extern void reset(void);
@@ -148,7 +149,9 @@ def _emit_driver(frames) -> str:
             return 0;
         }
         """
-    ) % steps
+        )
+        % steps
+    )
 
 
 def _build_and_run_sanitized(tmp_path, name, base_text, script):
@@ -184,11 +187,7 @@ def _build_and_run_sanitized(tmp_path, name, base_text, script):
 AND_SCRIPT = [{"a": 1, "b": 1}, {"a": 1, "b": 0}, {"b": 1}, {"a": 0}]
 VCC_NOT_SCRIPT = [{}, {}, {}, {}]  # zero-input: just steps, watches the trace
 SR_SCRIPT = (
-    [{"S": 0, "R": 0}] * 2
-    + [{"S": 1}] * 4
-    + [{"S": 0}] * 3
-    + [{"R": 1}] * 4
-    + [{"R": 0}] * 3
+    [{"S": 0, "R": 0}] * 2 + [{"S": 1}] * 4 + [{"S": 0}] * 3 + [{"R": 1}] * 4 + [{"R": 0}] * 3
 )
 WIDE_SCRIPT = [
     {"B": 0xFFFFFFFFFFFFFFFF},

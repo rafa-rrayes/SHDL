@@ -51,15 +51,12 @@ def test_det4_reflatten_is_structurally_idempotent(name, tmp_path):
     core1 = _structural_core(first.text)
     core2 = _structural_core(second.text)
     assert core1 == core2, (
-        f"{name} is not idempotent.\n--- first ---\n{core1}\n"
-        f"--- second ---\n{core2}"
+        f"{name} is not idempotent.\n--- first ---\n{core1}\n--- second ---\n{core2}"
     )
     # The netlist itself round-trips: same gates and same connections.
     assert first.flat.netlist.name == second.flat.netlist.name
     assert list(first.flat.netlist.gates) == list(second.flat.netlist.gates)
-    assert len(first.flat.netlist.connections) == len(
-        second.flat.netlist.connections
-    )
+    assert len(first.flat.netlist.connections) == len(second.flat.netlist.connections)
 
 
 def test_det4_third_pass_is_a_fixed_point(tmp_path):

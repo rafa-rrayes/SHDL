@@ -555,8 +555,16 @@ def test_spec_section_3_7_add2_example():
     assert c.outputs == ("Sum_1_", "Sum_2_", "Cout")
     names = tuple(g.name for g in c.gates)
     assert names == (
-        "fa1_x1", "fa1_x2", "fa1_a1", "fa1_a2", "fa1_o1",
-        "fa2_x1", "fa2_x2", "fa2_a1", "fa2_a2", "fa2_o1",
+        "fa1_x1",
+        "fa1_x2",
+        "fa1_a1",
+        "fa1_a2",
+        "fa1_o1",
+        "fa2_x1",
+        "fa2_x2",
+        "fa2_a1",
+        "fa2_a2",
+        "fa2_o1",
     )
     idx = {name: i for i, name in enumerate(names)}
     # No meta section: identity 1-bit groups synthesized from the header.

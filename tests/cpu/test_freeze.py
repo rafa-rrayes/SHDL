@@ -70,8 +70,7 @@ def test_ldEn_freezes_running_cpu(sr16):
         frozen = sr16.state()
         # read_mem toggles LdEn internally, so compare the pin snapshot here
         assert frozen == before, (
-            f"frozen state changed after {i + 1} clock(s):\n"
-            f"  before={before}\n  after ={frozen}"
+            f"frozen state changed after {i + 1} clock(s):\n  before={before}\n  after ={frozen}"
         )
 
     # RAM also untouched while frozen (LdWe low, every CPU write masked).

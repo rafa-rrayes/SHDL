@@ -79,9 +79,7 @@ def gen_circuit(rng: random.Random) -> str:
             n += 1
         return ports
 
-    meta: dict = {
-        "ports": {"inputs": group(inputs, "PI"), "outputs": group(outputs, "PO")}
-    }
+    meta: dict = {"ports": {"inputs": group(inputs, "PI"), "outputs": group(outputs, "PO")}}
     n_seeds = rng.randint(0, max(1, n_gates // 5))
     if n_seeds:
         seeded = sorted(rng.sample(range(n_gates), k=n_seeds))
