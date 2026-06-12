@@ -1,6 +1,31 @@
+# Python bytecode / packaging
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
 .venv/
-*.dylib
-*.so
+
+# Tool caches
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Compiled simulator artifacts emitted by shdlc (shared libraries)
+*.so
+*.dylib
+*.dll
+
+# macOS
+.DS_Store
+
+# Claude Code: keep shareable workflows under version control; ignore local state
+.claude/*
+!.claude/workflows/
