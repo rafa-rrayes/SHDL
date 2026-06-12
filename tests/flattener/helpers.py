@@ -9,7 +9,9 @@ import pytest
 from flattener.diagnostics import ErrorCode, SHDLError
 from flattener.pipeline import flatten_program
 
-FIXTURES = Path(__file__).parent / "fixtures"
+# Fixtures live at tests/fixtures (shared with tests/compiler); this module
+# now sits one level deeper under tests/flattener/.
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 TS = "2026-01-01T00:00:00Z"
 
 

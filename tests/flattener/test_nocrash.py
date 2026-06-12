@@ -41,7 +41,7 @@ from flattener.parser import parse_source
 from flattener.pipeline import flatten_program
 from flattener.source import SourceFile
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]  # tests/flattener/ -> tests/ -> repo root
 FIXTURES = REPO / "tests" / "fixtures"
 TS = "2026-01-01T00:00:00Z"
 

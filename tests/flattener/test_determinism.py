@@ -12,7 +12,7 @@ from helpers import FIXTURES, TS, flatten_fixture
 from shdlc.baseshdl import parse_base
 from shdlc.model import build_circuit
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]  # tests/flattener/ -> tests/ -> repo root
 
 ALL_TOPS = sorted(p.stem for p in FIXTURES.glob("*.shdl") if p.stem != "stdgates")
 
