@@ -169,7 +169,7 @@ The ecosystem has a clear dependency structure. The layers below indicate what m
 
 ### Layer 1 — Consumers of a compiled circuit
 
-4. **PySHDL** — the driver; the keystone. Depends on SHDLC V1's library and ABI.
+4. **PySHDL** — *built.* The driver; the keystone. Depends on SHDLC V1's library and ABI.
 5. **stdlib** *(parallel)* — `.shdl` source; depends on the flattener and conformance suite. Build early; it supplies fixtures to everyone.
 6. **SHDLC debug build** — adds the debug ABI and `.shdb`. Prerequisite for SHDB.
 7. **SHDB** — the debugger. Depends on PySHDL + the debug build.
@@ -235,7 +235,7 @@ These principles govern every part of the project.
 | Flattener (SHDL → Base SHDL)  | 0     | Complete      |
 | SHDLC V1 (Base SHDL → C)      | 0     | In progress   |
 | Conformance suite             | 0     | Complete      |
-| PySHDL driver                 | 1     | Planned       |
+| PySHDL driver                 | 1     | Built         |
 | stdlib                        | 1     | Planned       |
 | SHDLC debug build             | 1     | Planned       |
 | SHDB debugger                 | 1     | Planned       |

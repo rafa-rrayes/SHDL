@@ -267,7 +267,7 @@ Independence rules (already in force, must never be weakened):
 |----|------------|--------|
 | TIM-1 | Exact depths on known circuits (add2: Sum_1_=2, Sum_2_=4, Cout=5; adder8 ripple = 3+2/stage) | ✅ |
 | TIM-2 | Pass-through outputs depth 0; power-pin-fed depth; feedback detection sets has_feedback / clears is_combinational | ✅ |
-| TIM-3 | Under feedback: max_depth = feedback-free shell only; settle() must be refused — enforced today at the **oracle (BaseEval)** level; driver-level refusal staged in V.2 | ✅ |
+| TIM-3 | Under feedback: max_depth = feedback-free shell only; settle() must be refused — enforced at the **oracle (BaseEval)** level and, since 2026-06-12, at the **driver** level (PySHDL `settle()` raises `SettleRefusedError` under `has_feedback` — V.2, `test_pyshdl_settle.py`) | ✅ |
 | TIM-4 | Critical path is a real connected path ending at an output (structural property test) | ✅ |
 | TIM-5 | Settle sufficiency property: for every combinational fixture, poke → step(max_depth) → outputs equal BaseEval fixpoint; step(max_depth−1) may differ (proves bound is tight on at least one input) | ✅ (tightness witnessed on add2's carry path) |
 | TIM-6 | Feedback-circuit timing **content**: per-output `output_depths` for SCC-driven outputs; `critical_path` that starts at a feedback gate or power pin rather than an input — exact values pinned on minimal fixtures (srlatch Q/Qn, ring) | ✅ (srlatch path `['n1_n1','Q']` starts at the feedback NOT; ring path pinned) |
@@ -376,7 +376,7 @@ AMB-38).
 | CNF-2 | Tier A byte-equality on expected.base.shdl; Tier B/C trace replay through oracle and C lib with lockstep divergence check | ✅ |
 | CNF-3 | Integrity & provenance policing (manifest bijection, never-from-C rule, regen policy) | ✅ (bijection/coverage/counts + the CNF-6 corrupted-corpus negatives, CNF-7 regen tests, and the CNF-9 mechanical drift fence now close all the holes) |
 | CNF-4 | Corpus additions required by this document | ✅ (six cases added — nested_repl, diamond, degen_slice, deep_hier, init_comb, cond_matrix; suite v1.1.0, 38 cases / 40 traces) |
-| CNF-5 | Every future component (PySHDL, debug build, backends, optimization tiers) consumes the corpus as its acceptance gate — wiring obligation, restated per component in Domain V | ⚪ |
+| CNF-5 | Every future component (PySHDL, debug build, backends, optimization tiers) consumes the corpus as its acceptance gate — wiring obligation, restated per component in Domain V | 🟡 (**PySHDL wired 2026-06-12**: the full corpus replays through the public Circuit API — `from_base` build once per case, `from_library` per trace, `strict=False` — bit-exact via `conformance.runner.executor`, `tests/pyshdl/test_pyshdl_conformance.py`; the debug build / backends / optimization tiers remain ⚪ until built — Domain V) |
 | CNF-6 | Integrity-checker self-test: a corrupted-corpus matrix (missing/stray artifact, de-listed case, unsorted lists, wrong `_format`, ops[0] not reset, bad op keys, out-of-range values, unknown feature, empty provenance, unknown-signal trace via check_trace_signals) — each → ConformanceError naming the artifact (today only the healthy corpus is proven to pass; a silently broken checker keeps passing) | ✅ (full corrupted-corpus matrix over a sandboxed copy) |
 | CNF-7 | Regen tooling contract: dry run writes nothing and prints the full diff; `--write` applies exactly the shown diff and touches only golden bytes/expect values (stimulus, metadata, descriptions frozen); unknown case → error listing names — pinned over a sandboxed corpus copy (gen.py is the only sanctioned golden writer and is completely untested) | ✅ |
 | CNF-8 | Report determinism: two consecutive runner invocations emit byte-identical reports; CLI surface (exit codes, --tier/--filter, list) tested | ✅ |
@@ -493,6 +493,37 @@ rule per AMB-40.
 `has_feedback`; power-on reset honoring `init`; context manager & dict-style access; boundary
 re-runs of the legacy "comprehensive" catalog (pass-through 0–255, 0xFFFF patterns, bitwise ops,
 nibble extraction) — mostly subsumed by conformance traces but cheap to mirror at the Python API.
+**EXECUTED 2026-06-12** — PySHDL is built (`pyshdl/` package); the full V.2 obligation set is
+green (`tests/pyshdl/`, 130 tests over 10 modules + the session-scoped `ExampleCache` fixture in
+`conftest.py`). Per-obligation closure:
+- multi-bit poke/peek via `ports`, dict-style access, strict/non-strict value policy, port/circuit
+  introspection — ✅ `test_pyshdl_ports.py` (`test_multibit_poke_peek`, `test_dict_access_is_poke_peek`,
+  `test_strict_accepts_the_full_unsigned_and_twos_complement_range`, `test_nonstrict_masks_modulo_width`,
+  `test_peek_is_zero_extended`, `test_unknown_poke_lists_inputs`, `test_port_info`/`test_circuit_info`)
+- `settle()` ≡ step(max_depth), **refused** under `has_feedback`, `step_settle` early-exit/oscillator-never-exits
+  — ✅ `test_pyshdl_settle.py` (`test_settle_equals_explicit_step_max_depth`,
+  `test_settle_refused_under_feedback` over srLatch/dLatch/ringClock, `test_step_settle_early_exit_is_observably_identical`,
+  `test_step_settle_never_exits_on_an_oscillator`)
+- power-on reset honoring `init` (power-on state, idempotence, reset ≡ fresh load, init metadata) — ✅
+  `test_pyshdl_reset.py` (`test_power_on_state_is_init_seeded`, `test_reset_restores_the_power_on_state`,
+  `test_reset_is_idempotent`, `test_reset_equals_a_fresh_load`, `test_init_metadata_is_exposed`)
+- context manager, all four constructors, two-instance independence (same source AND same library),
+  close/del safety, artifact lifecycle — ✅ `test_pyshdl_construct.py`
+  (`test_context_manager_closes`, `test_two_instances_over_one_source_are_independent`,
+  `test_two_instances_over_one_library_file_are_independent`, `test_use_after_close_raises`,
+  `test_del_without_close_is_safe`, `test_artifacts_cleaned_by_default`/`test_keep_artifacts_retains_managed_dir`/`test_explicit_build_dir_is_retained`)
+- legacy "comprehensive" boundary catalog at the Python API (pass-through 0–255, SignExtend 0xFFFF,
+  ALU bitwise/add boundaries, nibble split/swap) — ✅ `test_pyshdl_boundary.py`
+- `run_batch` ≡ poke/step loop (both settle modes, 50 random frames, hold semantics, lazy `cycles=0`,
+  validation) — ✅ `test_pyshdl_batch.py` (`test_batch_equals_the_explicit_loop`,
+  `test_batch_holds_omitted_inputs`, `test_batch_with_lazy_evaluation_cycles_zero`, `test_batch_validates_names_and_values`)
+- structured error surface (FlattenError/CompileError/BuildError, typed dispatch, bare-library
+  degradation matrix → MetadataUnavailableError, exception hierarchy) — ✅ `test_pyshdl_errors.py`
+- OracleSim-vs-Circuit random-stimulus lockstep (adder8/mux2/srLatch/dLatch, 150 actions, all ports
+  every action) — ✅ `test_pyshdl_lockstep.py` (`test_random_stimulus_lockstep`)
+- conformance corpus replayed through the public Circuit API (CNF-5) — ✅ `test_pyshdl_conformance.py`
+  (`test_corpus_trace_replays_bit_exactly`)
+- SR16 CPU smoke test through the public API — ✅ `test_pyshdl_cpu.py` (`test_sr16_runs_a_program`)
 
 **V.3 SHDB debugger** — port the legacy catalog wholesale: DebugInfo loading & JSON fidelity;
 SymbolTable resolution + completion; controller poke/peek/step/StopInfo; internal-gate
@@ -552,8 +583,9 @@ Direct answer to: *does the new suite cover the old catalog, and does it cover m
 | Legacy's own admitted gaps: sequential elements, >16-bit, error recovery | SR latch/D latch/MSFFE/ring oscillator/power-on metastability; 64-bit ports, 16-bit CPU, >1024-gate chunking | **New suite closes the legacy gaps**; parser error recovery is now a pinned non-goal (fail-fast, DIA-4) |
 | (no legacy equivalent) | Differential oracle lockstep, netlist fuzzing, frozen conformance corpus, determinism across hash seeds/opt levels, strict-CFLAGS proofs, ABI dirty-flag state machine, CPU golden-model lockstep | **Net-new, strictly more** |
 
-**Bottom line:** the new suite (1643 collected tests, ~15k test lines — ~16k including the
-conformance runner — plus 38 conformance cases / 40 frozen traces) covers essentially everything
+**Bottom line:** the new suite (1774 collected tests — 1644 toolchain + 130 PySHDL driver-level —
+~15k test lines — ~16k including the conformance runner — plus 38 conformance cases / 40 frozen
+traces) covers essentially everything
 the legacy suite covered for components that exist, and is categorically stronger on simulation
 semantics, verification methodology, and regression protection. The three deliberate-feature
 questions the legacy suite was "ahead" on (warnings, suggestions, multi-error reporting) are now
@@ -638,8 +670,9 @@ under FUT V.3.
 
 ## 6. Exit criteria
 
-The golden suite is **complete** when: every row in Domains A–T and W is ✅ (⚪ rows — CNF-5,
-ABI-18 — convert and close per component under Domain V); every AMB row has
+The golden suite is **complete** when: every row in Domains A–T and W is ✅ (the per-component
+rows — CNF-5 (PySHDL wired 2026-06-12; debug build / backends / tiers still open), ABI-18 —
+convert and close per component under Domain V); every AMB row has
 decision+amendment+test; P0 and P1 registers are empty; CI runs T0–T4 on Linux+macOS per commit
 and T5 nightly; and the coverage gate holds. At that point — and only then — the project's
 "correct first, fast last" mandate permits Layer-7 optimization work, with this suite re-run
