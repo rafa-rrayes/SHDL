@@ -91,6 +91,15 @@ class BaseEval:
         self.step(timing["max_depth"])
 
     def poke(self, port: str, value: int) -> None:
+        """Set an input port. Raises ``ValueError`` on an out-of-range value.
+
+        This overflow check is DELIBERATELY stricter than the compiled C ABI,
+        which silently masks ``value`` modulo 2**width (AMB-2). BaseEval is the
+        ground-truth oracle: it surfaces oversized pokes as bugs in the *test*
+        rather than emulating the ABI's masking. Harnesses that drive both
+        sides (DualSim) mask before calling this method on purpose; never relax
+        this check to agree with the ABI (golden_tests.md §5, ROB-2).
+        """
         wires = self.comp.meta["ports"]["inputs"][port]
         if value < 0 or value >= (1 << len(wires)):
             raise ValueError(f"{value} does not fit {len(wires)}-bit port {port!r}")

@@ -73,5 +73,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"shdl-flatten: error: {e}", file=sys.stderr)
             return 1
     else:
-        sys.stdout.write(out.text)
+        # Emitted text is UTF-8 by contract; bypass the locale codec so a
+        # non-UTF-8 stdout (LC_ALL=C) cannot raise UnicodeEncodeError.
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(out.text.encode("utf-8"))
+            buffer.flush()
+        else:  # in-process substitute without a binary layer (e.g. StringIO)
+            sys.stdout.write(out.text)
     return 0

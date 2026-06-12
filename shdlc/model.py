@@ -20,8 +20,15 @@ Invariants established (each violation is a distinct ModelError):
 6. Output-alias chains (output wire -> output wire) resolve transitively to an
    ultimate driver (a gate or an input wire); alias cycles are an error.
 7. ``meta.ports``, when present, names existing wires of the right direction,
-   port names are unique identifiers across inputs+outputs, widths are 1..64.
-   When absent, identity single-bit groups are synthesized from the header.
+   port names are unique identifiers across inputs+outputs, widths are 1..64,
+   and both ``inputs`` and ``outputs`` keys are present (AMB-35). No input
+   wire is referenced by more than one port bit, across the whole input side
+   (AMB-34: a second poke target for one wire would silently alias); output
+   wires may be reused freely (harmless read fan-out). It is legal for
+   ``ports`` to cover only a subset of the header wires (AMB-33): uncovered
+   inputs are stuck at 0 and ABI-unreachable, uncovered outputs unobservable.
+   When ``ports`` is wholly absent, identity single-bit groups are
+   synthesized from the header.
 8. ``meta.init`` keys are ``gate.O`` or output-port wires whose alias chain
    ends at a driving gate (an input-wire passthrough is an error); values are
    0 or 1; two keys may not seed the same gate.
@@ -269,9 +276,14 @@ def build_circuit(comp: BaseComponent) -> Circuit:
         if not isinstance(ports_meta, dict):
             raise ModelError("meta.ports must be a JSON object")
         port_names: set[str] = set()
+        used_inputs: dict[int, str] = {}  # AMB-34: input wire slot -> port name
 
         def build_group(direction: str) -> tuple[PortGroup, ...]:
-            group = ports_meta.get(direction, {})
+            if direction not in ports_meta:
+                raise ModelError(
+                    f"meta.ports is present but missing the {direction!r} key"
+                )
+            group = ports_meta[direction]
             if not isinstance(group, dict):
                 raise ModelError(f"meta.ports.{direction} must be a JSON object")
             result: list[PortGroup] = []
@@ -294,7 +306,14 @@ def build_circuit(comp: BaseComponent) -> Circuit:
                 for wire in wires:
                     if direction == "inputs":
                         if wire in in_slot:
-                            refs.append(Ref("in", in_slot[wire]))
+                            slot = in_slot[wire]
+                            if slot in used_inputs:
+                                raise ModelError(
+                                    f"port {port_name!r}: input wire {wire!r} is "
+                                    f"already used by port {used_inputs[slot]!r}"
+                                )
+                            used_inputs[slot] = port_name
+                            refs.append(Ref("in", slot))
                         elif wire in out_set:
                             raise ModelError(
                                 f"port {port_name!r}: wire {wire!r} is an output wire, "

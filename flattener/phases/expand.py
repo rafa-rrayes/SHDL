@@ -48,6 +48,27 @@ if TYPE_CHECKING:  # pragma: no cover
 
 OpenResolver = Callable[[Generator, RangeOpen, dict[str, int]], int]
 
+#: Upper bound on the number of values a single generator range may iterate.
+#: Without it a pathological span (`>i[1:10**9]`) materializes a billion-entry
+#: Python list and hangs/OOMs before any structural check fires. The cap turns
+#: that into a fast, positioned diagnostic — the flattener-side mirror of the
+#: compiler's wire-index ceiling (shdlc.model._MAX_INPUT_WIRES). Reuses E0601
+#: (the range-error code): a range too large to materialize is, like an empty
+#: or negative one, a range whose value domain cannot be realized.
+MAX_RANGE_VALUES = 1_000_000
+
+
+def _guard_span(count: int, pos: Pos, descr: str) -> None:
+    """Reject a range that would materialize more than ``MAX_RANGE_VALUES``
+    values before the list is built (so the guard is O(1), never an OOM)."""
+    if count > MAX_RANGE_VALUES:
+        raise err(
+            ErrorCode.E0601,
+            f"{descr} would iterate {count} times, exceeding the "
+            f"{MAX_RANGE_VALUES} instance-count cap; narrow the range",
+            pos,
+        )
+
 
 def walk_items(
     items: tuple[GenItem, ...],
@@ -119,6 +140,7 @@ def range_values(gen: Generator, env: dict[str, int], resolve_open: OpenResolver
                         f"range [{n}] is empty; a count range needs N >= 1",
                         pos,
                     )
+                _guard_span(n, pos, f"count range [{n}]")
                 values.extend(range(1, n + 1))
             case RangeAB(lo=lo, hi=hi, pos=pos):
                 a = eval_arith(lo, env)
@@ -131,6 +153,7 @@ def range_values(gen: Generator, env: dict[str, int], resolve_open: OpenResolver
                         f"range [{a}:{b}] is empty or ill-ordered",
                         pos,
                     )
+                _guard_span(b - a + 1, pos, f"range [{a}:{b}]")
                 values.extend(range(a, b + 1))
             case RangeTo(hi=hi, pos=pos):
                 b = eval_arith(hi, env)
@@ -140,6 +163,7 @@ def range_values(gen: Generator, env: dict[str, int], resolve_open: OpenResolver
                         f"range [:{b}] is empty; the bound must be >= 1",
                         pos,
                     )
+                _guard_span(b, pos, f"range [:{b}]")
                 values.extend(range(1, b + 1))
             case RangeOpen(lo=lo, pos=pos):
                 a = eval_arith(lo, env)
@@ -152,6 +176,7 @@ def range_values(gen: Generator, env: dict[str, int], resolve_open: OpenResolver
                         f"open-ended range resolves to [{a}:{b}], which is empty",
                         pos,
                     )
+                _guard_span(b - a + 1, pos, f"open-ended range [{a}:{b}]")
                 values.extend(range(a, b + 1))
             case _:  # pragma: no cover
                 raise AssertionError(item)
@@ -477,6 +502,7 @@ def expand_component(spec: SpecComponent, mono: MonoProgram) -> ExpandedComponen
                         f"replication count must be >= 1, got {n}",
                         pos,
                     )
+                _guard_span(n, pos, "replication")
                 return RRepl(n, tuple(resolve_concat_item(i, env) for i in items), pos)
         raise AssertionError(item)  # pragma: no cover
 

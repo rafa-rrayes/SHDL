@@ -1,6 +1,6 @@
 """Command-line entry point for the Base SHDL -> C compiler.
 
-    shdlc INPUT [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC]
+    shdlc INPUT [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
           [--base|--shdl] [--top NAME] [-I DIR]...
 
 Accepts a pre-flattened Base SHDL file, or a .shdl source (flattened
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from .baseshdl import BaseParseError
-from .cc import CCError, lib_suffix
+from .cc import DEV_CFLAGS, CCError, lib_suffix
 from .compile import build_library, compile_text
 from .model import ModelError
 
@@ -53,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="CC",
         help="C compiler to use (default: $CC, then cc/clang/gcc)",
     )
+    ap.add_argument(
+        "--dev",
+        action="store_true",
+        help="development build: compile with -O0 (much faster C compile on "
+        "large circuits; the simulator runs slower than the -O2 default)",
+    )
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument(
         "--base",
@@ -83,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     is_shdl = args.shdl or (not args.base and in_path.suffix == ".shdl")
     if not is_shdl and (args.top or args.include):
         ap.error("--top and -I apply only to .shdl inputs")
+    if args.dev and args.no_build:
+        ap.error("--dev has no effect with --no-build")
 
     try:
         if is_shdl:
@@ -98,7 +106,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"shdlc: error: {e.diagnostic}", file=sys.stderr)
                 return 1
         else:
-            base_text = in_path.read_text(encoding="utf-8")
+            try:
+                base_text = in_path.read_bytes().decode("utf-8")
+            except UnicodeDecodeError as e:
+                raise BaseParseError(
+                    f"{in_path}: Base SHDL input is not valid UTF-8 "
+                    f"(byte offset {e.start})"
+                ) from None
 
         emit_c = args.emit_c
         if args.no_build:
@@ -109,7 +123,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         out = args.output or f"{in_path.stem}{lib_suffix()}"
-        build_library(base_text, out, cc=args.cc, emit_c=emit_c)
+        build_library(
+            base_text,
+            out,
+            cc=args.cc,
+            cflags=DEV_CFLAGS if args.dev else None,
+            emit_c=emit_c,
+        )
         return 0
     except (BaseParseError, ModelError, CCError, OSError) as e:
         print(f"shdlc: error: {e}", file=sys.stderr)

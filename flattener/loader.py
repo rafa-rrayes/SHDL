@@ -48,7 +48,12 @@ class Program:
         for comp in self.modules[module].components:
             if comp.name == name:
                 return comp
-        raise KeyError((module, name))
+        # Unreachable from user input (ROB-1 route a): every caller passes a
+        # (module, name) pair obtained from `resolve_type`, i.e. from a
+        # module's `visible` table, which is populated only from components
+        # that actually exist in that module. A miss here is an internal
+        # invariant violation, not a user error.
+        raise AssertionError(f"internal: no component '{name}' in module '{module}'")
 
     def resolve_type(self, module: str, name: str) -> tuple[str, str] | None:
         """Resolve a component type name as seen from ``module``.
@@ -60,9 +65,25 @@ class Program:
 
 
 def _read_source(path: str) -> SourceFile:
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    return SourceFile(name=os.path.basename(path), path=os.path.abspath(path), text=text)
+    name = os.path.basename(path)
+    with open(path, "rb") as f:
+        raw = f.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        # AMB-15: SHDL source is UTF-8; undecodable bytes die here, at the
+        # read boundary, as a positioned diagnostic — never a raw
+        # UnicodeDecodeError escaping to the CLI. We report a 1-based column
+        # by counting bytes from the last newline (sufficient for ASCII text
+        # up to the offending byte; the line is exact).
+        line = raw.count(b"\n", 0, e.start) + 1
+        col = e.start - raw.rfind(b"\n", 0, e.start)
+        raise err(
+            ErrorCode.E0101,
+            f"source is not valid UTF-8: {e.reason} at byte {e.start}",
+            Pos(name, line, col),
+        ) from e
+    return SourceFile(name=name, path=os.path.abspath(path), text=text)
 
 
 def load_program(main_path: str, include_dirs: list[str] | None = None) -> Program:
@@ -80,6 +101,18 @@ def load_program(main_path: str, include_dirs: list[str] | None = None) -> Progr
 
     def load(path: str, module_name: str, import_pos: Pos | None) -> None:
         if module_name in program.modules:
+            # AMB-27: module identity is program-global by bare name. If a
+            # second `use` of the same name resolves to a *different* file,
+            # that is an ambiguity, not a silent first-one-wins bind.
+            loaded_path = program.modules[module_name].path
+            if os.path.abspath(path) != loaded_path:
+                assert import_pos is not None
+                raise err(
+                    ErrorCode.E0701,
+                    f"module '{module_name}' resolves to two different files: "
+                    f"already loaded {loaded_path}, now {os.path.abspath(path)}",
+                    import_pos,
+                )
             return
         if module_name in loading:
             cycle = " -> ".join([*loading[loading.index(module_name) :], module_name])
@@ -104,12 +137,25 @@ def load_program(main_path: str, include_dirs: list[str] | None = None) -> Progr
 
         base_dir = os.path.dirname(src.path)
         for imp in module.imports:
-            target_path = _resolve_module(imp.module, base_dir, include_dirs)
+            target_path, actual_name = _resolve_module(
+                imp.module, base_dir, include_dirs
+            )
             if target_path is None:
                 raise err(
                     ErrorCode.E0701,
                     f"module '{imp.module}' not found "
                     f"(searched {base_dir} and {len(include_dirs)} include dir(s))",
+                    imp.module_pos,
+                )
+            if actual_name != imp.module:
+                # IMP-11/AMB-28: a case-insensitive filesystem (APFS, NTFS)
+                # lets `use Add2` open add2.shdl; pin a platform-independent
+                # contract by comparing the import name to the real on-disk
+                # basename. The mismatch is rejected everywhere.
+                raise err(
+                    ErrorCode.E0701,
+                    f"module '{imp.module}' not found: the file on disk is "
+                    f"'{actual_name}.shdl' (case mismatch with '{imp.module}.shdl')",
                     imp.module_pos,
                 )
             load(target_path, imp.module, imp.module_pos)
@@ -137,9 +183,28 @@ def load_program(main_path: str, include_dirs: list[str] | None = None) -> Progr
     return program
 
 
-def _resolve_module(name: str, base_dir: str, include_dirs: list[str]) -> str | None:
+def _resolve_module(
+    name: str, base_dir: str, include_dirs: list[str]
+) -> tuple[str | None, str | None]:
+    """Resolve ``name`` to ``(abs_path, on_disk_name)`` over the ordered search
+    path (importing file's dir, then ``-I`` dirs). ``on_disk_name`` is the
+    real basename without the ``.shdl`` suffix, so a caller can detect a
+    case-insensitive-filesystem mismatch (IMP-11). Returns ``(None, None)``
+    when no file exists for ``name`` in any directory."""
+    filename = f"{name}.shdl"
     for d in [base_dir, *include_dirs]:
-        candidate = os.path.join(d, f"{name}.shdl")
+        candidate = os.path.join(d, filename)
         if os.path.isfile(candidate):
-            return os.path.abspath(candidate)
-    return None
+            # Recover the real on-disk case from the directory listing so the
+            # check is independent of the filesystem's case sensitivity.
+            search_dir = d or os.curdir
+            try:
+                entries = os.listdir(search_dir)
+            except OSError:
+                entries = []
+            actual = next(
+                (e for e in entries if e.lower() == filename.lower()), filename
+            )
+            actual_name = actual[: -len(".shdl")] if actual.endswith(".shdl") else actual
+            return os.path.abspath(candidate), actual_name
+    return None, None

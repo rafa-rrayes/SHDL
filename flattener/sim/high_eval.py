@@ -78,7 +78,8 @@ class HighEval:
                 if isinstance(signal, RRepl):
                     bits = bits * signal.count
                 return bits
-        raise AssertionError(signal)
+        # Unreachable: RSignal is closed over RPrimary/RConcat/RRepl, all matched.
+        raise AssertionError(signal)  # pragma: no cover
 
     def _primary_bits(self, ec, path, p: RPrimary) -> list[Node]:
         if p.port is not None:
@@ -169,6 +170,11 @@ class HighEval:
             self.state = new
 
     def poke(self, port: str, value: int) -> None:
+        """Set an input port. Like BaseEval, this oracle is *intentionally*
+        stricter than the compiled C ABI: an out-of-range value raises
+        ``ValueError`` rather than masking modulo 2^width (the C `poke`'s
+        AMB-2 behavior). Never relax this to match the implementation — the
+        DualSim harness bridges the asymmetry deliberately (golden_tests §5)."""
         width = self.top.port_width(port)
         assert self.top.port_dir(port) == "in", port
         if value < 0 or value >= (1 << width):

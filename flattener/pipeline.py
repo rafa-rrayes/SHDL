@@ -73,7 +73,17 @@ def resolve_timestamp(explicit: str | None) -> str:
         return explicit
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
     if epoch is not None:
-        moment = datetime.fromtimestamp(int(epoch), tz=UTC)
+        # ROB-6: a garbage SOURCE_DATE_EPOCH (non-numeric, or out of the
+        # platform's time_t range) must surface as a structured diagnostic,
+        # not a raw ValueError/OverflowError escaping the CLI.
+        try:
+            moment = datetime.fromtimestamp(int(epoch), tz=UTC)
+        except (ValueError, OverflowError, OSError) as e:
+            raise err(
+                ErrorCode.E0001,
+                f"invalid SOURCE_DATE_EPOCH {epoch!r}: {e}",
+                Pos("<environment>", 1, 1),
+            ) from e
     else:
         moment = datetime.now(tz=UTC)
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")

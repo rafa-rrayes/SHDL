@@ -24,6 +24,16 @@ DEFAULT_CFLAGS: tuple[str, ...] = (
     "-fvisibility=hidden",
 )
 
+#: Flags for development builds: -O0 keeps the C compiler fast on large
+#: circuits (~12x on a 37k-gate netlist) at the cost of slower simulation.
+DEV_CFLAGS: tuple[str, ...] = (
+    "-std=c11",
+    "-O0",
+    "-shared",
+    "-fPIC",
+    "-fvisibility=hidden",
+)
+
 
 class CCError(Exception):
     """C compiler discovery or invocation failure.

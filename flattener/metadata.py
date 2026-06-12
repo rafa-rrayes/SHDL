@@ -4,16 +4,32 @@ Builds the single JSON object embedded in ``meta { … }``. Block order follows
 the table in §4.2; all content is collected by earlier phases — this module
 only arranges it, plus the purely-derived ``stats`` block.
 
-``verify_meta`` cross-checks every gate and wire name the metadata mentions
+``validate_meta`` cross-checks every gate and wire name the metadata mentions
 against the structural core. The two are emitted from the same in-memory
-netlist, so a mismatch is an internal invariant violation (AssertionError),
-not a user-facing diagnostic; the determinism and conformance tests run it
-over every fixture.
+netlist, so a mismatch is an internal-invariant violation — a flattener bug,
+never user input — surfaced as a structured :class:`MetaValidationError` (not
+a bare ``assert``, so it survives ``python -O`` and is directly testable). The
+pipeline runs it over every flatten via ``verify_meta``; the determinism and
+conformance tests run it over every fixture.
 """
 
 from __future__ import annotations
 
 from .phases.flatten import FlatNetlist, FlatResult
+
+
+class MetaValidationError(Exception):
+    """A metadata block references a name absent from the structural core.
+
+    Carries the failing ``invariant`` tag (one of the cross-consistency rules
+    below) and the offending ``detail`` so callers — and tests — can pin the
+    exact violation without parsing the message string.
+    """
+
+    def __init__(self, invariant: str, detail: object) -> None:
+        super().__init__(f"meta invariant {invariant!r} violated: {detail!r}")
+        self.invariant = invariant
+        self.detail = detail
 
 
 def build_meta(
@@ -68,24 +84,35 @@ def build_meta(
     }
 
 
-def verify_meta(meta: dict, netlist: FlatNetlist) -> None:
+def validate_meta(meta: dict, netlist: FlatNetlist) -> None:
+    """Public cross-consistency validator (MET-7): every name a metadata block
+    mentions must exist in the structural core. Raises
+    :class:`MetaValidationError` on the first violation; returns ``None`` when
+    the metadata is consistent with the netlist."""
     gates = set(netlist.gates)
     inputs = set(netlist.inputs)
     outputs = set(netlist.outputs)
     # Every name a metadata block may use to refer to a net.
     wires = inputs | outputs | {f"{g}.O" for g in gates}
 
+    def fail(invariant: str, detail: object) -> None:
+        raise MetaValidationError(invariant, detail)
+
+    # 1. ports: the flattened wire lists reproduce the netlist port order exactly.
     for direction, groups, port_wires in (
         ("inputs", meta["ports"]["inputs"], netlist.inputs),
         ("outputs", meta["ports"]["outputs"], netlist.outputs),
     ):
         flat = [w for ws in groups.values() for w in ws]
-        assert flat == port_wires, (direction, flat)
+        if flat != port_wires:
+            fail("ports", (direction, flat))
 
+    # 2/3. hierarchy: leaf gates exist; instance port wires are real nets.
     def check_hierarchy(instances: dict) -> None:
         for name, entry in instances.items():
             if "gate" in entry:
-                assert entry["gate"] in gates, (name, entry)
+                if entry["gate"] not in gates:
+                    fail("hierarchy.gate", (name, entry["gate"]))
             else:
                 for wire_or_list in entry["ports"].values():
                     refs = (
@@ -94,29 +121,52 @@ def verify_meta(meta: dict, netlist: FlatNetlist) -> None:
                         else [wire_or_list]
                     )
                     for w in refs:
-                        assert w in wires, (name, w)
+                        if w not in wires:
+                            fail("hierarchy.port", (name, w))
                 check_hierarchy(entry["instances"])
 
     for entry in meta["hierarchy"].values():
         check_hierarchy(entry["instances"])
 
-    assert set(meta["source_map"]["gates"]) == gates
+    # 4. source_map.gates is a bijection onto the gate set.
+    if set(meta["source_map"]["gates"]) != gates:
+        fail("source_map.gates", set(meta["source_map"]["gates"]) ^ gates)
+    # 5. source_map.lines references only real gates.
     for lines in meta["source_map"]["lines"].values():
         for line_gates in lines.values():
-            assert set(line_gates) <= gates, line_gates
+            extra = set(line_gates) - gates
+            if extra:
+                fail("source_map.lines", extra)
 
+    # 6. constants materialize to real power-pin gates.
     for const in meta["constants"].values():
-        assert set(const["bits"].values()) <= gates, const
+        extra = set(const["bits"].values()) - gates
+        if extra:
+            fail("constants.bits", extra)
 
+    # 7. timing.output_depths covers exactly the outputs.
     timing = meta["timing"]
-    assert set(timing["output_depths"]) == outputs
-    for i, name in enumerate(timing["critical_path"]):
+    if set(timing["output_depths"]) != outputs:
+        fail("timing.output_depths", set(timing["output_depths"]) ^ outputs)
+    # 8. critical_path: start at a wire/pin, gates in the middle, output at the end.
+    path = timing["critical_path"]
+    for i, name in enumerate(path):
         if i == 0:
             allowed = wires | gates  # may start at an input wire or a power pin
-        elif i == len(timing["critical_path"]) - 1:
+        elif i == len(path) - 1:
             allowed = outputs
         else:
             allowed = gates
-        assert name in allowed, name
+        if name not in allowed:
+            fail("timing.critical_path", name)
 
-    assert set(meta["init"]) <= wires, meta["init"]
+    # 9. init targets are real nets.
+    extra = set(meta["init"]) - wires
+    if extra:
+        fail("init", extra)
+
+
+def verify_meta(meta: dict, netlist: FlatNetlist) -> None:
+    """Pipeline hook (kept for the call site): delegates to
+    :func:`validate_meta`. A failure here is a flattener bug, not user input."""
+    validate_meta(meta, netlist)

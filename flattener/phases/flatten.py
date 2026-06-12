@@ -319,12 +319,13 @@ def flatten(mono: MonoProgram, lowered: dict[str, LoweredComponent]) -> FlatResu
     # ---- source map --------------------------------------------------------- #
 
     sm_gates: dict[str, dict] = {}
-    sm_lines: dict[str, dict[str, list[str]]] = {}
+    # Buckets are dicts used as ordered sets: loop-generated hardware maps
+    # tens of thousands of gates onto one source line, so membership must be
+    # O(1), and first-insertion order is part of the emitted byte format.
+    line_buckets: dict[str, dict[str, dict[str, None]]] = {}
 
     def add_line(file: str, line: int, gate: str) -> None:
-        bucket = sm_lines.setdefault(file, {}).setdefault(str(line), [])
-        if gate not in bucket:
-            bucket.append(gate)
+        line_buckets.setdefault(file, {}).setdefault(str(line), {})[gate] = None
 
     for gate in netlist.gates.values():
         sm_gates[gate.name] = {
@@ -337,8 +338,11 @@ def flatten(mono: MonoProgram, lowered: dict[str, LoweredComponent]) -> FlatResu
             add_line(pos.file, pos.line, gate.name)
 
     sm_lines = {
-        file: dict(sorted(lines.items(), key=lambda kv: int(kv[0])))
-        for file, lines in sorted(sm_lines.items())
+        file: {
+            line: list(gates)
+            for line, gates in sorted(lines.items(), key=lambda kv: int(kv[0]))
+        }
+        for file, lines in sorted(line_buckets.items())
     }
 
     return FlatResult(

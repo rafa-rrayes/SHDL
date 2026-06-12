@@ -56,6 +56,13 @@ from .source import SourceFile
 DECL_CONTEXT = "declaration"
 CONN_CONTEXT = "connection"
 
+# Maximum syntactic nesting depth (PAR-8). The recursive-descent parser spends
+# ~3 Python stack frames per nesting level, so a raw RecursionError would fire
+# near ~330 levels (CPython's default 1000-frame limit). We cap well below that
+# and report a structured diagnostic instead of crashing. No realistic SHDL
+# source nests braces/parens/groups anywhere near this deep.
+MAX_NESTING_DEPTH = 200
+
 
 class Parser:
     def __init__(self, src: SourceFile):
@@ -64,6 +71,17 @@ class Parser:
         self.doc_comment = result.doc_comment
         self.src = src
         self.i = 0
+        self._depth = 0
+
+    def _enter(self) -> None:
+        """Count one level of syntactic nesting; bail before RecursionError."""
+        self._depth += 1
+        if self._depth > MAX_NESTING_DEPTH:
+            raise err(
+                ErrorCode.E0201,
+                f"input nests deeper than the {MAX_NESTING_DEPTH}-level limit",
+                self.cur.pos,
+            )
 
     # -- token helpers ------------------------------------------------------
 
@@ -117,6 +135,15 @@ class Parser:
                     "imports must precede all component definitions",
                     self.cur.pos,
                 )
+            # AMB-29: a trailing `meta { … }` block (the metadata the flattener
+            # itself emits after the netlist) is accepted and ignored, so
+            # emitted Base SHDL is valid flattener input — the premise the
+            # DET-4 idempotence property rests on. `meta` is a contextual word
+            # (an IDENT, never a keyword) recognized only here, after all
+            # components; it cannot appear before or between them.
+            if self.cur.kind is T.IDENT and self.cur.text == "meta":
+                self._skip_meta_block()
+                break
             components.append(self._parse_component())
         return Module(
             name=module_name,
@@ -126,6 +153,36 @@ class Parser:
             doc_comment=self.doc_comment,
             path=self.src.path,
         )
+
+    def _skip_meta_block(self) -> None:
+        """Consume and discard a trailing ``meta { … }`` block (AMB-29).
+
+        The lexer strips the JSON's ``"…"`` strings as string comments, so the
+        block is just a balanced run of ``{``/``}`` tokens (with ``[`` ``]``
+        ``:`` ``,`` numbers inside). We balance braces and require EOF after.
+        """
+        self.advance()  # the `meta` word
+        self.expect(T.LBRACE, "'{' after 'meta'")
+        depth = 1
+        while depth > 0:
+            tok = self.cur
+            if tok.kind is T.EOF:
+                raise err(
+                    ErrorCode.E0201,
+                    "unterminated 'meta' block: expected '}', found end of file",
+                    tok.pos,
+                )
+            if tok.kind is T.LBRACE:
+                depth += 1
+            elif tok.kind is T.RBRACE:
+                depth -= 1
+            self.advance()
+        if self.cur.kind is not T.EOF:
+            raise err(
+                ErrorCode.E0201,
+                f"unexpected content after the 'meta' block: found {self.cur}",
+                self.cur.pos,
+            )
 
     def _parse_import(self) -> Import:
         start = self.expect_keyword("use")
@@ -371,11 +428,13 @@ class Parser:
         return Conditional(cond, then_body, else_body, start.pos)
 
     def _parse_brace_body(self, context: str) -> tuple[GenItem, ...]:
+        self._enter()
         self.expect(T.LBRACE)
         items: list[GenItem] = []
         while self.cur.kind is not T.RBRACE:
             items.append(self._parse_gen_item(context))
         self.expect(T.RBRACE)
+        self._depth -= 1
         return tuple(items)
 
     # -- connections and signals ----------------------------------------------
@@ -393,12 +452,14 @@ class Parser:
         return self._parse_primary()
 
     def _parse_concat(self) -> Concat:
+        self._enter()
         start = self.expect(T.LBRACE)
         items: list[ConcatItem] = [self._parse_concat_item()]
         while self.cur.kind is T.COMMA:
             self.advance()
             items.append(self._parse_concat_item())
         self.expect(T.RBRACE)
+        self._depth -= 1
         return Concat(tuple(items), start.pos)
 
     def _parse_concat_item(self) -> ConcatItem:
@@ -424,12 +485,14 @@ class Parser:
         return self._parse_primary()
 
     def _parse_replication_group(self, count: Expr, start: Token) -> Replication:
+        self._enter()
         self.expect(T.LBRACE)
         items: list[ConcatItem] = [self._parse_concat_item()]
         while self.cur.kind is T.COMMA:
             self.advance()
             items.append(self._parse_concat_item())
         self.expect(T.RBRACE)
+        self._depth -= 1
         return Replication(count, tuple(items), start.pos)
 
     def _brace_group_is_single_arith(self, open_idx: int) -> bool:
@@ -519,9 +582,11 @@ class Parser:
             self.advance()
             return Name(tok.text, tok.pos)
         if tok.kind is T.LBRACE:
+            self._enter()
             self.advance()
             inner = self._parse_arith()
             self.expect(T.RBRACE)
+            self._depth -= 1
             return inner
         raise err(
             ErrorCode.E0201,
@@ -558,9 +623,11 @@ class Parser:
 
     def _parse_cmp(self) -> BoolExpr:
         if self.cur.kind is T.LPAREN:
+            self._enter()
             self.advance()
             inner = self._parse_bool()
             self.expect(T.RPAREN)
+            self._depth -= 1
             return inner
         left = self._parse_arith()
         op_tok = self.cur

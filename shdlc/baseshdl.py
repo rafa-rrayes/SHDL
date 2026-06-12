@@ -93,7 +93,10 @@ def parse_base(text: str) -> BaseComponent:
     if sc.peek() == "meta":
         sc.expect("meta")
         sc._skip_ws()
-        comp.meta, end = json.JSONDecoder().raw_decode(sc.text, sc.pos)
+        try:
+            comp.meta, end = json.JSONDecoder().raw_decode(sc.text, sc.pos)
+        except json.JSONDecodeError as e:
+            raise BaseParseError(f"malformed meta JSON: {e}") from e
         if sc.text[end:].strip():
             raise BaseParseError("trailing content after meta object")
     elif sc.peek() is not None:

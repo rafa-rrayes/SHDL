@@ -44,7 +44,7 @@ class ErrorCode(Enum):
     E0505 = "E0505"  # invalid connection role (e.g. constant as destination)
     E0506 = "E0506"  # connection cycle with no gate (pure alias loop)
     # E06xx — generators and conditionals
-    E0601 = "E0601"  # empty or ill-ordered range
+    E0601 = "E0601"  # empty, ill-ordered, or negative range
     E0602 = "E0602"  # ambiguous / unresolvable open-ended range bound
     E0603 = "E0603"  # unbound identifier (loop variable / parameter scope)
     E0604 = "E0604"  # item illegal for its context (decl vs. connection)
