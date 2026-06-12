@@ -101,7 +101,7 @@ Around the core pipeline sits a full ecosystem of tools. They are described here
 
 ### 4.1 PySHDL — the Python Driver
 
-The keystone of the ecosystem. PySHDL loads a compiled shared library and wraps the ABI in an ergonomic Python interface (`poke`, `peek`, `step`, context managers, dict-style access). It reads the `ports`, `timing`, and `init` metadata to provide multi-bit access, power-on reset, and a `settle()` convenience that advances exactly `max_depth` cycles for combinational circuits (and is disabled, by design, for circuits with feedback). Almost every higher tool talks to circuits *through* PySHDL.
+The keystone of the ecosystem. PySHDL is the python library for SHDL, it is where 99% of users will interact with SHDL. The library comes with the compiler and runtime tools necessary to use SHDL in an easy and intuitive way. PySHDL loads a compiled shared library and wraps the ABI in an ergonomic Python interface (`poke`, `peek`, `step`, context managers, dict-style access). It reads the `ports`, `timing`, and `init` metadata to provide multi-bit access, power-on reset, and a `settle()` convenience that advances exactly `max_depth` cycles for combinational circuits (and is disabled, by design, for circuits with feedback).
 
 ### 4.2 SHDB — the Debugger
 
@@ -234,7 +234,7 @@ These principles govern every part of the project.
 |-------------------------------|-------|---------------|
 | Flattener (SHDL → Base SHDL)  | 0     | Complete      |
 | SHDLC V1 (Base SHDL → C)      | 0     | In progress   |
-| Conformance suite             | 0     | Planned (next)|
+| Conformance suite             | 0     | Complete      |
 | PySHDL driver                 | 1     | Planned       |
 | stdlib                        | 1     | Planned       |
 | SHDLC debug build             | 1     | Planned       |

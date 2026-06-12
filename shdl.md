@@ -66,7 +66,7 @@ SHDL and Base SHDL share the same structural grammar — `component … { instan
 
 ## 2. Lexical Structure
 
-SHDL source is UTF-8 text. The lexer produces a flat token stream; whitespace (spaces, tabs, newlines) is insignificant except as a token separator.
+SHDL source is **UTF-8** text. A source file that does not decode as UTF-8 is rejected at the **read boundary**, before any lexing, with a positioned diagnostic that reports the byte offset of the first undecodable byte (E0101); the lexer never sees a partially decoded stream. The lexer then produces a flat token stream; whitespace (spaces, tabs, newlines) is insignificant except as a token separator.
 
 ### 2.1 Comments
 
@@ -91,8 +91,11 @@ String-literal comments (`"..."` and `"""..."""`) are a deliberate convenience: 
 
 ```ebnf
 IDENTIFIER = (LETTER | "_") { LETTER | DIGIT | "_" } ;
+LETTER     = "A" … "Z" | "a" … "z" ;   (* ASCII only *)
+DIGIT      = "0" … "9" ;               (* ASCII only *)
 ```
 
+- `LETTER` and `DIGIT` are **ASCII**: `[A-Za-z]` and `[0-9]`. Although source files are UTF-8, the *lexical alphabet* is ASCII — identifiers, numbers, and operators use only ASCII characters. Non-ASCII characters appear legally only inside comments (which are discarded). Any other non-whitespace character outside a comment — a Unicode letter, a Unicode or superscript digit, or any stray symbol — is a lexical error (E0101), never an identifier or a number.
 - Case-sensitive: `MyGate` ≠ `mygate`.
 - Name components, instances, ports, constants, and generator variables.
 - **Identifiers beginning with `__` (double underscore) are reserved** for system use — the power pins `__VCC__` and `__GND__` are the only such names. User code must not introduce them.
@@ -139,7 +142,7 @@ Note the contextual overloading of `<`/`>`: angle brackets delimit a parameter l
 
 ### 2.5 Reserved Keywords
 
-Seven words are reserved: **`component`**, **`use`**, **`connect`**, **`init`**, **`when`**, **`else`**, and **`top`**. Primitive gate names (`AND`, `OR`, `NOT`, `XOR`, `__VCC__`, `__GND__`) are predefined component types, not keywords — but they may **not** be redefined: declaring `component AND(…) { … }` is a naming error (E03xx), since it would shadow a primitive.
+Seven words are reserved: **`component`**, **`use`**, **`connect`**, **`init`**, **`when`**, **`else`**, and **`top`**. Primitive gate names (`AND`, `OR`, `NOT`, `XOR`, `__VCC__`, `__GND__`) are predefined component types, not keywords — but they may **not** be redefined: declaring `component AND(…) { … }` is a primitive-shadowing error (E0305), since it would shadow a primitive. When the shadowed primitive is one of the dunder pins (`component __VCC__(…)` or `component __GND__(…)`), the name violates *both* the primitive-shadowing rule (E0305) and the reserved-`__…`-name rule (E0303); the more specific **E0305 takes precedence** — the diagnostic reports the shadowing, not the reserved prefix.
 
 ---
 
@@ -440,6 +443,8 @@ An item may be written as a replication `N{ … }` — a count *N* applied to a 
 {4{ZERO}, Nib}   -> Padded;     # zero-extend a nibble to a byte (ZERO = 0 constant)
 ```
 
+The count *N* must be **≥ 1**. A replication count of 0 or a negative count is a generator-range error (E0601, "count must be ≥ 1") — the same diagnostic that guards empty generator ranges, since a zero-or-negative repeat count is the replication analogue of an empty range.
+
 #### 6.5.2 Lowering
 
 A concatenation is **pure structure**. The expander (§12, phase 4) flattens both ends to bit lists — expanding replications and slices — and emits one single-bit connection per bit, highest-to-highest:
@@ -480,7 +485,13 @@ SingleRange = ArithExpr                   (* [N]    => 1, 2, …, N        *)
 | `[5:]`         | 5, 6, … up to the governing signal's width |
 | `[1:4, 8, 12:16]` | 1, 2, 3, 4, 8, 12, 13, 14, 15, 16 |
 
-Open-ended ranges (`[a:]`) resolve their upper bound from the width of the **governing signal** — the signal whose bits the range indexes. To keep this unambiguous, an open-ended range is permitted only when its body references exactly one multi-bit signal under the loop variable; that signal's width fixes the bound. If the body indexes two signals of different widths under the loop variable (so the bound is ambiguous), the open-ended form is rejected (E06xx) and an explicit bound must be given (`[a:N]`). Inside a parameterized component the explicit form `[a:N]` over a parameter `N` is the clearest choice and is preferred.
+**Value domain.** Range bounds evaluate to integers that must be **≥ 0**. A bound of 0 is legal: the count form `[0]` is empty (it iterates over no values), and a lower bound of 0 (`[0:b]`) iterates from index 0. A **negative** bound — whether a literal, a parameter expression, or a computed value — is rejected (E0601). A range that is empty or ill-ordered after evaluation (`[2:1]`, a count `< 1`, a resolved open range with no values) is likewise an E0601; the diagnostic covers all of these — an empty, ill-ordered, or negative range.
+
+**Compound ranges iterate verbatim.** A compound range (`[a:b, c, d:e]`) emits its sub-ranges in written order, left to right, with **no de-duplication**. Overlapping sub-ranges such as `[1:4, 2:6]` therefore iterate `1, 2, 3, 4, 2, 3, 4, 5, 6` and emit the body once per value — including the repeated indices. Any structural collision this produces (two instances generated with the same name, or two drivers reaching one sink) is caught by the ordinary uniqueness and single-driver rules — a duplicate generated instance name is E0301, a duplicated sink driver is E0501 — rather than by a special range check; the author is responsible for keeping compound sub-ranges disjoint where the body declares names.
+
+**Open-ended bounds may be expressions.** The bound expressions in any range — including the lower bound of an open-ended range — may be arithmetic over the enclosing parameters and loop variables (`>i[N/2:]`, `>i[a+1:]`). The bound is evaluated first; the governing-signal rule above then resolves the open upper bound from the width of the indexed signal. There is no restriction to literal bounds.
+
+**Open-ended ranges.** Open-ended ranges (`[a:]`) resolve their upper bound from the width of the **governing signal** — the signal whose bits the range indexes. The scan collects the widths of *every* signal indexed by the loop variable in the body and requires them to **agree on a single width**: several signals of the same width are fine (they fix the same bound), but two signals of *different* widths leave the bound ambiguous and the open-ended form is rejected (E0602); an explicit bound must then be given (`[a:N]`). The governing-signal scan is **conservative with respect to conditionals**: both the `when` and the `else` body are scanned for governing signals *before* any condition is evaluated, so a signal in a branch that will not be emitted can still force a width disagreement (E0602) — write an explicit bound to avoid relying on which branch survives. An open-ended range whose body indexes no multi-bit signal under the loop variable has no governing signal and is also rejected (E0602). Inside a parameterized component the explicit form `[a:N]` over a parameter `N` is the clearest choice and is preferred.
 
 ### 7.2 Substitution and Arithmetic
 
@@ -503,6 +514,8 @@ Expressions support `+`, `-`, `*`, and `/` (**integer** division), nested arbitr
     inv{i}.O   -> O[{2*i-1}];    # write odd output bits 1,3,5,7
 }
 ```
+
+**Scope of the range expression vs. the body.** The loop variable is bound for the generator's **body**, not for its own range. A generator's range bounds are evaluated in the **enclosing** scope — the loop variable does not yet exist there. This matters when the loop variable *shadows* an enclosing parameter or outer loop variable of the same name: in `>N[N]{ … }` inside `component Foo<N>(…)`, the range `[N]` evaluates against the **parameter** `N` (the enclosing binding), while the body sees the **loop variable** `N` ranging `1 … N`. The shadow takes effect at the opening brace of the body, so the range and the body can legitimately read two different `N` values.
 
 ### 7.3 Nesting
 
@@ -635,8 +648,10 @@ component Counter<N, WITH_CARRY = 0>(clk) -> (Q[N], Cout) {
 A constant is a fixed bit pattern usable as a connection source without an external input. Each **referenced** bit becomes a power-pin instance during flattening (§12).
 
 ```ebnf
-ConstantDecl = IDENTIFIER [ "[" NUMBER "]" ] "=" NUMBER ";" ;
+ConstantDecl = IDENTIFIER [ "[" ArithExpr "]" ] "=" NUMBER ";" ;
 ```
+
+The declared width is an `ArithExpr`, not a bare literal: like a port width (§4), a constant's width may be an arithmetic expression over the enclosing component's parameters (`K[N] = v`). The value to the right of `=` is always a literal `NUMBER`. A parameter-dependent width is resolved per instantiation during monomorphization (§12, phase 2); the overflow assertion (§8.1) is then re-checked against the concrete width (§14).
 
 ```
 THRESHOLD = 100;     # width inferred from value
@@ -656,6 +671,10 @@ A constant is conceptually an **unsigned integer of unbounded width**: bit *k* i
 | 255   | `11111111`       | 1     | 1     | 1     | 0      |
 
 This removes a whole class of width-inference bugs: a constant feeding a fixed bit range — e.g. a `>i[8]{ … }` generator — needs no explicit width, because every referenced bit is defined. `Hundred = 100` and `Hundred[8] = 100` behave identically for any reference in range `1 … 8`.
+
+A constant with **no declared width** has its width *inferred* from the value's bit length, with a floor of 1: the inferred width is `max(1, bit_length(value))`. The value 0 therefore infers width **1** — a single `__GND__` bit — so `ZERO = 0` is a one-bit low source, not a zero-width signal. (The unbounded-zeros rule above still applies above that width: `ZERO[5]` is `0`.) This floor is what lets `ZERO` be used as a one-bit source — e.g. `{4{ZERO}, Nib}` — without an explicit width.
+
+Constant **values** are exact unbounded integers: a literal larger than 64 bits (e.g. a 256-bit hex mask) is perfectly legal in the flattener, since a constant is a pattern of referenced bits, not an ABI value. The 64-bit ceiling (§14.2) applies only to a multi-bit **port** crossing the compiled ABI, never to a constant's internal value — only the bits a constant actually feeds into ports or gates are materialized.
 
 The optional declared width (`DATA[8] = 100`) therefore serves a single purpose: an **overflow assertion**. The value must fit in the declared width, or it is a constant error (E08xx):
 
@@ -705,13 +724,15 @@ use stdgates::{NAND, NOR, XNOR};
 ### 9.1 Resolution
 
 - The module name is the target file's name without `.shdl` (`fullAdder` → `fullAdder.shdl`).
-- The toolchain searches the current directory first, then any directories supplied with the compiler's `-I`/`--include` flag.
-- Imports must precede all component definitions in the file.
-- **Circular imports are not allowed** (file A importing B importing A). Refactor shared definitions into a common base module.
+- The toolchain searches the **importing file's own directory first**, then any directories supplied with the compiler's `-I`/`--include` flag, in the order they are given. Resolving relative to the importing file (rather than the process's current working directory) keeps a project relocatable and the resolution deterministic regardless of where the tool is invoked.
+- A module name must match the real file name **case-sensitively**, independent of the host filesystem's case sensitivity. If a `use Add2` resolves a file whose actual name is `add2.shdl` (as a case-insensitive filesystem would permit), it is rejected as not found (E0701); the same source therefore behaves identically on every platform, and two spellings can never load one file as two modules.
+- **Only names *defined* in the target module are importable.** A `use` brings in a name only if the target module itself declares that component; it does **not** re-export names the target merely imported. Importing a name that the target does not define is a missing-name error (E0703) — there is no transitive re-export. (Module identity is keyed by the bare module name and is program-global; a name resolves to whichever file first bound that module name for the whole compilation.)
+- Imports must precede all component definitions in the file. A `use` appearing after a component definition is a syntax error (E0201).
+- **Circular imports are not allowed** (file A importing B importing A, including a module importing itself). Refactor shared definitions into a common base module.
 
 ### 9.2 The Standard Library
 
-`stdgates` is the conventional standard-library module providing common gates composed from the primitives — notably **NAND**, **NOR**, and **XNOR**. The six primitive types (§10) are built in and need no import; importing them from `stdgates` is harmless but unnecessary.
+`stdgates` is the conventional standard-library module providing common gates composed from the primitives — notably **NAND**, **NOR**, and **XNOR**. The six primitive types (§10) are **built in**: they are predefined in every file and cannot be defined in a module (defining one is a primitive-shadowing error, E0305) nor imported from one. A `use stdgates::{AND}` does not resolve a primitive — `stdgates` does not define `AND` — so it is a missing-name error (E0703); primitives need no import and importing them is not "harmless", it is rejected.
 
 ---
 
@@ -804,6 +825,8 @@ InitAssign = Primary "=" NUMBER ";" ;
 The `init` block appears in the component body, before `connect` (§4.2). Each assignment seeds the named signal — an instance output, a component output, or a multi-bit port (whose value is spread across its bits, LSB first) — with the value it holds at cycle 0:
 
 ```
+use stdgates::{NOR};
+
 component SRLatch(S, R) -> (Q, Qn) {
     n1: NOR;  n2: NOR;
 
@@ -818,6 +841,8 @@ component SRLatch(S, R) -> (Q, Qn) {
     }
 }
 ```
+
+(`NOR` is a derived gate from `stdgates` (§9.2, §10.2), so it must be imported. Seeding `n1.O`/`n2.O` here seeds only each composite `NOR`'s output `NOT`; for a power-on state that holds from cycle 0, every gate in the feedback loop must be seeded to a fixed point — a latch that *owns* its loop spells the two NORs out as `OR`+`NOT` and seeds all four nets. See `examples/srLatch.shdl`.)
 
 ```
 component Datapath<N>(clk) -> (Out[N]) {
@@ -944,7 +969,9 @@ Notes:
 - An `IDENTIFIER` inside an `ArithExpr` resolves to a generator variable or a component parameter (both compile-time integers); using one outside the scope where it is bound is an error (§14).
 - `RelOp` and the boolean operators `&&`/`||` appear only inside a `when` condition (`BoolExpr`) and are evaluated at flatten time.
 - A `Concat` in signal position is distinguished from a `{expr}` substitution (which appears inside a `NameTemplate`/`IndexExpr`) by context with one token of lookahead; a single-item brace group with no comma is an equivalent one-element concatenation.
-- A `Replication` is recognized when a `ConcatItem` begins with an arithmetic count immediately followed by a brace group of signals (`8{sign}`); the group's contents are parsed as signals, never as a substitution expression.
+- A `Replication` is recognized when a `ConcatItem` begins with an arithmetic **count immediately followed by a brace group of signals** (`8{sign}`); the group's contents are parsed as signals, never as a substitution expression. The count must be a literal or a parameter/loop-variable expression, and the group must be signal syntax — a brace group holding a single bare arithmetic expression after an identifier count (`N{i+1}`) is read as a `NameTemplate` with an `{expr}` substitution (a *template*), not a replication. Replication therefore requires a literal count or signal-only group contents; the two forms never overlap.
+- The `Component` production fixes the body order `{ Declaration } [ InitBlock ] ConnectBlock` for readability, but the parser accepts the three kinds of body block (declarations, the optional `init`, the `connect`) in **any order** and freely interleaved. The only structural constraints are the count rules of §14 — exactly one `connect` block and at most one `init` block (E0309/E0310); order is not enforced.
+- A flattener consumes its own emitted Base SHDL output: a **trailing `meta { … }` block** following the structural component (`base_shdl.md` §4) is *accepted and ignored* by the SHDL parser. The metadata is not re-interpreted — re-flattening already-flattened text reproduces the same structural core (the basis for the idempotence property; `base_shdl.md` §4). The block's body is a single JSON object; the parser skips it as a unit after the component's closing brace.
 
 ---
 
@@ -966,11 +993,32 @@ A module is well-formed only if all of the following hold. Violations are report
 
 Validity that depends on parameter values — that every generated index lies in range and every referenced bit exists — is checked **after monomorphization (§12, phase 2), per instantiation**: an `Adder<8>` and an `Adder<16>` are each validated against their bound widths.
 
+**Width-error attribution (E0403 vs E0906).** A non-positive port width is reported by the **phase** that establishes it. A literal width in a non-parameterized context (`A[0]` in a plain component) is a static width error (E0403). The *same* literal `A[0]` written inside a parameterized component is re-checked during specialization, where any non-positive port width — whether it came from a parameter expression (`A[N-N]`) or a bare literal — is reported as a derived-width error (E0906). The distinction is path-dependent by design: E0403 is the width-validation site, E0906 the monomorphization site; both guard width > 0, and which one fires tells the author whether the offending width was fixed in the source or produced by binding.
+
 Additional structural rules carried from the grammar:
 
 - A component has exactly one `connect` block and at most one `init` block; at most one component per module is marked `top`.
 - Generator variables and component parameters are scoped to the construct that binds them; referencing one outside is an error.
 - Instance names must be unique *before* flattening; the flattener guarantees uniqueness *after* via prefixing.
+
+### 14.1 Diagnostics Reporting (V1 contract)
+
+How diagnostics are surfaced is pinned for V1:
+
+- **Fail-fast.** The pipeline stops at the **first** diagnostic. A compile reports exactly one error — the first one encountered in pipeline order — rather than collecting several per pass. (Multi-error collection is a deliberate non-goal for V1; it may be revisited, but no current behavior depends on more than one diagnostic being reported.)
+- **No warnings.** V1 defines errors only. There are no warning (`W…`) diagnostics — no "unused input port", "unused constant", or "unconnected output" advisories. Warning machinery is out of scope for V1.
+- **No suggestions.** Diagnostics name the offending construct and its position but do not offer "did you mean …?" similar-name hints. Suggestion machinery is out of scope for V1.
+
+Every diagnostic carries a source position (`line ≥ 1`, `column ≥ 1`) and a message naming the offending construct. Errors detected before lexing — an undecodable, non-UTF-8 source file (§2) — are reported at the read boundary with the byte offset of the first bad byte, never as an uncaught decoding failure.
+
+### 14.2 Documented Limits
+
+Two implementation limits are fixed by the downstream representation and are part of the V1 contract:
+
+- **Maximum port width: 64 bits.** The compiled ABI carries a port's value in a `uint64_t` (`shdlc_goals.md` §3.1), so a port wider than 64 bits cannot be poked or peeked and is rejected.
+- **Maximum single-bit input-wire count: 65535.** The generated C indexes input wires with a 16-bit table (`base_shdl.md` §3.4), capping a flattened component at 65535 single-bit input wires.
+
+There is deliberately **no** maximum-gate-count limit in V1: total gate count is bounded only by available memory, not by a fixed cap.
 
 ---
 

@@ -164,6 +164,8 @@ The `…_<digits>_` shape is **reserved**: Expanded SHDL forbids user identifier
 
 Names starting with `__` are reserved for system use.
 
+The naming reservations of §3.4 (the `…_<digits>_` bus-index shape) and the `__…` prefix are **producer-side obligations**: the flattener guarantees the names it emits respect them. They are *not* re-validated by consumers. A downstream tool (e.g. SHDLC) **may** accept a structural core whose gate or port names violate these reservations, treating such a name as an ordinary opaque identifier with no semantic interpretation — it does not attempt to read a `…_<digits>_` name as a bus bit. A Base SHDL file produced by something other than the SHDL flattener is therefore free to use any identifiers it likes for gates, provided the connection rules (§3.6) hold; the reservations exist to keep the flattener's *own* generated names collision-free (§3.4, `shdl.md` §2.2), not as a parse-time gate on hand-written Base SHDL.
+
 ### 3.6 Connection Rules
 
 1. **Single driver.** Each gate input and each component output port has exactly one source.
@@ -171,6 +173,10 @@ Names starting with `__` are reserved for system use.
 3. **No floating inputs.** Every gate input must be connected.
 4. **No floating outputs.** Every component output must be driven.
 5. **All connections are single-bit** — inherent, since every signal is a single-bit wire.
+6. **Input wires are sources only.** A component **input** port may not be a connection *destination* — it is driven from outside (by `poke`), never from within the netlist.
+7. **Only `O` is readable on an instance.** A gate's only output is its pin `O`; `instance.O` is the sole readable instance signal. An instance's input pins (`A`, `B`) are connection destinations, not sources, and no other pin name exists. Reading any pin other than `O` from an instance is invalid.
+
+Rules 6 and 7 are enforced and re-validated by consumers (unlike the §3.4/§3.5 naming reservations, which are producer-side): they are structural invariants every Base SHDL file must satisfy, hand-written or flattener-emitted.
 
 ### 3.7 Complete Structural Example
 
@@ -288,6 +294,8 @@ Every block is optional for *parsing the circuit structure* (a minimal consumer 
 - List order encodes bit position: index 0 = bit 1 (LSB).
 - Single-bit ports map to a one-element list, keeping the representation uniform.
 
+**Coverage and well-formedness.** When the `ports` block is present, both the `inputs` and `outputs` keys must appear (each possibly an empty object); a consumer rejects a `ports` block missing a direction key, naming the missing key. Within the structural core's header, `ports` need not cover *every* single-bit wire: an input wire absent from `ports` is simply not poke-addressable (it stays at its power-on value, 0), and an output wire absent from `ports` is not peek-observable — both legal-but-defined, consistent with the referenced-bits philosophy that governs constants (§3.4) and `init` (§4.11). A single structural wire, however, may not be claimed twice on the **input** side: listing one input wire under two port entries (or twice within one) would make poke aliasing silent and ambiguous, so it is rejected. Output wires may be reused freely (the same wire fanning into two named output groups is harmless observation). When `ports` is wholly **absent**, the consumer synthesizes identity single-bit ports from the structural header (one port per header wire); that fallback fires only on a completely missing block, not on a present-but-partial one.
+
 ### 4.4 `hierarchy` — Component Hierarchy Map
 
 Records the original hierarchy before flattening. Enables the debugger's tree view, `scope` navigation, hierarchical paths (`fa1.x1.O`), and instance inspection.
@@ -389,7 +397,7 @@ The combinational depth information computed during flattening/analysis. This is
 
 ### 4.8 `monitors` — Debugger Watch Configuration
 
-Named groups of signals worth observing together, populated automatically by the flattener or via user annotations.
+Named groups of signals worth observing together. The schema is an object mapping a group name to a list of gate or wire names:
 
 ```json
 "monitors": {
@@ -397,7 +405,9 @@ Named groups of signals worth observing together, populated automatically by the
 }
 ```
 
-Enables `watch :carry_chain`, `record signals :carry_chain`, and grouped display panels in SHDB.
+It enables `watch :carry_chain`, `record signals :carry_chain`, and grouped display panels in SHDB.
+
+**V1 status.** In V1 the flattener always emits `monitors` as an **empty object** `{}`. There is no annotation syntax in Expanded SHDL and no automatic population path, so no group is ever produced; the block is emitted (always present, always empty) purely so that consumers and the `.shdb` have a stable, well-typed key. The `{group: [gate_or_wire, …]}` schema above is **reserved** for a future revision that adds population (flattener heuristics or source annotations); consumers should tolerate a populated `monitors` but must not depend on one in V1.
 
 ### 4.9 `stats` — Circuit Statistics
 
@@ -475,6 +485,17 @@ Records the power-on value of any net seeded by an Expanded SHDL `init` block (`
 | All blocks optional                        | Graceful degradation for minimal consumers |
 | Unknown blocks ignored                     | Forward compatibility                       |
 | All names referenced must exist in the core| Consistency between the two halves          |
+
+### Documented Limits
+
+The representation imposes two scale limits, fixed by the downstream code generator:
+
+| Limit                     | Value     | Rationale                                                              |
+|---------------------------|-----------|-----------------------------------------------------------------------|
+| Maximum port width        | 64 bits   | A port's value crosses the ABI in a `uint64_t` (`shdlc_goals.md` §3.1) |
+| Maximum input-wire count  | 65535     | Single-bit input wires are indexed by a 16-bit table in generated C (§3.4) |
+
+No maximum **gate count** is defined: the total number of gates is bounded only by available memory, not by a fixed cap.
 
 ---
 
