@@ -1,7 +1,7 @@
 [project]
-name = "shdlc"
-version = "0.1.0"
-description = "SHDL to Base SHDL flattener: the front-end of the SHDL toolchain"
+name = "pyshdl"
+version = "0.1.0"                            # keep in sync with flattener/ and shdlc/ __version__
+description = "SHDL hardware-description toolchain: the SHDL→Base SHDL flattener, the Base SHDL→C compiler (shdlc), and the conformance suite (the PySHDL user-facing driver is forthcoming)."
 requires-python = ">=3.14"
 dependencies = []
 
@@ -18,7 +18,18 @@ build-backend = "hatchling.build"
 packages = ["flattener", "shdlc", "conformance"]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# Matches the existing code's convention (flattener max line 99, shdlc 97).
+line-length = 100
+# target-version is inferred from requires-python (>=3.14).
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# The formatter owns line wrapping; E501 would only flag long Base-SHDL string
+# literals (golden netlist text) that are intentionally kept on one line.
+ignore = ["E501"]
