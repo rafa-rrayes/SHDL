@@ -17,7 +17,7 @@ from shdlc.baseshdl import parse_base
 from shdlc.model import Circuit, Gate, ModelError, PortGroup, Ref, build_circuit
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
-SPEC = Path(__file__).resolve().parent.parent.parent / "base_shdl.md"
+SPEC = Path(__file__).resolve().parent.parent.parent / "docs" / "base_shdl.md"
 TS = "2026-01-01T00:00:00Z"
 
 
