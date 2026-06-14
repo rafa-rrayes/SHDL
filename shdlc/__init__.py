@@ -8,7 +8,7 @@ unit-delay simulation model (shdl.md §11) behind the release ABI
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 from .compile import build_library, compile_text
 

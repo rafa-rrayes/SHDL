@@ -19,7 +19,7 @@ a private copy of it. See ``docs/pyshdl.md`` for the user guide.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 from .circuit import Circuit
 from .errors import (

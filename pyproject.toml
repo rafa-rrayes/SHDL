@@ -1,9 +1,18 @@
 [project]
-name = "pyshdl"
-version = "0.1.0"                            # keep in sync with flattener/ and shdlc/ __version__
+name = "PySHDL"
+version = "1.0.0"
 description = "SHDL hardware-description toolchain: the PySHDL user-facing driver, the SHDL→Base SHDL flattener, the Base SHDL→C compiler (shdlc), and the conformance suite."
+readme = "README.md"
 requires-python = ">=3.14"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "rafa-rrayes", email = "rafa@rayes.com.br" }]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/rafa-rrayes/SHDL"
+Repository = "https://github.com/rafa-rrayes/SHDL"
+Documentation = "https://rafa-rrayes.github.io/SHDL/"
 
 [project.scripts]
 shdl-flatten = "flattener.cli:main"
@@ -15,7 +24,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["pyshdl", "flattener", "shdlc", "conformance"]
+packages = ["pyshdl", "flattener", "shdlc", "conformance", "SHDL"]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]

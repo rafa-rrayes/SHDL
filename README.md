@@ -41,8 +41,16 @@ groups, hierarchy, source maps, timing, constants, init seeds). Specified in
 
 ## Quickstart
 
-Requires Python ≥ 3.14, [uv](https://docs.astral.sh/uv/), and a C compiler
-(clang or gcc).
+Requires Python ≥ 3.14 and a C compiler (clang or gcc).
+
+Install the released package from PyPI to get the `pyshdl` driver and the
+`shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
+
+```sh
+pip install PySHDL          # or: uv add PySHDL
+```
+
+Or work from a clone with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv sync

@@ -374,8 +374,10 @@ class Circuit:
         """
         return self._live().step_settle(_check_cycles(cycles))
 
-    def settle(self) -> None:
+    def settle(self) -> int:
         """Advance exactly ``timing.max_depth`` cycles — just ``step(max_depth)``.
+
+        Returns the number of cycles run (equal to ``max_depth`` when it settles).
 
         Only meaningful for combinational circuits: raises
         :class:`SettleRefusedError` when the circuit has feedback (a latch or
@@ -393,6 +395,7 @@ class Circuit:
                 "max_depth is not a settle count; advance it explicitly with step(n)"
             )
         sim.step(info.timing.max_depth)
+        return info.timing.max_depth
 
     def reset(self) -> None:
         """Return to the power-on state: all-zero except the ``init`` seeds."""
