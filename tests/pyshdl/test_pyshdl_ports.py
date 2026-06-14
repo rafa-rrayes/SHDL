@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from pyshdl import PortValueError, SignalNotFoundError
+from SHDL import PortValueError, SignalNotFoundError
 
 # -- multi-bit access (V.2) -----------------------------------------------------
 

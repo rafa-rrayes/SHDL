@@ -493,7 +493,7 @@ rule per AMB-40.
 `has_feedback`; power-on reset honoring `init`; context manager & dict-style access; boundary
 re-runs of the legacy "comprehensive" catalog (pass-through 0–255, 0xFFFF patterns, bitwise ops,
 nibble extraction) — mostly subsumed by conformance traces but cheap to mirror at the Python API.
-**EXECUTED 2026-06-12** — PySHDL is built (`pyshdl/` package); the full V.2 obligation set is
+**EXECUTED 2026-06-12** — PySHDL is built (`SHDL/` package); the full V.2 obligation set is
 green (`tests/pyshdl/`, 130 tests over 10 modules + the session-scoped `ExampleCache` fixture in
 `conftest.py`). Per-obligation closure:
 - multi-bit poke/peek via `ports`, dict-style access, strict/non-strict value policy, port/circuit

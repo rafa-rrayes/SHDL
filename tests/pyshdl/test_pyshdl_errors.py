@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from flattener.diagnostics import Diagnostic, ErrorCode
-from pyshdl import (
+from SHDL import (
     BuildError,
     Circuit,
     CompilationError,

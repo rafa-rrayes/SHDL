@@ -5,9 +5,9 @@ Example circuits are compiled once per session through the public front door
 instances via ``Circuit.from_library`` — the C compiler runs once per
 example while every test still gets a fresh, isolated simulation.
 
-NOTE: this directory is deliberately NOT a package (no ``__init__.py``): a
-test package literally named ``pyshdl`` would shadow the ``pyshdl`` source
-package under pytest's prepend import mode. Test basenames are prefixed
+NOTE: this directory is deliberately NOT a package (no ``__init__.py``) so
+pytest's prepend import mode never turns it into an importable top-level
+package that could clash with the source tree. Test basenames are prefixed
 ``test_pyshdl_`` to stay unique repo-wide.
 """
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from pyshdl import Circuit
+from SHDL import Circuit
 from shdlc.cc import lib_suffix
 
 REPO = Path(__file__).resolve().parents[2]

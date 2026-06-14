@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from pyshdl import (
+from SHDL import (
     BuildError,
     Circuit,
     ClosedCircuitError,
@@ -262,9 +262,9 @@ def test_failed_build_leaves_no_temp_dirs(monkeypatch, tmp_path):
 
 def test_repr_shows_ports_and_state(examples):
     c = examples.fresh("adder8")
-    assert repr(c) == "<pyshdl.Circuit 'Adder8' (A[8], B[8], Cin) -> (Sum[8], Cout)>"
+    assert repr(c) == "<SHDL.Circuit 'Adder8' (A[8], B[8], Cin) -> (Sum[8], Cout)>"
     c.close()
-    assert repr(c) == "<pyshdl.Circuit 'Adder8' (closed)>"
+    assert repr(c) == "<SHDL.Circuit 'Adder8' (closed)>"
 
 
 def test_repr_without_metadata(examples):

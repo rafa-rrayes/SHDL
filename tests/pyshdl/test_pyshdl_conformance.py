@@ -12,7 +12,7 @@ import pytest
 
 from conformance.runner import executor
 from conformance.runner.schema import load_suite
-from pyshdl import Circuit
+from SHDL import Circuit
 from shdlc.cc import lib_suffix
 
 _SUITE = load_suite()

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from pyshdl import Circuit, MetadataUnavailableError, SettleRefusedError
+from SHDL import Circuit, MetadataUnavailableError, SettleRefusedError
 
 BASE_WITHOUT_META = """\
 component Buf(A) -> (O) {

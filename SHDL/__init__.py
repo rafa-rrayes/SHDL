@@ -1,46 +1,41 @@
-"""Backward-compatibility shim for the pre-1.0 ``SHDL`` import package.
+"""SHDL — the Python driver for SHDL circuits.
 
-Historically the driver was imported as ``from SHDL import Circuit``. The 1.0
-rewrite moved the user-facing API to the :mod:`pyshdl` package; this shim
-re-exports that public surface so existing code keeps working. Prefer importing
-from ``pyshdl`` directly.
+The user-facing layer of the SHDL toolchain: compile a circuit (from a
+``.shdl`` file, SHDL source text, a Base SHDL artifact, or a prebuilt
+shared library) and drive the simulation through an ergonomic interface::
 
-Only the documented user-facing API (``Circuit`` plus the public error and info
-types) is re-exported. The old internal modules (lexer/parser/flattener/compiler
-helpers) are not reproduced — that architecture was replaced by the standalone
-``flattener`` and ``shdlc`` packages.
+    from SHDL import Circuit
+
+    with Circuit("examples/adder8.shdl") as c:
+        c["A"] = 100
+        c["B"] = 55
+        c.settle()
+        print(c["Sum"])  # 155
+
+Everything runs in-process: the flattener lowers SHDL to Base SHDL, shdlc
+generates C, the host C compiler builds a shared library, and ctypes loads
+a private copy of it. See ``docs/pyshdl.md`` for the user guide.
 """
 
 from __future__ import annotations
 
-import warnings
+__version__ = "1.0.0"
 
-from pyshdl import (
+from .circuit import Circuit
+from .errors import (
     BuildError,
-    Circuit,
-    CircuitInfo,
     ClosedCircuitError,
     CompilationError,
     CompileError,
     FlattenError,
     MetadataUnavailableError,
-    PortInfo,
     PortValueError,
     PySHDLError,
     SettleRefusedError,
     SignalNotFoundError,
     SimulationError,
-    TimingInfo,
-    __version__,
 )
-
-warnings.warn(
-    "Importing from `SHDL` is deprecated; import from `pyshdl` instead "
-    "(e.g. `from pyshdl import Circuit`). The `SHDL` shim will be removed in a "
-    "future release.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+from .info import CircuitInfo, PortInfo, TimingInfo
 
 __all__ = [
     "BuildError",

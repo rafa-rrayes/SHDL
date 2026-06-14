@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from pyshdl import MetadataUnavailableError, PortValueError, SignalNotFoundError
+from SHDL import MetadataUnavailableError, PortValueError, SignalNotFoundError
 
 
 def loop_reference(c, frames, *, cycles, settle):
@@ -94,7 +94,7 @@ def test_batch_of_nothing(examples):
 
 
 def test_batch_requires_metadata(examples):
-    from pyshdl import Circuit
+    from SHDL import Circuit
 
     lib, _ = examples.artifacts("adder8")
     with Circuit.from_library(lib) as bare:

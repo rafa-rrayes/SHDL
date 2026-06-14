@@ -43,7 +43,7 @@ groups, hierarchy, source maps, timing, constants, init seeds). Specified in
 
 Requires Python ≥ 3.14 and a C compiler (clang or gcc).
 
-Install the released package from PyPI to get the `pyshdl` driver and the
+Install the released package from PyPI to get the `SHDL` Python package and the
 `shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
 
 ```sh
@@ -67,7 +67,7 @@ whole pipeline (flatten → compile → build → load) in-process and exposes
 poke/peek/step plus dict access and a context manager:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     c["A"] = 100            # dict-style poke; bit 0 is the LSB
@@ -88,7 +88,7 @@ contract (masking, lazy evaluation, init-seeded power-on state).
 |---|---|
 | `flattener/` | SHDL → Base SHDL (lexer, parser, six lowering phases, metadata, `HighEval` reference interpreter) |
 | `shdlc/` | Base SHDL → C → shared library (model, codegen, cc driver, `BaseEval` reference interpreter, ctypes harness) |
-| `pyshdl/` | The user-facing Python driver: `Circuit` runs the pipeline in-process and exposes poke/peek/step (`from pyshdl import Circuit`) |
+| `SHDL/` | The user-facing Python driver: `Circuit` runs the pipeline in-process and exposes poke/peek/step (`from SHDL import Circuit`) |
 | `conformance/` | Frozen corpus of cases with golden Base SHDL + cycle-by-cycle traces, and its runner |
 | `tests/` | `flattener/`, `compiler/`, and `cpu/` suites (~1640 tests) |
 | `examples/` | Small circuits (adders, latches, mux, ALU) and a complete, verified 16-bit CPU (`examples/CPU/`) |
@@ -122,6 +122,6 @@ level lockstep of the example CPU against a golden model.
 ## Status
 
 The flattener, the SHDLC compiler (release ABI), the conformance suite, and
-**PySHDL** — the user-facing Python driver (`from pyshdl import Circuit`) — are
+**PySHDL** — the user-facing Python driver (`from SHDL import Circuit`) — are
 complete and green. Next up are the debug build and the SHDB debugger — see the
 build sequence in the charter.

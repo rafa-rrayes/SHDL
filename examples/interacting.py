@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pyshdl import Circuit, SettleRefusedError
+from SHDL import Circuit, SettleRefusedError
 
 EXAMPLES = Path(__file__).resolve().parent
 

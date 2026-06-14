@@ -106,7 +106,7 @@ def _prepare_dir(build_dir: str | os.PathLike[str] | None) -> tuple[Path, bool]:
         directory = Path(build_dir)
         directory.mkdir(parents=True, exist_ok=True)
         return directory, False
-    return Path(tempfile.mkdtemp(prefix="pyshdl-")), True
+    return Path(tempfile.mkdtemp(prefix="shdl-")), True
 
 
 class Circuit:
@@ -174,7 +174,7 @@ class Circuit:
         """
         if not _MODULE_NAME.fullmatch(name):
             raise ValueError(f"module name must be an identifier, got {name!r}")
-        with tempfile.TemporaryDirectory(prefix="pyshdl-source-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="shdl-source-") as tmp:
             src = Path(tmp) / f"{name}.shdl"
             src.write_text(text, encoding="utf-8")
             return cls(
@@ -491,9 +491,9 @@ class Circuit:
 
     def __repr__(self) -> str:
         if self._closed:
-            return f"<pyshdl.Circuit {self._name!r} (closed)>"
+            return f"<SHDL.Circuit {self._name!r} (closed)>"
         if self._info is None:
-            return f"<pyshdl.Circuit {self._name!r} (no metadata)>"
+            return f"<SHDL.Circuit {self._name!r} (no metadata)>"
 
         def group(ports: tuple[PortInfo, ...]) -> str:
             return (
@@ -502,7 +502,7 @@ class Circuit:
             )
 
         return (
-            f"<pyshdl.Circuit {self._name!r} "
+            f"<SHDL.Circuit {self._name!r} "
             f"({group(self._info.inputs)}) -> ({group(self._info.outputs)})>"
         )
 

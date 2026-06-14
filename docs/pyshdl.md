@@ -6,14 +6,14 @@
 
 ## 1. What PySHDL is
 
-`pyshdl` compiles an SHDL circuit and drives its simulation from Python. One
+`SHDL` compiles an SHDL circuit and drives its simulation from Python. One
 class, `Circuit`, owns the whole pipeline end to end: it flattens SHDL to Base
 SHDL, runs the SHDLC compiler to generate C, builds a shared library with the
 host C compiler, and loads a private copy of it through `ctypes`. You then poke
 inputs, step the unit-delay clock, and peek outputs — all in-process.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     c["A"] = 100
@@ -22,11 +22,11 @@ with Circuit("examples/adder8.shdl") as c:
     print(c["Sum"])  # 155
 ```
 
-`pyshdl` is part of this repository and is stdlib-only by design. From the repo
+`SHDL` is part of this repository and is stdlib-only by design. From the repo
 root it imports directly:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 ```
 
 You need Python ≥ 3.14, the project's dependencies (`uv sync`), and a C
@@ -44,11 +44,11 @@ uv run python my_script.py
 ## 2. Quickstart
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 # Load, compile, and drive an 8-bit ripple-carry adder.
 with Circuit("examples/adder8.shdl") as c:
-    print(repr(c))          # <pyshdl.Circuit 'Adder8' (A[8], B[8], Cin) -> (Sum[8], Cout)>
+    print(repr(c))          # <SHDL.Circuit 'Adder8' (A[8], B[8], Cin) -> (Sum[8], Cout)>
     print(c.inputs)         # ('A', 'B', 'Cin')
     print(c.outputs)        # ('Sum', 'Cout')
 
@@ -74,7 +74,7 @@ explicit — PySHDL never sniffs a string's contents to guess what it is.
 ### `Circuit(path, ...)` — an SHDL file (the front door)
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 c = Circuit("examples/inverter.shdl")
 c["A"] = 1
@@ -98,7 +98,7 @@ Keyword options (also available on `from_source` and `from_base`):
 `top` selects a non-marked component from a multi-component file:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/busOps.shdl", top="SplitByte") as c:
     print(c.inputs)   # ('In',)
@@ -112,7 +112,7 @@ module name the text is written under (it must be a valid identifier);
 `include_dirs=` resolves any imports.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 SOURCE = """\
 top component Buf(A) -> (O) {
@@ -135,7 +135,7 @@ SHDL text, and a path object (anything `os.PathLike`, e.g. a `pathlib.Path`) is
 
 ```python
 from pathlib import Path
-from pyshdl import Circuit
+from SHDL import Circuit
 
 BASE = """\
 component Buf(A) -> (O) {
@@ -171,7 +171,7 @@ init seeds are unrecoverable from it. Pass `base=` (the Base SHDL it was built
 from; `str` = text, path object = file) to restore the full metadata surface.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 # Build once, keeping the artifacts so we can reload them.
 with Circuit("examples/adder8.shdl", build_dir="/tmp/adder8-build") as built:
@@ -206,7 +206,7 @@ output). Dict access is the same thing: `c[name] = value` is `poke`, `c[name]`
 is `peek`.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     c.poke("A", 17)
@@ -224,7 +224,7 @@ zero-extends to a Python `int`, so an output is always non-negative.
 `in` tests whether a name is a port of either direction:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     print("A" in c)     # True
@@ -236,7 +236,7 @@ Unknown names are caught in Python, before reaching C. The error lists what is
 available and never silently no-ops:
 
 ```python
-from pyshdl import Circuit, SignalNotFoundError
+from SHDL import Circuit, SignalNotFoundError
 
 with Circuit("examples/adder8.shdl") as c:
     try:
@@ -258,7 +258,7 @@ range plus the two's-complement negatives. A negative value encodes as two's
 complement within the port width.
 
 ```python
-from pyshdl import Circuit, PortValueError
+from SHDL import Circuit, PortValueError
 
 with Circuit("examples/adder8.shdl") as c:       # 8-bit A: accepts -128..255
     c["A"] = 255
@@ -281,7 +281,7 @@ With `strict=False` PySHDL skips the range check and defers to the C ABI's
 documented masking — every value is taken modulo `2**width`:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl", strict=False) as c:
     c["A"] = 256
@@ -310,7 +310,7 @@ Advance exactly `cycles` cycles (one gate level each). `step(0)` is legal and
 does nothing.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/inverter.shdl") as c:
     c["A"] = 1
@@ -326,7 +326,7 @@ propagating. It is the right call for combinational circuits, where that depth
 is a true settle count:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     print(c.timing.max_depth)  # 17 -- the ripple-carry critical path
@@ -340,7 +340,7 @@ refused: a feedback loop has no guaranteed fixed point, so `max_depth` is not a
 settle count. Advance such a circuit explicitly with `step(n)`.
 
 ```python
-from pyshdl import Circuit, SettleRefusedError
+from SHDL import Circuit, SettleRefusedError
 
 with Circuit("examples/srLatch.shdl") as c:
     print(c.timing.has_feedback)  # True
@@ -362,7 +362,7 @@ combinational circuit it finds the fixed point well before the budget; an
 oscillator never reaches one and runs the full count.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     c["A"], c["B"] = 123, 45
@@ -385,7 +385,7 @@ the pokes, advances `cycles` cycles (using the fixed-point early exit when
 per frame.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     depth = c.timing.max_depth
@@ -400,7 +400,7 @@ with Circuit("examples/adder8.shdl") as c:
 from the circuit's current inputs). Here the second and third frames keep `A`:
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     rows = c.run_batch(
@@ -435,7 +435,7 @@ port metadata. The circuit still runs, but degrades explicitly:
 
 ```python
 from pathlib import Path
-from pyshdl import Circuit, MetadataUnavailableError
+from SHDL import Circuit, MetadataUnavailableError
 
 with Circuit("examples/adder8.shdl", build_dir="/tmp/adder8-bare") as built:
     pass
@@ -464,7 +464,7 @@ A circuit exposes a read-only view of its Base SHDL metadata. Nothing here
 touches the simulation; it is built once at load time.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
     print(c.name)        # 'Adder8'
@@ -504,7 +504,7 @@ the `init` seeds, with inputs cleared. It is idempotent and equivalent to a
 fresh load.
 
 ```python
-from pyshdl import Circuit
+from SHDL import Circuit
 
 with Circuit("examples/srLatch.shdl") as c:
     print(c["Q"], c["Qn"])   # 0 1 -- the init-seeded power-on state, not all-zero
@@ -533,7 +533,7 @@ the managed temp dir) or pass an explicit `build_dir=` (which is never deleted).
 
 ```python
 from pathlib import Path
-from pyshdl import Circuit
+from SHDL import Circuit
 
 out = Path("/tmp/adder8-artifacts")
 with Circuit("examples/adder8.shdl", build_dir=out) as c:
@@ -570,7 +570,7 @@ circuit's life: `CompilationError` (turning source into a loaded library) and
 so you never re-parse a message:
 
 ```python
-from pyshdl import Circuit, FlattenError
+from SHDL import Circuit, FlattenError
 
 bad = "top component Bad(A) -> (O) { connect { A -> nope.X; } }"
 try:
@@ -581,7 +581,7 @@ except FlattenError as e:
 ```
 
 ```python
-from pyshdl import Circuit, BuildError
+from SHDL import Circuit, BuildError
 
 try:
     Circuit("examples/inverter.shdl", cc="definitely-not-a-compiler")
