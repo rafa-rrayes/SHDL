@@ -32,6 +32,7 @@ Failures embed the trigger source so the case is replayable from the message.
 from __future__ import annotations
 
 import ast
+import os
 import traceback
 from pathlib import Path
 
@@ -939,7 +940,7 @@ def _drive(entry: dict, tmp_path, monkeypatch) -> SHDLError:
     # on-disk layout). These are identified by note + (source is None) + no
     # monkeypatch recipe.
     if entry["note"] and source is None and needs is None:
-        return _drive_special(entry, tmp_path)
+        return _drive_special(entry, tmp_path, monkeypatch)
     if needs == "self_connection":
         import flattener.phases.expander as expander
 
@@ -983,7 +984,7 @@ def _drive(entry: dict, tmp_path, monkeypatch) -> SHDLError:
     return _capture(lambda: flatten_source(tmp_path, source, aux=entry["aux"]))
 
 
-def _drive_special(entry: dict, tmp_path) -> SHDLError:
+def _drive_special(entry: dict, tmp_path, monkeypatch) -> SHDLError:
     """Build the non-source triggers identified by their note."""
     note = entry["note"]
     if note.startswith("parser nesting cap"):
@@ -1025,9 +1026,32 @@ def _drive_special(entry: dict, tmp_path) -> SHDLError:
         )
         return _capture(lambda: pipeline.flatten_program(str(main), include_dirs=[str(sub)]))
     if note.startswith("case-mismatch"):
+        import flattener.loader as loader
+
         (tmp_path / "lib.shdl").write_text("component X(A) -> (Y) { connect { A -> Y; } }")
         main = tmp_path / "main.shdl"
         main.write_text("use Lib::{X};\ntop component M(A) -> (Y) { connect { A -> Y; } }")
+
+        # The IMP-11 case-mismatch guard fires only when `use Lib` opens
+        # lib.shdl -- which a case-insensitive filesystem (APFS/NTFS) does but a
+        # case-sensitive one (typical Linux) never will. Emulate that lookup so
+        # the raise site is exercised on any host: resolve case-insensitively
+        # and report the real on-disk basename, exactly as _resolve_module does
+        # on a case-folding FS.
+        def _ci_resolve(name, base_dir, include_dirs):
+            want = f"{name}.shdl".lower()
+            for d in [base_dir, *include_dirs]:
+                try:
+                    entries = os.listdir(d or os.curdir)
+                except OSError:
+                    continue
+                actual = next((e for e in entries if e.lower() == want), None)
+                if actual is not None:
+                    stem = actual[: -len(".shdl")] if actual.endswith(".shdl") else actual
+                    return os.path.abspath(os.path.join(d, actual)), stem
+            return None, None
+
+        monkeypatch.setattr(loader, "_resolve_module", _ci_resolve)
         return _capture(lambda: pipeline.flatten_program(str(main)))
     raise AssertionError(f"no special builder for note {note!r}")
 

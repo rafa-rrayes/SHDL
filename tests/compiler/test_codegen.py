@@ -510,7 +510,11 @@ def test_visibility_macro_definition():
 
 def test_step_and_tick_bodies_are_cold_path_free():
     src = generate_c(passthrough_circuit())
-    step = _body(src, "SHDLC_API void step(")
+    # step_impl holds the per-cycle hot loop; the exported step() is a thin
+    # wrapper over it (the indirection keeps run_batch's internal call off the
+    # interposable global symbol -- on ELF an exported step() collides with
+    # libc's legacy regex step()).
+    step = _body(src, "static void step_impl(")
     for forbidden in ("strcmp", "fprintf", "malloc", "if ("):
         assert forbidden not in step, forbidden
     assert "tick();" in step
