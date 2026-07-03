@@ -44,7 +44,7 @@ groups, hierarchy, source maps, timing, constants, init seeds). Specified in
 Requires Python ≥ 3.14 and a C compiler (clang or gcc).
 
 Install the released package from PyPI to get the `SHDL` Python package and the
-`shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
+`shdl` / `shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
 
 ```sh
 pip install PySHDL          # or: uv add PySHDL
@@ -81,6 +81,26 @@ See [docs/pyshdl.md](docs/pyshdl.md) for the full guide, and
 (`uv run python examples/interacting.py`). The underlying ABI is callable from
 any language; see [docs/shdlc_goals.md](docs/shdlc_goals.md) §3 for the full
 contract (masking, lazy evaluation, init-seeded power-on state).
+
+## Projects & packages: the `shdl` CLI
+
+The `shdl` command (installed with the package) manages whole projects and
+installs circuit libraries from **Circuit Circus**, the SHDL package index:
+
+```sh
+shdl new counter && cd counter   # scaffold shdl.toml, src/, tests/ — it compiles
+shdl add arith                   # vendor a package (+ its deps) into shdl_modules/
+shdl build && shdl test          # flatten + compile, then run the test vectors
+shdl run                         # poke/peek/step REPL over the live circuit
+```
+
+```shdl
+use arith::{RippleAdder};        # vendored packages are directly importable
+```
+
+Dependencies are pinned in a committed `shdl.lock` (builds never touch the
+network), and `shdl publish` walks you through contributing a package back.
+See [docs/shdl_cli.md](docs/shdl_cli.md).
 
 ## Repository layout
 
@@ -121,7 +141,8 @@ level lockstep of the example CPU against a golden model.
 
 ## Status
 
-The flattener, the SHDLC compiler (release ABI), the conformance suite, and
-**PySHDL** — the user-facing Python driver (`from SHDL import Circuit`) — are
+The flattener, the SHDLC compiler (release ABI), the conformance suite,
+**PySHDL** — the user-facing Python driver (`from SHDL import Circuit`) — and
+the **`shdl` CLI** (projects + the Circuit Circus package registry) are
 complete and green. Next up are the debug build and the SHDB debugger — see the
 build sequence in the charter.

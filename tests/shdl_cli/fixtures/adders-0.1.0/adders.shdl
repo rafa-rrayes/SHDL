@@ -1,0 +1,18 @@
+"""adders — a half adder whose carry runs through nands::Nand2."""
+
+use nands::{Nand2};
+
+component HalfAdd(A, B) -> (S, C) {
+    x: XOR;
+    n1: Nand2;
+    inv: NOT;
+    connect {
+        A -> x.A;
+        B -> x.B;
+        x.O -> S;
+        A -> n1.A;
+        B -> n1.B;
+        n1.O -> inv.A;
+        inv.O -> C;
+    }
+}

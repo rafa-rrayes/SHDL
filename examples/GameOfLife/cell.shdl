@@ -1,0 +1,95 @@
+"""
+Cell -- one Conway's Game of Life cell, built entirely from gates.
+
+The cell holds one bit of state (alive/dead) in a master-slave flip-flop
+(msffe::MSFFE, a local module), clocked by the two-phase Phi1/Phi2
+discipline.  The adders come from the CCircus `arith` package.  Every
+generation it recomputes its next state from its eight neighbours:
+
+    popcount(N1..N8)  ->  4-bit neighbour count T3 T2 T1 T0
+    born   = (count == 3)
+    stays  = Self AND (count == 2)
+    next   = born OR stays                       # the B3/S23 rule
+
+A load mux lets the harness seed any pattern at runtime:
+
+    D = Load ? Seed : next
+
+LD is tied high (constant One) so the flip-flop captures D every clock.
+"""
+
+use arith::{HalfAdder, FullAdder};
+use msffe::{MSFFE};
+
+component Cell(N1, N2, N3, N4, N5, N6, N7, N8, Load, Seed, Phi1, Phi2) -> (Q) {
+    # --- popcount of the eight neighbours -------------------------------
+    faA: FullAdder;     # N1 + N2 + N3   -> sumA (bit0), carryA (bit1)
+    faB: FullAdder;     # N4 + N5 + N6   -> sumB,        carryB
+    haC: HalfAdder;     # N7 + N8        -> sumC,        carryC
+
+    abH: HalfAdder;     # sumA + sumB
+    abF: FullAdder;     # carryA + carryB + carry(abH)
+
+    t0H: HalfAdder;     # low bits + sumC
+    t1F: FullAdder;
+    t2H: HalfAdder;     # high bit -> T2, T3
+
+    # --- compare the count to 2 and 3 ----------------------------------
+    nT0: NOT;  nT2: NOT;  nT3: NOT;
+    c23: AND;           # (count < 4):  NOT T2 AND NOT T3
+    com: AND;           # T1 AND c23  (common to ==2 and ==3)
+    eq3g: AND;          # com AND T0    -> count == 3
+    eq2g: AND;          # com AND NOT T0-> count == 2
+
+    # --- the rule + the load mux + the flip-flop -----------------------
+    surv: AND;          # Self AND (count == 2)
+    nx:   OR;           # born OR stays = next state
+
+    nLoad: NOT;
+    mSeed: AND;         # Seed AND Load
+    mNext: AND;         # next AND NOT Load
+    dmux:  OR;          # D = mSeed OR mNext
+
+    One = 1;            # tie the flip-flop's load-enable high
+    ff: MSFFE;
+
+    connect {
+        # popcount layer 1: three small adders
+        N1 -> faA.A;  N2 -> faA.B;  N3 -> faA.Cin;
+        N4 -> faB.A;  N5 -> faB.B;  N6 -> faB.Cin;
+        N7 -> haC.A;  N8 -> haC.B;
+
+        # add the two 2-bit results A and B
+        faA.Sum  -> abH.A;   faB.Sum  -> abH.B;
+        faA.Cout -> abF.A;   faB.Cout -> abF.B;   abH.Cout -> abF.Cin;
+
+        # add the 2-bit result C, giving the 4-bit count T3 T2 T1 T0
+        abH.Sum  -> t0H.A;   haC.Sum   -> t0H.B;        # T0 = t0H.Sum
+        abF.Sum  -> t1F.A;   haC.Cout  -> t1F.B;   t0H.Cout -> t1F.Cin;   # T1 = t1F.Sum
+        abF.Cout -> t2H.A;   t1F.Cout  -> t2H.B;        # T2 = t2H.Sum, T3 = t2H.Cout
+
+        # equality tests
+        t0H.Sum   -> nT0.A;
+        t2H.Sum   -> nT2.A;
+        t2H.Cout  -> nT3.A;
+        nT2.O -> c23.A;   nT3.O -> c23.B;
+        t1F.Sum -> com.A; c23.O -> com.B;
+        com.O -> eq3g.A;  t0H.Sum -> eq3g.B;            # eq3 = com AND T0
+        com.O -> eq2g.A;  nT0.O   -> eq2g.B;            # eq2 = com AND NOT T0
+
+        # B3/S23: next = eq3 OR (Self AND eq2)
+        ff.Q  -> surv.A;  eq2g.O -> surv.B;
+        eq3g.O -> nx.A;   surv.O -> nx.B;
+
+        # load mux: D = Load ? Seed : next
+        Load  -> nLoad.A;
+        Seed  -> mSeed.A;  Load   -> mSeed.B;
+        nx.O  -> mNext.A;  nLoad.O -> mNext.B;
+        mSeed.O -> dmux.A; mNext.O -> dmux.B;
+
+        # the flip-flop
+        dmux.O -> ff.D;   One -> ff.LD;
+        Phi1 -> ff.Phi1;  Phi2 -> ff.Phi2;
+        ff.Q -> Q;
+    }
+}
