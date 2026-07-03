@@ -1,0 +1,11 @@
+# Conway's Game of Life as a shdl project:
+#   shdl install && shdl build && shdl test
+[project]
+name = "gameoflife"
+version = "0.1.0"
+main = "life32.shdl"
+top = "Life"
+shdl = ">=1.1.0"
+
+[dependencies]
+arith = "^0.1.0"

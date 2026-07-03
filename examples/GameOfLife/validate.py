@@ -5,8 +5,17 @@ from pathlib import Path
 
 from SHDL import Circuit
 
-# cell.shdl imports fullAdder (examples/) and seq (examples/CPU/)
-EXAMPLES = Path(__file__).resolve().parents[1]
+HERE = Path(__file__).resolve().parent
+
+
+def include_dirs() -> list[Path]:
+    """The project dir (cell/msffe/life*) plus the vendored packages."""
+    mods = HERE / "shdl_modules"
+    if not mods.is_dir():
+        raise SystemExit(
+            "vendored packages missing — run `shdl install` in this directory first"
+        )
+    return [HERE, *sorted(p for p in mods.iterdir() if p.is_dir())]
 
 # ---- independent reference: toroidal Conway's Game of Life ----------------
 
@@ -31,7 +40,7 @@ class LifeDriver:
     def __init__(self, path, W, H, settle=80, cap=16, gap=4, cc=None):
         self.W, self.H = W, H
         self.s, self.cap, self.gap = settle, cap, gap
-        self.c = Circuit(path, include_dirs=[EXAMPLES, EXAMPLES / "CPU"], cc=cc)
+        self.c = Circuit(HERE / path, include_dirs=include_dirs(), cc=cc)
         self.c.reset()
 
     def _clock(self):
@@ -73,7 +82,10 @@ def show(grid):
 
 
 if __name__ == "__main__":
+    from gen_life import generate
+
     W = H = 8
+    (HERE / "life8.shdl").write_text(generate(W, H))
     drv = LifeDriver("life8.shdl", W, H)
 
     # blinker (period-2 oscillator) + a glider, on the torus

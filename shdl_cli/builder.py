@@ -11,10 +11,53 @@ work even if the C compiler or toolchain modules are unhappy.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .errors import CliError
 from .project import Project
+
+_COMPONENT_DEF = re.compile(
+    r"^\s*(?:top\s+)?component\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE
+)
+
+
+def _defines(path: Path, top: str) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return top in _COMPONENT_DEF.findall(text)
+
+
+def _entry_module(project: Project, top: str | None) -> Path:
+    """The module to hand the toolchain: main, unless ``top`` names a
+    component defined in another project module — the flattener resolves
+    --top only against the entry module, and ``shdl test`` cases may target
+    any project component."""
+    main = project.main_path
+    if top is None or _defines(main, top):
+        return main
+    skip = (project.modules_dir.resolve(), project.build_dir.resolve())
+    roots = {main.parent.resolve()}
+    src = project.root / "src"
+    if src.is_dir():
+        roots.add(src.resolve())
+    hits: list[Path] = []
+    for root in sorted(roots):
+        for p in sorted(root.rglob("*.shdl")):
+            rp = p.resolve()
+            if rp == main.resolve() or any(rp.is_relative_to(s) for s in skip):
+                continue
+            if _defines(p, top):
+                hits.append(p)
+    if len(hits) > 1:
+        raise CliError(
+            f"component {top!r} is defined in more than one project module: "
+            + ", ".join(str(p) for p in hits)
+        )
+    # no hit: let the flattener report the missing component verbatim
+    return hits[0] if hits else main
 
 
 def flatten(project: Project, include_dirs: list[str], top: str | None) -> str:
@@ -24,9 +67,10 @@ def flatten(project: Project, include_dirs: list[str], top: str | None) -> str:
 
     if not project.main_path.is_file():
         raise CliError(f"main module not found: {project.main_path}")
+    entry = _entry_module(project, top or project.top)
     try:
         return flatten_program(
-            str(project.main_path), include_dirs or None, top or project.top
+            str(entry), include_dirs or None, top or project.top
         ).text
     except SHDLError as e:
         # the flattener's diagnostics are the user-facing message, verbatim
@@ -80,9 +124,10 @@ def open_circuit(
 
     if not project.main_path.is_file():
         raise CliError(f"main module not found: {project.main_path}")
+    entry = _entry_module(project, top or project.top)
     try:
         return Circuit(
-            str(project.main_path),
+            str(entry),
             top=top or project.top,
             include_dirs=include_dirs,
             cc=cc,

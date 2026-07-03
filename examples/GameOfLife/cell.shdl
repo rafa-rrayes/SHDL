@@ -2,7 +2,8 @@
 Cell -- one Conway's Game of Life cell, built entirely from gates.
 
 The cell holds one bit of state (alive/dead) in a master-slave flip-flop
-(seq::MSFFE), clocked by the two-phase Phi1/Phi2 discipline.  Every
+(msffe::MSFFE, a local module), clocked by the two-phase Phi1/Phi2
+discipline.  The adders come from the CCircus `arith` package.  Every
 generation it recomputes its next state from its eight neighbours:
 
     popcount(N1..N8)  ->  4-bit neighbour count T3 T2 T1 T0
@@ -17,8 +18,8 @@ A load mux lets the harness seed any pattern at runtime:
 LD is tied high (constant One) so the flip-flop captures D every clock.
 """
 
-use fullAdder::{HalfAdder, FullAdder};
-use seq::{MSFFE};
+use arith::{HalfAdder, FullAdder};
+use msffe::{MSFFE};
 
 component Cell(N1, N2, N3, N4, N5, N6, N7, N8, Load, Seed, Phi1, Phi2) -> (Q) {
     # --- popcount of the eight neighbours -------------------------------
@@ -60,17 +61,17 @@ component Cell(N1, N2, N3, N4, N5, N6, N7, N8, Load, Seed, Phi1, Phi2) -> (Q) {
 
         # add the two 2-bit results A and B
         faA.Sum  -> abH.A;   faB.Sum  -> abH.B;
-        faA.Cout -> abF.A;   faB.Cout -> abF.B;   abH.Carry -> abF.Cin;
+        faA.Cout -> abF.A;   faB.Cout -> abF.B;   abH.Cout -> abF.Cin;
 
         # add the 2-bit result C, giving the 4-bit count T3 T2 T1 T0
         abH.Sum  -> t0H.A;   haC.Sum   -> t0H.B;        # T0 = t0H.Sum
-        abF.Sum  -> t1F.A;   haC.Carry -> t1F.B;   t0H.Carry -> t1F.Cin;   # T1 = t1F.Sum
-        abF.Cout -> t2H.A;   t1F.Cout  -> t2H.B;        # T2 = t2H.Sum, T3 = t2H.Carry
+        abF.Sum  -> t1F.A;   haC.Cout  -> t1F.B;   t0H.Cout -> t1F.Cin;   # T1 = t1F.Sum
+        abF.Cout -> t2H.A;   t1F.Cout  -> t2H.B;        # T2 = t2H.Sum, T3 = t2H.Cout
 
         # equality tests
         t0H.Sum   -> nT0.A;
         t2H.Sum   -> nT2.A;
-        t2H.Carry -> nT3.A;
+        t2H.Cout  -> nT3.A;
         nT2.O -> c23.A;   nT3.O -> c23.B;
         t1F.Sum -> com.A; c23.O -> com.B;
         com.O -> eq3g.A;  t0H.Sum -> eq3g.B;            # eq3 = com AND T0

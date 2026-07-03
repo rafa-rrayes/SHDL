@@ -1,0 +1,63 @@
+"""
+Sequential storage for the Life grid: SRLatch -> DLatch -> MSFFE.
+
+A local project module — the file sits next to shdl.toml, so it is on the
+include path with no registry involved.  The adders come from the CCircus
+`arith` package instead (see shdl.toml); this example runs both kinds of
+dependency side by side.
+
+Feedback is well-defined in SHDL's unit-delay model: every gate recomputes
+once per cycle from last cycle's values, so cross-coupled structures hold
+state with no special syntax.  `init` must seed a fixed point of each loop
+so the state is defined from tick 0.
+"""
+
+component SRLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;     # NOR #1, owned by the latch
+    o2: OR;  i2: NOT;     # NOR #2
+
+    init {
+        o1.O = 1;   # OR(R=0, Qn=1)
+        i1.O = 0;   # Q  = 0
+        o2.O = 0;   # OR(S=0, Q=0)
+        i2.O = 1;   # Qn = 1
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+
+component DLatch(D, EN) -> (Q, Qn) {
+    inv:   NOT;
+    gSet:  AND;        # S = D AND EN
+    gRst:  AND;        # R = (NOT D) AND EN
+    latch: SRLatch;
+
+    connect {
+        D -> inv.A;
+
+        D     -> gSet.A;   EN -> gSet.B;
+        inv.O -> gRst.A;   EN -> gRst.B;
+
+        gSet.O -> latch.S;
+        gRst.O -> latch.R;
+
+        latch.Q  -> Q;
+        latch.Qn -> Qn;
+    }
+}
+
+component MSFFE(D, LD, Phi1, Phi2) -> (Q) {
+    en: AND;           # master strobes only when loaded: EN = LD & Phi1
+    m:  DLatch;
+    s:  DLatch;
+
+    connect {
+        LD   -> en.A;   Phi1 -> en.B;
+        D    -> m.D;    en.O -> m.EN;
+        m.Q  -> s.D;    Phi2 -> s.EN;
+        s.Q  -> Q;
+    }
+}

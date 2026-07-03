@@ -207,6 +207,22 @@ def test_add_path_with_illegal_name_rejected(demo, capsys, tmp_path):
     assert (demo / "shdl.toml").read_text() == toml_before  # untouched
 
 
+def test_test_targets_component_in_sibling_module(demo, capsys):
+    # the flattener resolves --top only against its entry module; a case
+    # naming a component from another project module must still build
+    (demo / "src" / "helper.shdl").write_text(
+        "component Buf(A) -> (O) {\n    n1: NOT;\n    n2: NOT;\n"
+        "    connect {\n        A -> n1.A;\n        n1.O -> n2.A;\n        n2.O -> O;\n    }\n}\n"
+    )
+    (demo / "tests" / "helper.tests.json").write_text(json.dumps({
+        "cases": [{"component": "Buf", "steps": 8,
+                   "vectors": [{"in": {"A": 1}, "out": {"O": 1}},
+                               {"in": {"A": 0}, "out": {"O": 0}}]}]
+    }))
+    assert main(["test", "--dev", "Buf"]) == 0
+    assert "ok    Buf" in capsys.readouterr().out
+
+
 def test_unmatched_component_filter_errors(demo, capsys):
     assert main(["test", "--dev", "Main", "NoSuchComp"]) == 1
     assert "NoSuchComp" in capsys.readouterr().err

@@ -1,0 +1,61 @@
+{
+  "lock_format": 1,
+  "manifest_fingerprint": "sha256:87d1da06f8e31c13af28309df61a4ac53dccc3853aa7c96751cda0ef75bd8418",
+  "packages": {
+    "arith": {
+      "dependencies": {
+        "gates": "^0.1.0"
+      },
+      "exports": [
+        "HalfAdder",
+        "FullAdder",
+        "RippleAdder",
+        "CarryLookahead",
+        "CarrySelect",
+        "CarrySave",
+        "Subtractor",
+        "AddSub",
+        "Incrementer",
+        "Decrementer",
+        "Negate",
+        "EqComparator",
+        "MagComparator",
+        "ArrayMultiplier",
+        "Divider",
+        "ALU"
+      ],
+      "module": "arith.shdl",
+      "sha256": "3b447086d5a09ccc6a038da2c87ae3f9f037ac139d534bfe2aeaa00f5d4d797d",
+      "source": {
+        "type": "registry",
+        "url": "https://rafa-rrayes.github.io/CCircus"
+      },
+      "version": "0.1.0"
+    },
+    "gates": {
+      "dependencies": {},
+      "exports": [
+        "Nand",
+        "Nor",
+        "Xnor",
+        "Buffer",
+        "AndN",
+        "OrN",
+        "XorN",
+        "BitAnd",
+        "BitOr",
+        "BitXor",
+        "BitNot",
+        "Majority3"
+      ],
+      "module": "gates.shdl",
+      "sha256": "2ec8ac97a097996c7d53c8f6c16396db84b8a2c6559e821b70540bae8200e4f7",
+      "source": {
+        "type": "registry",
+        "url": "https://rafa-rrayes.github.io/CCircus"
+      },
+      "version": "0.1.0"
+    }
+  },
+  "registry": "https://rafa-rrayes.github.io/CCircus"
+}

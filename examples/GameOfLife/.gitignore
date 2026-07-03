@@ -1,0 +1,4 @@
+shdl_modules/
+build/
+__pycache__/
+life8.shdl
