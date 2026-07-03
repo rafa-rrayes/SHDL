@@ -1,0 +1,19 @@
+{
+  "manifest_format": 1,
+  "name": "nands",
+  "version": "0.2.0",
+  "summary": "One universal gate, plus an inverter built from it.",
+  "description": "",
+  "license": "GPL-3.0-or-later",
+  "authors": ["fixture <fixture@example.invalid>"],
+  "homepage": "",
+  "keywords": ["nand"],
+  "shdl": ">=1.0.0",
+  "module": "nands.shdl",
+  "dependencies": {},
+  "tests": "tests/nands.tests.json",
+  "exports": [
+    {"name": "Nand2", "summary": "NAND.", "params": [], "inputs": [{"name": "A", "width": 1}, {"name": "B", "width": 1}], "outputs": [{"name": "O", "width": 1}]},
+    {"name": "Inv", "summary": "Inverter from a NAND.", "params": [], "inputs": [{"name": "A", "width": 1}], "outputs": [{"name": "O", "width": 1}]}
+  ]
+}

@@ -145,7 +145,7 @@ A **language server (LSP)** for editor support everywhere (autocomplete on compo
 
 ### 4.12 Distribution and Glue
 
-A **unified CLI** (`shdl build`, `shdl sim`, `shdl test`, `shdl deploy`), a **package manager / registry** for sharing components (`shdl add alu`), and a **CI action** that compiles, runs testbenches, and checks equivalence on every push.
+*The CLI and the package manager are built.* The **unified CLI** (`shdl`) ships with PySHDL: `shdl new`/`init` scaffold a project (`shdl.toml`, `shdl.lock`, `shdl_modules/`), `shdl build`/`test`/`run` drive the in-process pipeline, and the **package manager** (`shdl add arith`) resolves against **Circuit Circus** — the hosted static package index (github.com/rafa-rrayes/CCircus, published on GitHub Pages) with versioned immutable archives and PR-based publishing (`shdl publish` prints the playbook). See `docs/shdl_cli.md`. Still ahead: `shdl deploy` (hardware targets) and a **CI action** that compiles, runs testbenches, and checks equivalence on every push.
 
 ### 4.13 The Conformance Suite
 
@@ -194,7 +194,7 @@ The ecosystem has a clear dependency structure. The layers below indicate what m
 
 ### Layer 5 — Glue & distribution
 
-17. **Unified CLI, LSP, formatter, documentation generator, importer, package registry, CI action** — wrap the tools they orchestrate; come once those exist.
+17. **Unified CLI & package registry** — *built* (the `shdl` CLI + the Circuit Circus index). **LSP, formatter, documentation generator, importer, CI action** — wrap the tools they orchestrate; come once those exist.
 
 ### Layer 6 — Integration
 
@@ -246,7 +246,8 @@ These principles govern every part of the project.
 | Visualization (VCD/schematic) | 3     | Planned       |
 | Web playground (WASM)         | 3     | Planned       |
 | Hardware bridge (MCU/FPGA)    | 4     | Planned       |
-| Glue & distribution (CLI/LSP) | 5     | Planned       |
+| `shdl` CLI + package registry | 5     | Built         |
+| Glue & distribution (LSP, …)  | 5     | Planned       |
 | SHDL Station                  | 6     | Planned       |
 | SHDLC optimization tiers      | 7     | Planned (last)|
 

@@ -1,0 +1,12 @@
+"""nands — the universal gate, twice over."""
+
+component Nand2(A, B) -> (O) {
+    a: AND;
+    n: NOT;
+    connect {
+        A -> a.A;
+        B -> a.B;
+        a.O -> n.A;
+        n.O -> O;
+    }
+}
