@@ -1,0 +1,398 @@
+---
+title: shdlc compiler
+sidebar_label: shdlc
+description: Reference for shdlc, the compiler that turns Base SHDL (or SHDL source) into C and a shared library, covering flags, compiler selection, limits, errors and its Python API.
+---
+
+`shdlc` is the back end of the SHDL toolchain. It reads a Base SHDL netlist, or SHDL source that it flattens first, and generates portable C. It then builds that C into a shared library with the host C compiler. The library exports the six functions of the [C ABI](./c-abi.mdx). [PySHDL's `Circuit`](./python-api.mdx) runs this same compiler in-process, so everything on this page also applies to `Circuit`. The normative requirements are in [shdlc_goals.md](/specs/shdlc_goals).
+
+```text
+  .shdl ──(shdl-flatten)──► Base SHDL ──(shdlc)──► C source ──(cc)──► shared library
+```
+
+## Usage
+
+```console check
+$ shdlc --help
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+             [--base | --shdl] [--top NAME] [-I DIR]
+             input
+
+Compile Base SHDL (or .shdl via the flattener) to a shared library exporting
+reset/poke/peek/step.
+
+positional arguments:
+  input              Base SHDL artifact, or .shdl source
+
+options:
+  -h, --help         show this help message and exit
+...
+  --emit-c FILE.c    also write the generated C here (default: input stem +
+                     '.c' when --no-build is given)
+  --no-build         stop after generating C; do not invoke the C compiler
+  --cc CC            C compiler to use (default: $CC, then cc/clang/gcc)
+  --dev              development build: compile with -O0 (much faster C
+                     compile on large circuits; the simulator runs slower than
+                     the -O2 default)
+  --base             treat INPUT as Base SHDL regardless of extension
+  --shdl             treat INPUT as SHDL source regardless of extension
+  --top NAME         top component (SHDL inputs only; passed to the flattener)
+  -I, --include DIR  module search directory (SHDL inputs only; may be
+                     repeated)
+```
+
+The elided `-o` line names the library suffix of the platform you are on. Despite the description, the library exports all six ABI functions, including `step_settle` and `run_batch`. `python -m shdlc` is equivalent to `shdlc`.
+
+On success, `shdlc` prints nothing and exits with status 0:
+
+```console check
+$ shdlc examples/adder8.shdl -o adder8.so
+$ ls adder8*
+adder8.so
+```
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `input` | required | The file to compile: SHDL source or a Base SHDL artifact. See [Input kinds](#input-kinds). |
+| `-o LIB`, `--output LIB` | input stem + platform suffix, in the working directory | Path of the shared library to build. Ignored with `--no-build`. |
+| `--emit-c FILE.c` | not written; with `--no-build`, input stem + `.c` in the working directory | Also write the generated C to this path. |
+| `--no-build` | off | Generate the C and stop. The C compiler is not run. |
+| `--cc CC` | `$CC`, then `cc`, `clang`, `gcc` | The C compiler command. See [Choosing the C compiler](#choosing-the-c-compiler). Ignored with `--no-build`. |
+| `--dev` | off | Build with `-O0` instead of `-O2`. See [Optimization](#optimization). It is an error with `--no-build`. |
+| `--base` | off | Treat `input` as Base SHDL whatever its extension. |
+| `--shdl` | off | Treat `input` as SHDL source whatever its extension. You cannot combine it with `--base`. |
+| `--top NAME` | the flattener's choice | The top component, passed to the flattener. It is only valid for SHDL input. See [top selection](./shdl-flatten.mdx#top-selection). |
+| `-I DIR`, `--include DIR` | none | Extra module search directory, passed to the flattener. You can repeat it. It is only valid for SHDL input. See [module search](./shdl-flatten.mdx#module-search). |
+
+## Input kinds
+
+`shdlc` decides how to read `input` from its extension and the two mode flags:
+
+| Input | Read as |
+|---|---|
+| `--shdl` given | SHDL source |
+| `--base` given | Base SHDL |
+| otherwise, the name ends in `.shdl` | SHDL source |
+| otherwise | Base SHDL |
+
+SHDL source is flattened in-process, exactly as [`shdl-flatten`](./shdl-flatten.mdx) would do it, and the result is compiled. Nothing is written to disk except the outputs. Flattener diagnostics are printed with an `shdlc: error:` prefix; see [Errors and exit status](#errors-and-exit-status). Base SHDL is read as UTF-8 and compiled directly. In both cases the Base SHDL goes through the compiler's full structural validation before any C is generated; see [base_shdl.md §6](/specs/base_shdl#6-constraints-summary).
+
+:::warning[Pass `--base` for `.base.shdl` files]
+
+A file named `adder8.base.shdl` also ends in `.shdl`, so without `--base` it is read as **SHDL source**. Real flattener output then fails, usually on the expanded port names that SHDL reserves:
+
+:::
+
+```console check
+$ shdl-flatten examples/adder8.shdl --timestamp 2026-01-01T00:00:00Z -o adder8.base.shdl
+$ shdlc adder8.base.shdl 2>&1; echo "exit $?"
+shdlc: error: adder8.base.shdl:1:18: error[E0304]: port name 'A_1_' matches the reserved bus-expansion pattern '..._<digits>_'
+exit 1
+$ shdlc --base adder8.base.shdl -o adder8.so 2>&1; echo "exit $?"
+exit 0
+```
+
+A small artifact with only single-bit ports and no `meta` block may even flatten successfully as SHDL, and would then be compiled from the re-flattened text instead of the file you gave. Always pass `--base` for Base SHDL files with a `.shdl` extension.
+
+## Outputs
+
+`shdlc` writes at most two files, and never deletes a file you named.
+
+| You pass | Library | C source |
+|---|---|---|
+| nothing | `<stem><suffix>` in the working directory | a temporary `<libstem>-XXXXXXXX.c` next to the library, deleted after the build |
+| `-o LIB` | `LIB` | the same temporary file, next to `LIB` |
+| `--emit-c FILE.c` | as above | `FILE.c`, kept |
+| `--no-build` | none | `<stem>.c` in the working directory |
+| `--no-build --emit-c FILE.c` | none | `FILE.c` |
+
+`<stem>` is the input's file name minus its **last** extension, so `adder8.base.shdl` gives `adder8.base.dylib` (or `.so`) and `adder8.base.c`. The platform suffix comes from the Python process: `.dylib` on macOS, `.dll` on Windows and Cygwin, and `.so` everywhere else. `-o` accepts any name. A loader such as `dlopen` or `ctypes` opens a library by path whatever its extension, which is why the examples on this site use `-o name.so` on every platform.
+
+```console check
+$ shdlc examples/fullAdder.shdl --no-build
+$ head -n 1 fullAdder.c
+/* FullAdder: 5 gates, 3 input ports, 2 output ports. */
+$ shdlc --base adder8.base.shdl --no-build
+$ ls *.c
+adder8.base.c
+fullAdder.c
+$ shdlc --base adder8.base.shdl -o adder8.so --emit-c adder8.c
+$ ls adder8*
+adder8.base.c
+adder8.base.shdl
+adder8.c
+adder8.so
+```
+
+The generated C is **byte-deterministic**: the same Base SHDL always produces the same C, with no timestamps, paths or version strings embedded in it.
+
+## Choosing the C compiler
+
+`shdlc` needs a C11 compiler that understands GCC-style flags: GCC, Clang or Apple Clang. It picks the command in this order:
+
+1. `--cc CC`, if you give it.
+2. The `CC` environment variable, if it is set and not blank.
+3. The first of `cc`, `clang` and `gcc` found on `PATH`.
+
+The chosen value is split like a shell command line, so wrappers and extra words work: `--cc "ccache clang"` or `CC="gcc -march=native"`. The first word must be on `PATH` or be an existing absolute path. Extra words come **before** the default flags.
+
+```console check
+$ shdlc examples/inverter.shdl --cc no-such-cc 2>&1; echo "exit $?"
+shdlc: error: C compiler not found: 'no-such-cc' (from explicit cc argument: 'no-such-cc') is not on PATH and is not an existing absolute path
+exit 1
+$ CC=no-such-cc shdlc examples/inverter.shdl 2>&1; echo "exit $?"
+shdlc: error: C compiler not found: 'no-such-cc' (from $CC: 'no-such-cc') is not on PATH and is not an existing absolute path
+exit 1
+```
+
+If none of the three fallbacks is found, the message is `C compiler not found: no explicit compiler given, $CC is unset, and none of 'cc', 'clang', 'gcc' is on PATH`. A value that splits to nothing, such as `--cc "  "`, gives `C compiler not found: explicit cc argument ('  ') is empty after splitting`. A blank `$CC` is not an error: it is treated as unset.
+
+## Optimization
+
+The compiler command is always `<cc words> <flags> -o <library> <C file>`. The flags are fixed:
+
+| Build | Flags |
+|---|---|
+| default (release) | `-std=c11 -O2 -shared -fPIC -fvisibility=hidden` |
+| `--dev` | `-std=c11 -O0 -shared -fPIC -fvisibility=hidden` |
+
+`-fvisibility=hidden` keeps every internal symbol private; only the six ABI functions are exported. `--dev` exists for very large circuits. An optimizing C compile of a netlist with tens of thousands of gates is slow; the source comment on the dev flags measures about 12 times faster at `-O0` on a 37,000-gate netlist. The price is a slower simulation. `--dev` only changes the C compiler flags, so `--dev --no-build` is rejected as meaningless.
+
+A compiler that exits with a non-zero status shows the full command line. You can use that to see the exact command `shdlc` runs, by substituting `false` for the compiler:
+
+```console check
+$ shdlc examples/inverter.shdl --cc false -o inv.so --emit-c inv.c 2>&1; echo "exit $?"
+shdlc: error: C compiler failed with exit code 1: false -std=c11 -O2 -shared -fPIC -fvisibility=hidden -o inv.so inv.c
+--- stderr ---
+
+exit 1
+$ shdlc examples/inverter.shdl --dev --cc "false -g" -o inv.so --emit-c inv.c 2>&1; echo "exit $?"
+shdlc: error: C compiler failed with exit code 1: false -g -std=c11 -O0 -shared -fPIC -fvisibility=hidden -o inv.so inv.c
+--- stderr ---
+
+exit 1
+```
+
+The CLI has no option for arbitrary flags. You can add flags through the `--cc` words, as shown above, or replace the whole flag list through the Python API's `cflags` argument (see [Python API](#python-api) below, and [`Circuit(cflags=...)`](./python-api.mdx#constructor-options)).
+
+## The generated C
+
+Each library is a single, self-contained C11 translation unit. It includes only `stdint.h`, `stdio.h` and `string.h`, and it implements the unit-delay model directly:
+
+- Every input wire is a byte in `inputs[]`, and every gate output is a byte in a pair of buffers.
+- `cur` points at the committed values of the previous cycle and `nxt` at the values being computed.
+- One `tick()` computes every gate from `cur[]` and `inputs[]` into `nxt[]`, then swaps the two pointers.
+- No gate ever sees a value from the same cycle, so feedback needs no special handling.
+
+This is `tick()` for `examples/fullAdder.shdl`, a full adder built from two half adders and an OR gate. It is real `shdlc --no-build` output:
+
+```c
+/* Gate slots, in declaration order. */
+enum {
+    G_ha1_x1 = 0, /* XOR */
+    G_ha1_a1 = 1, /* AND */
+    G_ha2_x1 = 2, /* XOR */
+    G_ha2_a1 = 3, /* AND */
+    G_o1 = 4, /* OR */
+    NUM_GATES = 5
+};
+
+static void recompute_outputs(void)
+{
+    out_vals[OUT_Sum] = ((uint64_t)cur[G_ha2_x1] << 0);
+    out_vals[OUT_Cout] = ((uint64_t)cur[G_o1] << 0);
+}
+
+static void tick(void)
+{
+    uint8_t *tmp;
+
+    nxt[G_ha1_x1] = (uint8_t)(inputs[IN_A] ^ inputs[IN_B]); /* ha1_x1: XOR */
+    nxt[G_ha1_a1] = (uint8_t)(inputs[IN_A] & inputs[IN_B]); /* ha1_a1: AND */
+    nxt[G_ha2_x1] = (uint8_t)(cur[G_ha1_x1] ^ inputs[IN_Cin]); /* ha2_x1: XOR */
+    nxt[G_ha2_a1] = (uint8_t)(cur[G_ha1_x1] & inputs[IN_Cin]); /* ha2_a1: AND */
+    nxt[G_o1] = (uint8_t)(cur[G_ha1_a1] | cur[G_ha2_a1]); /* o1: OR */
+
+    tmp = cur;
+    cur = nxt;
+    nxt = tmp;
+    recompute_outputs();
+    dirty = 0;
+}
+```
+
+The gate `ha2_x1` reads `cur[G_ha1_x1]`, which is the value `ha1_x1` had one cycle ago. That is why the full adder's `Sum` needs two cycles to respond to a change on `A`. The main parts of the generated file are these:
+
+| Part | What it does |
+|---|---|
+| `enum` blocks | Name the slots: input wires (`IN_*`), gates in declaration order (`G_*`) and output ports (`OUT_*`). |
+| state | `inputs[]`, the two gate buffers `buf_a[]`/`buf_b[]` behind the `cur`/`nxt` pointers, the `dirty` flag and `out_vals[]`. All are `static`: one set per loaded library. |
+| port tables | For each input port, a `uint16_t` table mapping bit `b` to an input wire, plus the port name list used by `poke`/`peek`. |
+| `recompute_outputs()` | Packs each output port's bits into a `uint64_t` after every commit. |
+| `tick()` | One cycle, as shown above. `NOT` is `x ^ 1u`, `__VCC__` is `1u` and `__GND__` is `0u`. |
+| `init_seeds[]` | Present only if the circuit has [initial state](../language-reference/sequential-logic.mdx). A table of `{ gate slot, value }` pairs that `reset()` writes into `cur[]`. |
+| exported functions | `reset`, `poke`, `peek`, `step`, `step_settle` and `run_batch`, marked `SHDLC_API` (default visibility, or `__declspec(dllexport)` on Windows). See the [C ABI](./c-abi.mdx). |
+| constructor | A GCC/Clang `__attribute__((constructor))` that calls `reset()` when the library loads. This makes the init seeds live before the first explicit `reset()`. |
+
+Two details matter for very large circuits. First, above 1,024 gates the per-gate statements are split into `noinline` chunk functions, instead of one huge `tick()` body, to keep C compile times reasonable. Second, the init seeds are emitted as a table that `reset()` loops over, rather than as one store per seed. At or below 1,024 gates the output is the plain form shown above.
+
+`step` and `step_settle` are thin exported wrappers around `static` implementations, and `run_batch` calls the static versions. On Linux, the exported name `step` collides with a legacy glibc symbol (`step@GLIBC_2.2.5`). The indirection makes sure the library's internal calls always bind to its own code.
+
+[Compiler internals](../architecture/compiler-internals.mdx) walks through the code generator itself.
+
+## Limits
+
+The ABI fixes two limits. Both are enforced by `shdlc` (and so by `Circuit`), **not** by the flattener. `shdl-flatten` happily writes Base SHDL that exceeds them, and the compile then fails with an unpositioned `shdlc: error:` message rather than a coded diagnostic. See [shdl.md §14.2](/specs/shdl#142-documented-limits).
+
+| Limit | Why | Error |
+|---|---|---|
+| Port width ≤ 64 bits | `poke`/`peek` carry a port value in a `uint64_t` | `port 'A': width 65 out of range 1..64` |
+| ≤ 65,535 single-bit input wires | The port tables index input wires with `uint16_t` | `too many input wires (65536): the generated C indexes input wires with uint16_t (max 65535)` |
+
+There is no limit on the number of gates or output wires other than memory.
+
+```shdl title="wide.shdl"
+component Wide(A[65]) -> (O[65]) {
+    connect { A -> O; }
+}
+```
+
+```console check
+$ shdlc wide.shdl -o wide.so 2>&1; echo "exit $?"
+shdlc: error: port 'A': width 65 out of range 1..64
+exit 1
+```
+
+## Errors and exit status
+
+| Status | Meaning |
+|---|---|
+| `0` | Success. Nothing is printed. |
+| `1` | A diagnosed failure: flattening, Base SHDL parsing or validation, the C compiler, or file I/O. One `shdlc: error: ...` message is printed on stderr. |
+| `2` | A usage error, reported by `argparse` with the usage line. |
+
+Each kind of failure prints as follows:
+
+| Failure | Message after `shdlc: error:` |
+|---|---|
+| Flattener diagnostic (SHDL input) | `file:line:col: error[CODE]: message`. See the [error catalog](../language-reference/errors.mdx). |
+| Base SHDL syntax | The parser's message, with no position, for example `expected ';', got '}'` |
+| Base SHDL structure | The validator's message, for example `gate 'n': NOT input pin 'A' is not driven` |
+| Base SHDL not UTF-8 | `<path>: Base SHDL input is not valid UTF-8 (byte offset N)` |
+| Missing or unreadable file | The operating system error, for example `[Errno 2] No such file or directory: 'nope.base.shdl'` |
+| No C compiler | `C compiler not found: ...` (see [above](#choosing-the-c-compiler)) |
+| C compiler failed | `C compiler failed with exit code N: <command>`, then `--- stderr ---` and the compiler's stderr verbatim |
+
+```console check
+$ shdlc missing.shdl 2>&1; echo "exit $?"
+shdlc: error: missing.shdl:1:1: error[E0701]: file not found: missing.shdl
+exit 1
+$ printf 'component Floating(A) -> (O) { n: NOT; connect { n.O -> O; } }' > floating.base.shdl
+$ shdlc --base floating.base.shdl --no-build 2>&1; echo "exit $?"
+shdlc: error: gate 'n': NOT input pin 'A' is not driven
+exit 1
+$ printf 'component X(A) -> (O) { connect { A -> O } }' > syntax.base.shdl
+$ shdlc --base syntax.base.shdl --no-build 2>&1; echo "exit $?"
+shdlc: error: expected ';', got '}'
+exit 1
+$ printf '\xff' > binary.base.shdl
+$ shdlc --base binary.base.shdl 2>&1; echo "exit $?"
+shdlc: error: binary.base.shdl: Base SHDL input is not valid UTF-8 (byte offset 0)
+exit 1
+$ shdlc --base nope.base.shdl 2>&1; echo "exit $?"
+shdlc: error: [Errno 2] No such file or directory: 'nope.base.shdl'
+exit 1
+```
+
+These are the usage errors, in addition to argparse's own (a missing `input`, `--base` together with `--shdl`, an unknown flag):
+
+```console check
+$ shdlc --base adder8.base.shdl --top Adder8 2>&1; echo "exit $?"
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+             [--base | --shdl] [--top NAME] [-I DIR]
+             input
+shdlc: error: --top and -I apply only to .shdl inputs
+exit 2
+$ shdlc examples/adder8.shdl --no-build --dev 2>&1; echo "exit $?"
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+             [--base | --shdl] [--top NAME] [-I DIR]
+             input
+shdlc: error: --dev has no effect with --no-build
+exit 2
+```
+
+## Python API
+
+The `shdlc` package exports two functions (`shdlc.__all__` is `build_library`, `compile_text` and `__version__`). Its submodules supply the pieces that PySHDL and the test suites build on. The modules and names are these:
+
+| Name | Signature | Behaviour |
+|---|---|---|
+| `shdlc.compile_text` | `(base_text: str) -> tuple[shdlc.model.Circuit, str]` | Parses and validates Base SHDL, and returns the resolved netlist and the C source. Writes nothing. |
+| `shdlc.build_library` | `(base_text, out_path, *, cc=None, cflags=None, emit_c=None) -> Path` | `compile_text`, then builds the library at `out_path`. The C goes to `emit_c` if given; otherwise it goes to a temporary file next to `out_path`, which is deleted afterwards. `cflags` **replaces** the default flags. |
+| `shdlc.baseshdl.BaseParseError` | `ValueError` subclass | A Base SHDL syntax error. |
+| `shdlc.model.ModelError` | `ValueError` subclass | A structural violation, including the [limits](#limits). |
+| `shdlc.cc.DEFAULT_CFLAGS`, `DEV_CFLAGS` | `tuple[str, ...]` | The release and `--dev` flag lists. |
+| `shdlc.cc.find_cc` | `(cc=None) -> list[str]` | Resolves the compiler command, as described in [Choosing the C compiler](#choosing-the-c-compiler). |
+| `shdlc.cc.lib_suffix` | `() -> str` | `.dylib`, `.dll` or `.so`. |
+| `shdlc.cc.build_shared` | `(c_path, out_path, *, cc=None, cflags=None) -> Path` | Runs the C compiler. |
+| `shdlc.cc.CCError` | `Exception` subclass | Compiler not found or failed. It has `.argv` (a list, empty if no compiler was found) and `.stderr` (a string, empty if the compiler never ran). |
+| `shdlc.harness.Sim` | `(lib_path)` | A thin `ctypes` wrapper around one loaded library. It has `reset()`, `poke(name, value)`, `peek(name)`, `step(n=1)`, `step_settle(n=1)` and `run_batch(frames, n_out, cycles, *, settle=False)`. Its `run_batch` takes frames as lists of values in input-port order and returns a list of tuples. |
+| `shdlc.harness.load_fresh_copy` | `(lib_path, work_dir) -> Sim` | Copies the library to `work_dir/<stem>.copyNNNN<suffix>` and loads the copy, so the instance has its own state. |
+| `shdlc.harness.STRICT_CFLAGS` | `tuple[str, ...]` | The defaults plus `-Wall -Wextra -Werror -pedantic`. The test suites build with these to prove that the generated C is warning-free. |
+
+`Sim` does no name or value checking; it is the raw ABI. It passes its path to `ctypes` unchanged, and `Path` drops a leading `./`, so give `Sim` and `load_fresh_copy` absolute paths, as the example does with `Path.cwd()`. On Linux the dynamic loader treats a library name without a `/` as a name to search for on the system library path, not as a file in the current directory (macOS also tries the current directory). For checked access, metadata and lifecycle management, use [`Circuit`](./python-api.mdx).
+
+```python
+from pathlib import Path
+
+from shdlc import build_library, compile_text
+from shdlc.baseshdl import BaseParseError
+from shdlc.cc import DEFAULT_CFLAGS, DEV_CFLAGS
+from shdlc.harness import load_fresh_copy
+from shdlc.model import ModelError
+
+base = Path("adder8.base.shdl").read_text(encoding="utf-8")
+netlist, c_source = compile_text(base)
+print(netlist.name, len(netlist.gates), "gates,", len(netlist.inputs), "input wires")
+print(c_source.splitlines()[0])
+
+lib = build_library(base, "adder8_py.so", emit_c="adder8_py.c")
+print(lib, sorted(p.name for p in Path(".").glob("adder8_py*")))
+
+sim = load_fresh_copy(lib, Path.cwd())
+sim.poke("A", 100)
+sim.poke("B", 55)
+sim.step(17)
+print(sim.peek("Sum"), sim.run_batch([[1, 2, 0], [255, 0, 1]], n_out=2, cycles=17))
+
+for bad in ("component X(A) -> (O) { connect { A -> O } }",
+            "component X(A) -> (O) { n: NOT; connect { n.O -> O; } }"):
+    try:
+        compile_text(bad)
+    except (BaseParseError, ModelError) as e:
+        print(f"{type(e).__name__}: {e}")
+
+print(" ".join(DEFAULT_CFLAGS))
+print(" ".join(DEV_CFLAGS))
+```
+
+```text title="Output"
+Adder8 40 gates, 17 input wires
+/* Adder8: 40 gates, 3 input ports, 2 output ports. */
+adder8_py.so ['adder8_py.c', 'adder8_py.so']
+155 [(3, 0), (0, 1)]
+BaseParseError: expected ';', got '}'
+ModelError: gate 'n': NOT input pin 'A' is not driven
+-std=c11 -O2 -shared -fPIC -fvisibility=hidden
+-std=c11 -O0 -shared -fPIC -fvisibility=hidden
+```
+
+## See also
+
+- [C ABI](./c-abi.mdx): the functions every library exports.
+- [shdl-flatten](./shdl-flatten.mdx): the front end that `shdlc` calls for SHDL input.
+- [Base SHDL](../architecture/base-shdl.mdx) and [base_shdl.md](/specs/base_shdl): the input format.
+- [Compiler internals](../architecture/compiler-internals.mdx): how validation and code generation work.
+- [shdlc_goals.md](/specs/shdlc_goals): the compiler's normative requirements.

@@ -23,7 +23,7 @@ pin the whole thing.
 
 ## Run it
 ```sh
-# with pyshdl >= 1.1.0 installed (pip install pyshdl):
+# with pyshdl >= 1.1.0 installed (needs Python 3.14+; pip install "pyshdl>=1.1"):
 shdl install           # vendor arith (+ gates) from the index
 shdl build             # flatten + compile life32.shdl (top: Life)
 shdl test              # gate-level Cell tests: seed load, B3/S23, overcrowding

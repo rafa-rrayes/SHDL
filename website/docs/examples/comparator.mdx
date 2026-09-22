@@ -1,0 +1,317 @@
+---
+title: Comparator
+sidebar_label: Comparator
+description: An N-bit equality comparator built from XNOR gates and an AND-reduction chain, its data-dependent delay, and an unsigned less-than comparator built from a subtractor.
+---
+
+A comparator answers a question about two numbers with a single bit. This page
+covers the equality comparator in `examples/`, `EqualN<N>`, which outputs 1
+when two `N`-bit buses carry the same value. It shows the *reduction chain*
+pattern for folding many bits into one, why the time to an answer depends on
+which bit differs, and what happens when the parameter makes a range empty.
+Then it builds an unsigned less-than comparator from the adder of the
+[8-bit adder](./8-bit-adder.mdx) page.
+
+## What it computes
+
+`EQ` is 1 exactly when `A` and `B` are equal, bit for bit:
+
+| A | B | EQ |
+|---|---|---|
+| `0x00` | `0x00` | 1 |
+| `0x5a` | `0x5a` | 1 |
+| `0x5a` | `0x5b` | 0 |
+| `0xff` | `0x7f` | 0 |
+
+Two bits are equal when their XNOR is 1, so the circuit takes the XNOR of each
+bit pair and then ANDs all `N` results together. The AND of `N` bits is a
+*reduction*: `N - 1` two-input ANDs, each folding one more bit into the running
+result.
+
+## Source
+
+[`examples/comparator.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/comparator.shdl):
+
+```shdl title="comparator.shdl"
+"""
+10 -- EqualN: an N-bit equality comparator (requires N >= 2).
+
+XNOR each bit pair, then AND-reduce the per-bit results with a
+chained generator -- the standard reduction pattern.  `when` handles
+the first link of the chain, the same boundary-folding idiom as
+adderN.
+"""
+
+use stdgates::{XNOR};
+
+top component EqualN<N = 8>(A[N], B[N]) -> (EQ) {
+    >i[N]{ eq{i}: XNOR; }          # per-bit equality
+    >i[2:N]{ red{i}: AND; }        # N-1 links in the reduction chain
+
+    connect {
+        >i[N]{
+            A[{i}] -> eq{i}.A;
+            B[{i}] -> eq{i}.B;
+        }
+
+        >i[2:N]{
+            when {i == 2} { eq1.O      -> red{i}.A; }   # chain head
+            else          { red{i-1}.O -> red{i}.A; }   # chain link
+            eq{i}.O -> red{i}.B;
+        }
+
+        red{N}.O -> EQ;
+    }
+}
+```
+
+Line by line:
+
+- **`use stdgates::{XNOR};`** XNOR is not one of the six primitive gates. It is
+  an ordinary component, `XOR` followed by `NOT`, defined in
+  [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl)
+  along with `NAND` and `NOR`. In PySHDL 1.1.0 that file is not bundled with the
+  package: the import resolves because `stdgates.shdl` sits in the same
+  directory. See [Standard gates](../language-reference/standard-gates.mdx) and
+  [shdl.md §9.2](/specs/shdl#92-the-standard-library).
+- **`>i[N]{ eq{i}: XNOR; }`** declares one comparator per bit, `eq1` to `eqN`.
+- **`>i[2:N]{ red{i}: AND; }`** declares the chain. The range `[2:N]` runs from
+  2 to `N` inclusive, so there are `N - 1` links, `red2` to `redN`. Numbering
+  them from 2 lets `redK` hold the AND of bits 1 through `K`. See
+  [Generators](../language-reference/generators.mdx).
+- **`when {i == 2} { ... } else { ... }`** handles the head of the chain. The
+  first link has no previous link to read, so it takes `eq1.O` directly; every
+  later link reads `red{i-1}.O`. This folds the special case into the loop
+  instead of writing it out before it. See
+  [shdl.md §7.7.1](/specs/shdl#771-folding-boundary-cases-into-a-loop).
+- **`red{N}.O -> EQ;`** uses the parameter in an instance name: at `N = 8` this
+  is `red8.O`. The last link holds the AND of every bit.
+
+## Size and timing
+
+`shdl-flatten` inlines each `XNOR` as its two gates, so the flat netlist has no
+`XNOR` in it:
+
+| Property | Value |
+|---|---|
+| Gates | 23 (8 XOR, 8 NOT, 7 AND) |
+| Connections | 39 |
+| `max_depth` | 9 |
+| Critical path | `A[1]`, `eq1_x1`, `eq1_n1`, `red2`, `red3`, `red4`, `red5`, `red6`, `red7`, `red8`, `EQ` |
+
+Bit 1 enters the chain at its head and passes all seven links, after the two
+levels of its XNOR, which gives 9. Bit 8 enters at the last link and reaches
+`EQ` after 3. The chain is simple but its depth grows linearly with `N`. A
+balanced tree of ANDs would need only about `log2(N)` levels; the SR16 CPU's
+`Or16` part in
+[`examples/CPU/parts.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/parts.shdl)
+builds its OR-reduction that way.
+
+## Simulate it
+
+The sessions on this page run from the root of a checkout of the repository.
+With 8-bit inputs there are only 65,536 input pairs, so `run_batch` checks all
+of them in one call into the compiled library:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/comparator.shdl") as c:
+    print(c)
+    print(dict(c.info.stats["by_type"]), "max_depth:", c.timing.max_depth)
+    for a, b in [(0x00, 0x00), (0x5A, 0x5A), (0x5A, 0x5B), (0xFF, 0x7F)]:
+        c["A"], c["B"] = a, b
+        c.settle()
+        print(f"A={a:#04x} B={b:#04x} EQ={c['EQ']}")
+
+    frames = [{"A": a, "B": b} for a in range(256) for b in range(256)]
+    rows = c.run_batch(frames, cycles=c.timing.max_depth)
+    bad = sum(row["EQ"] != (f["A"] == f["B"]) for f, row in zip(frames, rows))
+    print(f"{len(frames)} cases, {bad} mismatches")
+```
+
+```text title="Output"
+<SHDL.Circuit 'EqualN' (A[8], B[8]) -> (EQ)>
+{'XOR': 8, 'NOT': 8, 'AND': 7} max_depth: 9
+A=0x00 B=0x00 EQ=1
+A=0x5a B=0x5a EQ=1
+A=0x5a B=0x5b EQ=0
+A=0xff B=0x7f EQ=0
+65536 cases, 0 mismatches
+```
+
+### The delay depends on which bit differs
+
+`max_depth` is the worst case. The time for a change to reach `EQ` depends on
+where it enters the chain. Start from two equal values, flip one bit of `A`,
+and count the cycles until `EQ` falls:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/comparator.shdl") as c:
+    for bit in (1, 4, 8):
+        c["A"], c["B"] = 0x5A, 0x5A
+        c.settle()
+        c["A"] = 0x5A ^ (1 << (bit - 1))
+        for cycle in range(1, c.timing.max_depth + 1):
+            c.step(1)
+            if c["EQ"] == 0:
+                break
+        print(f"A[{bit}] differs: EQ fell after {cycle} cycles")
+```
+
+```text title="Output"
+A[1] differs: EQ fell after 9 cycles
+A[4] differs: EQ fell after 7 cycles
+A[8] differs: EQ fell after 3 cycles
+```
+
+A difference in `A[8]` reaches `EQ` through `eq8` and `red8` only. A difference
+in `A[1]` has to ripple through the whole chain. A caller that cannot know which
+bit will differ must wait the full `max_depth`, which is what `settle()` does.
+The [Simulation model](../concepts/simulation-model.mdx) page explains why.
+
+### Other widths
+
+To use another width, instantiate `EqualN` with an argument. A 16-bit
+comparator has 15 links, so its depth is 17:
+
+```shdl title="equal16.shdl"
+use comparator::{EqualN};
+
+top component Equal16(A[16], B[16]) -> (EQ) {
+    e: EqualN<16>;
+
+    connect {
+        A -> e.A;  B -> e.B;
+        e.EQ -> EQ;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("equal16.shdl", include_dirs=["examples"]) as c:
+    print(c, "max_depth:", c.timing.max_depth)
+    c["A"], c["B"] = 0xBEEF, 0xBEEF
+    c.settle()
+    print("0xbeef == 0xbeef:", c["EQ"])
+    c["B"] = 0xBEEE
+    c.settle()
+    print("0xbeef == 0xbeee:", c["EQ"])
+```
+
+```text title="Output"
+<SHDL.Circuit 'Equal16' (A[16], B[16]) -> (EQ)> max_depth: 17
+0xbeef == 0xbeef: 1
+0xbeef == 0xbeee: 0
+```
+
+The docstring says `N` must be at least 2. With `N = 1` the chain's range
+`[2:1]` is empty, and the flattener rejects it with E0601, pointing at the
+range in `comparator.shdl`:
+
+```shdl error=E0601
+use comparator::{EqualN};
+
+top component Equal1(A, B) -> (EQ) {
+    e: EqualN<1>;
+
+    connect {
+        A -> e.A;  B -> e.B;
+        e.EQ -> EQ;
+    }
+}
+```
+
+The message is `range [2:1] is empty or ill-ordered`. See
+[Errors](../language-reference/errors.mdx).
+
+## Unsigned less-than
+
+Equality needs no arithmetic, but ordering does. For unsigned `N`-bit numbers,
+`A - B` computed as `A + NOT B + 1` produces a carry out exactly when `A` is
+greater than or equal to `B`. So `A < B` is the inverted carry. This module
+reuses `AdderN` from
+[`examples/adderN.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/adderN.shdl):
+
+```shdl title="lessThanN.shdl"
+"""
+LessThanN: unsigned A < B, computed as the borrow of A - B.
+"""
+
+use adderN::{AdderN};
+
+top component LessThanN<N = 8>(A[N], B[N]) -> (LT) {
+    ONE = 1;
+    >i[N]{ nb{i}: NOT; }            # one's complement of B
+    sub: AdderN<N>;                 # A + NOT B + 1 = A - B
+    nc:  NOT;                       # no carry out means a borrow
+
+    connect {
+        A -> sub.A;
+        >i[N]{
+            B[{i}]   -> nb{i}.A;
+            nb{i}.O  -> sub.B[{i}];
+        }
+        ONE -> sub.Cin;
+        sub.Cout -> nc.A;
+        nc.O -> LT;
+    }
+}
+```
+
+- **`ONE = 1;`** is a constant. Driving `sub.Cin` from it supplies the `+ 1` of
+  the two's complement. It becomes a `__VCC__` power pin in Base SHDL. See
+  [Constants](../language-reference/constants.mdx).
+- **`nb{i}.O -> sub.B[{i}];`** drives one bit of an instance's input bus per
+  iteration.
+- The sum outputs of `sub` are left unconnected. An unused output is allowed;
+  only unconnected *inputs* are errors.
+
+| Property | Value |
+|---|---|
+| Gates | 50 (16 XOR, 16 AND, 8 OR, 9 NOT, 1 `__VCC__`) |
+| Connections | 90 |
+| `max_depth` | 19 |
+
+The depth is the adder's carry chain plus the inverters in front of it and the
+one behind it. Check all 65,536 pairs:
+
+```python
+from SHDL import Circuit
+
+with Circuit("lessThanN.shdl", include_dirs=["examples"]) as c:
+    print(c, "max_depth:", c.timing.max_depth)
+    for a, b in [(3, 5), (5, 3), (7, 7), (0, 255), (255, 0)]:
+        c["A"], c["B"] = a, b
+        c.settle()
+        print(f"{a:3} < {b:3}: LT={c['LT']}")
+
+    frames = [{"A": a, "B": b} for a in range(256) for b in range(256)]
+    rows = c.run_batch(frames, cycles=c.timing.max_depth)
+    bad = sum(row["LT"] != (f["A"] < f["B"]) for f, row in zip(frames, rows))
+    print(f"{len(frames)} cases, {bad} mismatches")
+```
+
+```text title="Output"
+<SHDL.Circuit 'LessThanN' (A[8], B[8]) -> (LT)> max_depth: 19
+  3 <   5: LT=1
+  5 <   3: LT=0
+  7 <   7: LT=0
+  0 < 255: LT=1
+255 <   0: LT=0
+65536 cases, 0 mismatches
+```
+
+`include_dirs=["examples"]` is needed here because `lessThanN.shdl` is not in
+`examples/`, and imports are searched only in the importing file's directory
+and the include directories. See [Imports](../language-reference/imports.mdx).
+
+## Next
+
+The [register](./register.mdx) page moves from combinational logic to storage.
+The [ALU](./alu.mdx) computes its `Zero` flag with the same reduction chain,
+built from OR gates.

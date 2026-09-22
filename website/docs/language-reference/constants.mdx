@@ -1,0 +1,190 @@
+---
+title: Constants
+description: Named fixed bit patterns, how their width is inferred or declared, how their bits are read, and how they become power-pin gates when a design is flattened.
+---
+
+A constant gives a name to a fixed bit pattern, such as a mask, an opcode or a tie-off level, so you can use it as a connection source. This page covers declaring constants, their width, reading whole constants, bits and slices, what a constant turns into when the design is flattened, and when its value becomes visible in simulation. Normative text: [shdl.md §8](/specs/shdl#8-constants).
+
+## Syntax
+
+```ebnf
+ConstantDecl = IDENT [ "[" Arith "]" ] "=" NUMBER ";" ;
+```
+
+```shdl title="consts.shdl"
+# Constants become __VCC__/__GND__ pins, one per referenced bit.
+component Consts() -> (Seven[4], Low, High) {
+    SEVEN[4] = 7;        # declared width 4: 7 must fit in 4 bits
+    MASK     = 0b1010;   # width inferred from the value: 4 bits
+
+    connect {
+        SEVEN   -> Seven;   # the whole constant
+        MASK[1] -> Low;     # bit 1 of 0b1010 is 0
+        MASK[9] -> High;    # above the width: legal, always 0
+    }
+}
+```
+
+## Declaring a constant
+
+Constants are declared in the component body, next to the instances. They are not allowed inside `connect` (`K = 1;` there is `E0201 expected '->', found '='`).
+
+- **The name** is a plain identifier. It shares the component's namespace with ports, parameters and instances (`E0301` on a clash), follows the [reserved-name rules](./lexical-elements.mdx#reserved-names), and cannot be a [name template](./generators.mdx#name-templates) (`E0201 a constant name must be a plain identifier (no substitutions)`). By convention constants are upper case.
+- **The value** is a single [numeric literal](./lexical-elements.mdx#numeric-literals): decimal, `0x` hexadecimal or `0b` binary. It can be arbitrarily large; a 200-bit mask is fine. It cannot be an expression or a parameter, and it cannot be negative:
+
+| You write | Result |
+|---|---|
+| `K = 5 + 1;` | `E0201 expected ';', found '+'` |
+| `K = N;` | `E0201 expected constant value, found 'N'` |
+| `K = -1;` | `E0201 expected constant value, found '-'` |
+
+- **One declaration per name.** A generator that declares a constant runs the declaration once per iteration and collides with itself (`E0301`), and so does the same constant name in both branches of a `when` ([Generators](./generators.mdx#what-an-untaken-branch-still-has-to-satisfy)). Declare constants outside generators and conditionals.
+
+A constant whose value depends on a parameter cannot be written directly. Declare each value you need and choose between them in `connect`; only the constant that is actually used produces any gates:
+
+```shdl title="level.shdl"
+component Level<HIGH = 0>() -> (Y) {
+    ONE = 1;  ZERO = 0;
+    connect {
+        when {HIGH == 1} { ONE -> Y; }
+        else             { ZERO -> Y; }
+    }
+}
+```
+
+## Width {/* #width */}
+
+Every constant has a width, which is the width of the constant when you use it whole:
+
+| Declaration | Width | Where it comes from |
+|---|---|---|
+| `ZERO = 0;` | 1 | Inferred: the number of bits in the value, but at least 1 |
+| `FIVE = 5;` | 3 | Inferred: 5 is `101` |
+| `MASK = 0b1010;` | 4 | Inferred |
+| `BYTE = 0x0F;` | 4 | Inferred: leading zeros in the literal do not count |
+| `BYTE[8] = 0x0F;` | 8 | Declared |
+| `MASK[N] = 0;` | `N` | Declared, from a parameter |
+
+A declared width is also an **overflow check**: the value must fit.
+
+```shdl error=E0801 title="overflow.shdl"
+component Overflow() -> (Y[8]) {
+    D[8] = 300;
+    connect { D -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten overflow.shdl
+overflow.shdl:2:5: error[E0801]: constant 'D' value 300 does not fit in 8 bits
+```
+
+A declared width of zero or less is `E0403 constant 'K' has non-positive width 0`. A width that depends on a parameter is checked for each specialization, so `MASK[N] = 0;` fails only for instances where `N` is 0 or less.
+
+Because the whole constant has exactly its width, and connections require [equal widths](./connections.mdx#widths), a narrow inferred width can surprise you. With `FIVE = 5;` and a 4-bit `Y`, `FIVE -> Y;` is `E0401 connection width mismatch: source has 3 bit(s), destination has 4`. Declare the width you mean (`FIVE[4] = 5;`) or select the bits (`FIVE[1:4]`, next section).
+
+## Reading bits
+
+You reference a constant like a port: whole (`MASK`), one bit (`MASK[2]`) or a slice (`MASK[1:4]`), including inside [concatenations](./signals.mdx#concatenation) and [replications](./signals.mdx#replication). Bit 1 is the least significant bit of the value.
+
+Unlike a port, a constant has **no upper limit on its bits**. A constant behaves like an unsigned number with infinitely many leading zeros, so any bit above its width reads 0, and so does a slice that runs past the width: with `FIVE = 5`, `FIVE[99]` is 0 and `FIVE[3:6]` is `0001`. The declared width does not change this. Index 0 is still out of range (`E0402 bit index [0] out of range for 'K' of width 3`), and a reversed slice is still `E0404`.
+
+This makes a constant convenient in a generator of any width: `>i[8]{ K[i] -> fa{i}.B; }` works for any value of `K` without declaring `K[8]`.
+
+A constant is a **source only**:
+
+| Use | Result |
+|---|---|
+| As a connection destination | `E0505 constant 'K' cannot be a connection destination` |
+| As an `init` target | `E0A01 init target 'K' is a constant` |
+| In an arithmetic expression, such as `A[K]` | `E0603 'K' is not a parameter or generator variable in scope` |
+
+Constants are signals, not compile-time numbers. For a number you can compute with, use a [parameter](./parameters.mdx).
+
+## What a constant becomes {/* #lowering */}
+
+There is no constant in Base SHDL. When the design is flattened, each **referenced bit** of a constant becomes one power-pin gate named `NAME_bitK`: a `__VCC__` if the bit is 1, a `__GND__` if it is 0 ([Standard gates](./standard-gates.mdx#power-primitives)).
+
+```console check
+$ shdl-flatten consts.shdl -o consts.base.shdl
+$ sed -n '1,/^}/p' consts.base.shdl
+component Consts() -> (Seven_1_, Seven_2_, Seven_3_, Seven_4_, Low, High) {
+    SEVEN_bit4: __GND__;
+    SEVEN_bit3: __VCC__;
+    SEVEN_bit2: __VCC__;
+    SEVEN_bit1: __VCC__;
+    MASK_bit1: __GND__;
+    MASK_bit9: __GND__;
+
+    connect {
+        SEVEN_bit4.O -> Seven_4_;
+        SEVEN_bit3.O -> Seven_3_;
+        SEVEN_bit2.O -> Seven_2_;
+        SEVEN_bit1.O -> Seven_1_;
+        MASK_bit1.O -> Low;
+        MASK_bit9.O -> High;
+    }
+}
+```
+
+The details:
+
+- **Only referenced bits exist.** Bits 2 to 4 of `MASK` are never read, so they produce nothing. A constant that is never referenced produces no gates and no metadata.
+- **One gate per bit, shared.** Every use of a bit reads the same gate, so `{8{ZERO}}` costs one `__GND__`, not eight.
+- **Order.** Gates are created in the order bits are first referenced; within one reference, from the most significant bit down.
+- **Inside instances** the gate gets the instance's path prefix like any other gate: a constant `ONE` in instance `u` becomes `u_ONE_bit1`.
+- **Name collisions.** The generated name must not clash with a name you declared. An instance called `FIVE_bit1` next to a constant `FIVE` whose bit 1 is used is `E0308 instance 'FIVE_bit1' collides with the power-pin name generated for bit 1 of constant 'FIVE' (declared at ...)`. If bit 1 is never referenced there is no gate and no clash.
+
+The Base SHDL metadata records each constant that produced gates, under its full path, with its value, its width and the gate for each referenced bit:
+
+```python
+import json
+
+text = open("consts.base.shdl").read()
+meta = json.loads(text[text.index("\nmeta {") + 6:])
+for name, const in meta["constants"].items():
+    print(name, const["value"], const["width"], const["bits"])
+```
+
+```text title="Output"
+SEVEN 7 4 {'1': 'SEVEN_bit1', '2': 'SEVEN_bit2', '3': 'SEVEN_bit3', '4': 'SEVEN_bit4'}
+MASK 10 4 {'1': 'MASK_bit1', '9': 'MASK_bit9'}
+```
+
+## Constants in simulation {/* #timing */}
+
+A power-pin gate is an ordinary gate with a delay of one cycle. Like every gate, its output is 0 until the first cycle has run, so a constant reads as 0 immediately after the circuit is created:
+
+```python
+from SHDL import Circuit
+
+with Circuit("consts.shdl") as c:
+    print("before:", c["Seven"])
+    c.step()
+    print("after one step:", c["Seven"], c["Low"], c["High"])
+    print("max_depth:", c.info.timing.max_depth)
+```
+
+```text title="Output"
+before: 0
+after one step: 7 0 0
+max_depth: 1
+```
+
+Power-pin gates count toward `max_depth`, so `settle()` already includes the extra cycle. You only need to think about it when you step by hand or read outputs before the first step. See [the simulation model](../concepts/simulation-model.mdx).
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0201` | A value that is not a literal (an expression, a parameter or a negative number), a templated name, or a constant declared inside `connect` |
+| `E0301` | A constant name that repeats another name, including a constant inside a repeating generator or in both branches of a `when` |
+| `E0308` | A declared instance whose name equals a generated pin name `NAME_bitK` |
+| `E0401` | A whole constant connected to a signal of a different width |
+| `E0402` | Bit index 0 |
+| `E0403` | A declared width of zero or less |
+| `E0404` | A reversed slice |
+| `E0505` | A constant used as a connection destination |
+| `E0603` | A constant used in an arithmetic expression |
+| `E0801` | A value that does not fit its declared width |
+| `E0A01` | A constant used as an `init` target |

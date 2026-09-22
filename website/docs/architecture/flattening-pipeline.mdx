@@ -1,0 +1,753 @@
+---
+title: Flattening pipeline
+sidebar_label: Flattening pipeline
+description: Every stage the flattener runs to turn an SHDL module into Base SHDL, with its inputs, outputs, error codes and a worked example traced through each stage.
+---
+
+This page follows one SHDL program through the flattener, stage by stage. It shows the data each stage consumes and produces and the error codes each stage can raise. Every intermediate below comes from real code run on a real program. You can reproduce all of it by importing the `flattener` package, which ships inside PySHDL.
+
+The flattener is what the `shdl-flatten` command runs; see [shdl-flatten](../tools/shdl-flatten.mdx) for the command-line side. The normative description of lowering is [shdl.md §12](/specs/shdl#12-lowering-to-base-shdl).
+
+## Six phases, eleven steps
+
+[shdl.md §12](/specs/shdl#12-lowering-to-base-shdl) and the docstring of `flattener/phases/__init__.py` describe lowering as **six sequential phases**:
+
+1. lexical stripping
+2. monomorphization
+3. generator and conditional expansion
+4. expander expansion
+5. constant materialization
+6. hierarchy flattening
+
+That list is the conceptual model. The function that actually runs, `flatten_program` in [`flattener/pipeline.py`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/pipeline.py), wraps extra steps around the six phases. Validation and top selection run before them, and timing, metadata and emission run after. Phases 4 and 5 run once per component and are followed by a per-component connection check.
+
+| Step | Phase | Function | Module | Consumes | Produces |
+|---|---|---|---|---|---|
+| 1 | 1 | `load_program(main_path, include_dirs)` | `flattener/loader.py` (with `lexer.py`, `parser.py`) | a file path | `Program`: every module reachable through `use`, parsed |
+| 2 | – | `validate_program(program)` | `flattener/validate.py` | `Program` | nothing (raises on the first problem) |
+| 3 | – | `select_top(program, top)` | `flattener/pipeline.py` | `Program`, optional `--top` | the top component's name |
+| 4 | 2 | `monomorphize(program, main_module, top_name)` | `flattener/phases/monomorphize.py` | `Program` | `MonoProgram`: one `SpecComponent` per distinct parameter binding |
+| 5 | 3 | `expand_all(mono)` | `flattener/phases/expand.py` | `MonoProgram` | `dict[str, ExpandedComponent]`: generators unrolled, `when` resolved |
+| 6 | 4 | `expand_connections(ec, mono)` | `flattener/phases/expander.py` | one `ExpandedComponent` | `list[BitConn]`: single-bit connections |
+| 7 | 5 | `materialize_constants(ec, bit_conns)` | `flattener/phases/constants.py` | the bit connections | `LoweredComponent`: constant bits replaced by power-pin gates |
+| 8 | – | `validate_component_connections(ec, mono, bit_conns)` | `flattener/phases/expander.py` | the lowered connections | nothing (multiple drivers, floating inputs and outputs) |
+| 9 | 6 | `flatten(mono, lowered)` | `flattener/phases/flatten.py` | every `LoweredComponent` | `FlatResult`: the netlist, hierarchy, source map, constants and init |
+| 10 | – | `compute_timing(flat.netlist)` | `flattener/timing.py` | `FlatNetlist` | the `timing` dict |
+| 11 | – | `build_meta(...)`, `verify_meta(...)`, `emit_text(...)` | `flattener/metadata.py`, `flattener/emit.py` | netlist, timing, doc | the metadata dict, then the Base SHDL text |
+
+Steps 6 to 8 run inside one loop over every expanded component, in the order `expand_all` returned them.
+
+Two details of this ordering are visible to users:
+
+- **Validation covers everything; the later phases only cover what is used.** `validate_program` checks every component of every loaded module. From monomorphization onward, only components reachable from the top are processed, so errors such as E0307, E0401 to E0404 and E0501 to E0506 are never reported for a component that nothing instantiates. The first example below flattens cleanly even though `Broken` has a width mismatch. The second fails, because a reserved name is a validation error.
+- **Errors are fail-fast.** The first error raises an `SHDLError`, and nothing after it runs. See [shdl.md §14.1](/specs/shdl#141-diagnostics-reporting-v1-contract).
+
+```shdl
+component Broken(A[4]) -> (O[2]) {
+    connect { A -> O; }
+}
+
+top component Inv(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A; n.O -> O; }
+}
+```
+
+```shdl error=E0303
+component __Broken(A) -> (O) {
+    connect { A -> O; }
+}
+
+top component Inv(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A; n.O -> O; }
+}
+```
+
+## The running example
+
+The walkthrough uses two files. `fullAdder.shdl` is a flat full adder:
+
+```shdl title="fullAdder.shdl"
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  a1: AND;
+    x2: XOR;  a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A;   B -> x1.B;
+        A -> a1.A;   B -> a1.B;
+
+        x1.O -> x2.A;  Cin -> x2.B;
+        x1.O -> a2.A;  Cin -> a2.B;
+        a1.O -> o1.A;  a2.O -> o1.B;
+
+        x2.O -> Sum;   o1.O -> Cout;
+    }
+}
+```
+
+`pipe.shdl` exercises each phase at least once. It has a doc comment, an import, a parameterized component, a generator, a `when` conditional, a named constant, and a `top` marker:
+
+```shdl title="pipe.shdl"
+"""2-bit adder with its carry-in tied low."""
+use fullAdder::{FullAdder};
+
+component AdderN<N = 8>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ fa{i}: FullAdder; }
+
+    connect {
+        >i[N]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            when {i == 1} { Cin -> fa{i}.Cin; }
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }
+            fa{i}.Sum -> Sum[{i}];
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+
+top component Add2(A[2], B[2]) -> (Sum[2], Cout) {
+    ZERO = 0;
+    add: AdderN<2>;
+
+    connect {
+        A -> add.A;  B -> add.B;  ZERO -> add.Cin;
+        add.Sum -> Sum;  add.Cout -> Cout;
+    }
+}
+```
+
+The Python blocks below call each stage by hand, in the same order `flatten_program` does. They share one interpreter, so each block uses the variables defined by the ones before it.
+
+## Phase 1: load, lex and parse
+
+`load_program` reads the main file and follows every `use` depth-first. Each file is lexed and then parsed into an AST. The lexer drops comments (`#` lines and quoted strings). A triple-quoted string that comes before the first token becomes the module's doc comment. The result is a `Program` with these fields:
+
+- `modules`: module name to `Module`.
+- `main_module`: the main module's name.
+- `main`: a property that returns the main `Module`.
+
+Each `Module` has a `visible` table that maps every component name usable in that module, whether defined there or imported, to its `(defining_module, name)` pair.
+
+```python
+from flattener.loader import load_program
+from flattener.validate import validate_program
+from flattener.pipeline import select_top
+
+program = load_program("pipe.shdl")
+print("modules:", list(program.modules))
+print("main module:", program.main_module)
+for name, (module, comp) in program.main.visible.items():
+    print(f"  {name} -> {module}::{comp}")
+
+validate_program(program)
+top = select_top(program, None)
+print("top:", top)
+```
+
+```text title="Output"
+modules: ['fullAdder', 'pipe']
+main module: pipe
+  AdderN -> pipe::AdderN
+  Add2 -> pipe::Add2
+  FullAdder -> fullAdder::FullAdder
+top: Add2
+```
+
+Modules land in `program.modules` when they finish loading, so imported modules come before the modules that import them.
+
+### Import resolution
+
+The loader looks for `name.shdl` in two places:
+
+1. the directory of the **importing file**
+2. each `-I` / `--include` directory, in order
+
+The process's current working directory is never searched, but a relative `-I` path is resolved against it. Searching the importing file's directory first keeps resolution deterministic and a module tree relocatable, wherever the tool is run from. The spec's resolution rules are in [shdl.md §9.1](/specs/shdl#91-resolution).
+
+The loader also enforces these rules:
+
+- **Case must match.** If the file on disk is `add2.shdl` but the import says `use Add2`, the loader rejects it with E0701, even on a case-insensitive filesystem.
+- **One file per module name.** If one module name resolves to two different files, the loader raises E0701.
+- **No import cycles.** A circular import (`a -> b -> a`) is E0702.
+- **Names must exist and must not clash.**
+  - Importing a name the module does not define is E0703.
+  - Importing a name that collides with a local component or another import is E0301.
+- **Sources must be valid UTF-8.** Invalid UTF-8 is E0101, with the byte offset of the problem.
+
+Source positions record the file by basename (`pipe.shdl`, not its full path). The whole pipeline, and the metadata, uses that form.
+
+```shdl error=E0701
+use nowhere::{Thing};
+
+component Inv(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A; n.O -> O; }
+}
+```
+
+### Validation
+
+`validate_program` checks every component of every module for anything that does not depend on parameter values:
+
+| Check | Code |
+|---|---|
+| Identifier starts with `__` | E0303 |
+| Identifier matches the bus-expansion pattern `..._<digits>_` | E0304 |
+| Duplicate name within a component | E0301 |
+| Component named like a primitive (`AND`, `OR`, `NOT`, `XOR`, `__VCC__`, `__GND__`) | E0305 |
+| Not exactly one `connect` block, or more than one `init` block | E0309 |
+| More than one `top` component in a module | E0310 |
+| `top` component with a parameter that has no default | E0902 |
+| Unknown instance type | E0306 |
+| Parameters given to a primitive | E0901 |
+| Constant with a non-positive declared width | E0403 |
+| Literal constant that does not fit its declared width | E0801 |
+
+### Top selection
+
+`select_top` picks the component to flatten, in this order:
+
+1. The `--top` name, if one is given. If the main module has no component with that name, the error is E0001: `--top component 'X' not found in module 'm' (has: ...)`.
+2. The component marked `top`. Validation has already guaranteed there is at most one.
+3. The only component, if the module has exactly one.
+
+If none of these applies, selection fails with E0001, reported at line 1, column 1 of the main file:
+
+```shdl error=E0001
+component Inv(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A; n.O -> O; }
+}
+
+component Buf(A) -> (O) {
+    connect { A -> O; }
+}
+```
+
+The message for that module is `cannot determine the top component of module 'snippet…': no 'top' marker and 2 components (Inv, Buf); use --top`.
+
+## Phase 2: monomorphization
+
+`monomorphize` binds parameters, starting from the top component's defaults. It creates one `SpecComponent` per distinct `(module, component, bindings)` tuple. Each one is a clone of the component's AST with every parameter replaced by a literal, keyed as follows:
+
+- `module::Name` for a component without parameters
+- `module::Name<P=v, ...>` for a parameterized one
+
+An instance's arguments can depend on generator variables (for example `stage{i}: Pipe<ID = i>`). For that reason, this phase runs a *discovery walk*: it evaluates generator ranges and `when` conditions over declarations only, which records every argument tuple that actually occurs.
+
+```python continue
+from flattener.phases.monomorphize import monomorphize
+
+mono = monomorphize(program, program.main_module, top)
+print("top_key:", mono.top_key)
+for key, spec in mono.specs.items():
+    print(f"  {key}: bindings={spec.bindings} inputs={spec.inputs} outputs={spec.outputs}")
+```
+
+```text title="Output"
+top_key: pipe::Add2
+  pipe::Add2: bindings={} inputs=[('A', 2), ('B', 2)] outputs=[('Sum', 2), ('Cout', 1)]
+  pipe::AdderN<N=2>: bindings={'N': 2} inputs=[('A', 2), ('B', 2), ('Cin', 1)] outputs=[('Sum', 2), ('Cout', 1)]
+  fullAdder::FullAdder: bindings={} inputs=[('A', 1), ('B', 1), ('Cin', 1)] outputs=[('Sum', 1), ('Cout', 1)]
+```
+
+`AdderN` defaults to `N = 8`, but only `AdderN<2>` is instantiated, so the only specialization is `pipe::AdderN<N=2>`. Port widths are concrete from this point on.
+
+This phase can raise these errors:
+
+- **E0311:** an instantiation cycle.
+- **E0306:** a type that cannot be resolved.
+- **E0901 to E0905:** argument binding errors (unknown name, unbound parameter, positional after named, bound twice, not a non-negative integer).
+- **E0403 or E0906:** a port width that is not positive.
+- **E0602:** an ambiguous open-ended range.
+- **E0603 or E0605:** failures in the expression evaluator (`flattener/expr.py`), for an unbound identifier or a division by zero.
+
+```shdl error=E0311
+component Loop(A) -> (O) {
+    self: Loop;
+    connect { A -> self.A; self.O -> O; }
+}
+```
+
+The message is `recursive instantiation: snippet…::Loop -> snippet…::Loop`. It names the module, which here is the checker's scratch file.
+
+## Phase 3: generator and conditional expansion
+
+`expand_all` walks every specialization and does three things:
+
+- unrolls every generator
+- keeps only the branch of each `when` that applies
+- evaluates every name template, index, slice bound and replication count
+
+The result is an `ExpandedComponent` per key. Its `instances` field holds `InstInfo` records with `kind` set to `"prim"` or `"comp"`, and `type_ref` set to the primitive name or the spec key. It also has `constants` (`ConstInfo`), `connections` (`RConn` with resolved `RPrimary` ends) and `init`.
+
+Signals are still multi-bit and the hierarchy is still intact.
+
+```python continue
+from flattener.phases.expand import expand_all
+
+def show(p):
+    text = p.base + (f".{p.port}" if p.port else "")
+    return text + (f"[{p.index[1]}]" if p.index else "")
+
+expanded = expand_all(mono)
+adder = expanded["pipe::AdderN<N=2>"]
+print("instances:", {name: inst.type_ref for name, inst in adder.instances.items()})
+for conn in adder.connections:
+    print(f"  {show(conn.src)} -> {show(conn.dst)}   (line {conn.pos.line})")
+```
+
+```text title="Output"
+instances: {'fa1': 'fullAdder::FullAdder', 'fa2': 'fullAdder::FullAdder'}
+  A[1] -> fa1.A   (line 9)
+  B[1] -> fa1.B   (line 10)
+  Cin -> fa1.Cin   (line 11)
+  fa1.Sum -> Sum[1]   (line 13)
+  A[2] -> fa2.A   (line 9)
+  B[2] -> fa2.B   (line 10)
+  fa1.Cout -> fa2.Cin   (line 12)
+  fa2.Sum -> Sum[2]   (line 13)
+  fa2.Cout -> Cout   (line 15)
+```
+
+For `i = 1` the `when` picks line 11 (`Cin -> fa1.Cin`), and for `i = 2` the `else` picks line 12. Every connection keeps the source position of the statement that produced it, and those positions flow on into diagnostics and the source map.
+
+This phase can raise these errors:
+
+| Error | Cause |
+|---|---|
+| E0601 | an empty, ill-ordered or negative range, or a range item with more than 1,000,000 values ([shdl.md §14.2](/specs/shdl#142-documented-limits)) |
+| E0602 | an ambiguous open-ended bound |
+| E0301 | two generated names collide |
+| E0307 | an unknown signal, instance or port |
+| E0403 | a width that is not positive |
+| E0801 | a constant that overflows its width |
+| E0603 or E0605 | an expression error |
+
+## Phase 4: expander expansion
+
+`expand_connections` rewrites every connection into single-bit `BitConn` records. Each end of a connection is a `PortBit`, an `InstBit` or a `ConstBit`, all of them named tuples. The rules come from [shdl.md §6](/specs/shdl#6-signals-and-connections):
+
+1. Both sides are flattened to LSB-first bit lists. A concatenation lists its items MSB-first inside the braces, and a replication emits N adjacent copies.
+2. Bits pair up by position.
+3. The bits of one statement are **emitted MSB-to-LSB**.
+
+```python continue
+from flattener.phases.expander import expand_connections
+
+top_ec = expanded["pipe::Add2"]
+print("constants:", top_ec.constants)
+bit_conns = expand_connections(top_ec, mono)
+for bc in bit_conns:
+    print(f"  {bc.src} -> {bc.dst}")
+```
+
+```text title="Output"
+constants: {'ZERO': ConstInfo(name='ZERO', declared_width=None, value=0, pos=Pos(file='pipe.shdl', line=20, col=5))}
+  PortBit(name='A', bit=2) -> InstBit(inst='add', port='A', bit=2)
+  PortBit(name='A', bit=1) -> InstBit(inst='add', port='A', bit=1)
+  PortBit(name='B', bit=2) -> InstBit(inst='add', port='B', bit=2)
+  PortBit(name='B', bit=1) -> InstBit(inst='add', port='B', bit=1)
+  ConstBit(const='ZERO', bit=1) -> InstBit(inst='add', port='Cin', bit=1)
+  InstBit(inst='add', port='Sum', bit=2) -> PortBit(name='Sum', bit=2)
+  InstBit(inst='add', port='Sum', bit=1) -> PortBit(name='Sum', bit=1)
+  InstBit(inst='add', port='Cout', bit=1) -> PortBit(name='Cout', bit=1)
+```
+
+It also checks each statement on its own:
+
+| Error | Cause |
+|---|---|
+| E0505 | a signal used in a role it cannot have, such as a constant as a destination ([shdl.md §6.1](/specs/shdl#61-valid-sources-and-destinations)) |
+| E0402 | a bit index out of range |
+| E0404 | an empty or ill-ordered slice |
+| E0401 | the two sides have different widths |
+| E0504 | a signal connected to itself |
+
+```shdl error=E0401
+component Narrow(A[4]) -> (O[2]) {
+    connect { A -> O; }
+}
+```
+
+The message is `connection width mismatch: source has 4 bit(s), destination has 2`.
+
+## Phase 5: constant materialization
+
+`materialize_constants` replaces every `ConstBit` that is actually referenced with a power-pin gate named `NAME_bitK`. The gate is `__VCC__` if that bit of the value is 1, or `__GND__` if it is 0.
+
+- **Constants have no fixed width.** A constant is an unbounded unsigned value, so a bit beyond its significant bits is simply `__GND__`.
+- **Unreferenced constants produce nothing**: no gates, and no metadata entry.
+
+Each result is a `LoweredComponent` with these fields:
+
+- `ec`
+- `bit_conns`
+- `const_gates`: gate name to `ConstGate`
+- `const_meta`: this becomes the `constants` metadata block.
+
+Right after materialization, `validate_component_connections` checks the component's final bit connections:
+
+- **E0501:** a sink driven more than once.
+- **E0502:** an instance input that is never driven.
+- **E0503:** an output port bit that is never driven.
+
+```python continue
+from flattener.phases.constants import materialize_constants
+from flattener.phases.expander import validate_component_connections
+
+lowered = {}
+for key, ec in expanded.items():
+    lc = materialize_constants(ec, expand_connections(ec, mono))
+    validate_component_connections(ec, mono, lc.bit_conns)
+    lowered[key] = lc
+
+top_lc = lowered["pipe::Add2"]
+print("const_gates:", top_lc.const_gates)
+print("const_meta:", top_lc.const_meta)
+print("rewritten:", top_lc.bit_conns[4].src, "->", top_lc.bit_conns[4].dst)
+```
+
+```text title="Output"
+const_gates: {'ZERO_bit1': ConstGate(name='ZERO_bit1', type_name='__GND__', const='ZERO', bit=1, pos=Pos(file='pipe.shdl', line=20, col=5))}
+const_meta: {'ZERO': {'value': 0, 'width': 1, 'bits': {1: 'ZERO_bit1'}}}
+rewritten: InstBit(inst='ZERO_bit1', port='O', bit=1) -> InstBit(inst='add', port='Cin', bit=1)
+```
+
+User identifiers such as `ZERO_bit1` are lexically legal. If one collides with a generated power-pin name, the flattener does not quietly rename the user's gate. It reports E0308:
+
+```shdl error=E0308
+component Clash(A) -> (O) {
+    ZERO = 0;
+    ZERO_bit1: AND;
+    connect {
+        A -> ZERO_bit1.A;
+        ZERO -> ZERO_bit1.B;
+        ZERO_bit1.O -> O;
+    }
+}
+```
+
+The message is `instance 'ZERO_bit1' collides with the power-pin name generated for bit 1 of constant 'ZERO' (declared at snippet….shdl:2:5)`.
+
+## Phase 6: hierarchy flattening
+
+`flatten` inlines every user component into the top and returns a `FlatResult`. It does this in three stages: it walks the hierarchy depth-first, then resolves every sink to a real driver, then collects the metadata inputs.
+
+### The walk
+
+For each component, `walk` runs these steps in order:
+
+1. **Instances, in declaration order.**
+   - A primitive becomes a gate named `prefix + name`.
+   - A component instance is walked recursively with the prefix `prefix + name + "_"`. This is how `fa1` inside `add` becomes `add_fa1_`.
+2. **Power-pin gates** of this component, named `prefix + NAME_bitK`.
+3. **Constant metadata**, keyed by `prefix + NAME`.
+4. **The component's own bit connections**, in order. Each endpoint becomes a node in a global graph:
+
+   | Node | Meaning |
+   |---|---|
+   | `('in', wire)` | a top-level input bit |
+   | `('out', wire)` | a top-level output bit |
+   | `('pin', gate, pin)` | a primitive gate pin |
+   | `('alias', path, port, bit)` | a port bit of an inlined component |
+
+   Every destination is recorded once; a second driver of the same node is E0501.
+
+   Only connections whose destination is a gate pin or a top output are queued for emission. A connection into an alias node, which is a component's port, only links the chain.
+
+Top-level port bits get their Base SHDL wire names here. A 1-bit port keeps its name, and bit `k` of a wider port becomes `name_k_` (for example `A_1_`). See [base_shdl.md §3.4](/specs/base_shdl#34-port-naming-convention-for-expanded-ports).
+
+Adding a gate whose name already exists, or equals a top-level port wire, is E0308.
+
+### Driver resolution
+
+After the whole graph exists, each queued connection's source is chased back through alias nodes to a **terminal**: a top input bit or a gate's `O` pin. The emitted connection is always `terminal -> sink`, so pass-through components disappear completely.
+
+- **E0506:** the chase runs in a circle without passing a gate.
+- **E0502:** the chase reaches an alias that nothing drives. The per-component check normally catches this first, so this is a defensive backstop.
+
+```shdl error=E0506
+component Wire(A) -> (O) {
+    connect { A -> O; }
+}
+
+top component AliasLoop(A) -> (O) {
+    w1: Wire;
+    w2: Wire;
+    connect {
+        w2.O -> w1.A;
+        w1.O -> w2.A;
+        w1.O -> O;
+    }
+}
+```
+
+The message is `connection cycle with no gate through 'w1.O[1]'`.
+
+### What else phase 6 collects
+
+| Field of `FlatResult` | Content |
+|---|---|
+| `hierarchy` | The instance tree. Each component entry has `type`, `params` (only when the instance has bindings), `source_file`, `source_line` (the instance's declaration site), `prefix`, `ports` and `instances`. Each primitive entry has `type` and `gate`. |
+| `source_map_gates` | For every gate, the `file`, `line` and `column` of its primitive declaration. |
+| `source_map_lines` | For each file and line, the gates that line produced: its own declarations plus every instantiation site in the gate's chain. |
+| `constants` | Every materialized constant, prefixed by its instance path. |
+| `init` | The resolved initial-state seeds. |
+
+Instance port nets in the hierarchy (`ports`) and the keys of `init` use **canonical net names**:
+
+- the top-level port wire, if the net contains one
+- otherwise the driving pin, written `gate.O`
+
+Init seeds are checked in this phase:
+
+- **E0A01:** a target that is not drivable: an input port, an instance input, a constant, or a net that resolves to a top-level input.
+- **E0A02:** a net seeded twice.
+- **E0A03:** a value that does not fit its target.
+
+```shdl error=E0A01
+component Seed(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A; n.O -> O; }
+    init { A = 1; }
+}
+```
+
+The message is `init target 'A' is an input port; inputs are set by poke, not init`.
+
+### The example after phase 6
+
+```python continue
+from flattener.phases.flatten import flatten
+
+flat = flatten(mono, lowered)
+net = flat.netlist
+print("inputs: ", net.inputs)
+print("outputs:", net.outputs)
+print("input_groups: ", net.input_groups)
+print("output_groups:", net.output_groups)
+for name, gate in list(net.gates.items())[:3]:
+    print(f"  gate {name}: {gate.type_name}")
+print("  ...", len(net.gates), "gates in total")
+for src, dst, pos in net.connections[:4]:
+    print(f"  {src} -> {dst}")
+print("  ...", len(net.connections), "connections in total")
+print("constants:", flat.constants)
+```
+
+```text title="Output"
+inputs:  ['A_1_', 'A_2_', 'B_1_', 'B_2_']
+outputs: ['Sum_1_', 'Sum_2_', 'Cout']
+input_groups:  {'A': ['A_1_', 'A_2_'], 'B': ['B_1_', 'B_2_']}
+output_groups: {'Sum': ['Sum_1_', 'Sum_2_'], 'Cout': ['Cout']}
+  gate add_fa1_x1: XOR
+  gate add_fa1_a1: AND
+  gate add_fa1_x2: XOR
+  ... 11 gates in total
+  ('in', 'A_1_') -> ('pin', 'add_fa1_x1', 'A')
+  ('in', 'B_1_') -> ('pin', 'add_fa1_x1', 'B')
+  ('in', 'A_1_') -> ('pin', 'add_fa1_a1', 'A')
+  ('in', 'B_1_') -> ('pin', 'add_fa1_a1', 'B')
+  ... 23 connections in total
+constants: {'ZERO': {'value': 0, 'width': 1, 'bits': {1: 'ZERO_bit1'}}}
+```
+
+The connection `A -> x1.A` inside `fa1` was written against the `FullAdder`'s own port. After resolution it reads `A_1_ -> add_fa1_x1.A`, because the alias chain `add_fa1.A` ← `add.A[1]` ← `A[1]` ends at the top input bit `A_1_`.
+
+Each gate records the positions it came from. For example, `add_fa1_x1` keeps:
+
+- its declaration at `fullAdder.shdl:2:5`
+- the instantiation chain `pipe.shdl:21:5` (`add: AdderN<2>;`) and `pipe.shdl:5:12` (`fa{i}: FullAdder;`)
+
+## Timing analysis
+
+`compute_timing` works on the flat netlist and implements the depth model of [base_shdl.md §4.7](/specs/base_shdl#47-timing--circuit-depth-and-propagation). The model assumes a unit delay: every gate takes one cycle.
+
+| Quantity | Rule |
+|---|---|
+| Depth of a top-level input | 0 |
+| Depth of a gate | 1 + the largest depth among its gate predecessors, not counting edges inside a feedback loop. A gate fed only by inputs has depth 1. |
+| Power pins (`__VCC__`, `__GND__`) | Gates with no predecessors, so depth 1. They read 0 at cycle 0 and show their value from cycle 1. |
+| Depth of an output | The depth of the gate that drives it, or 0 if a top input drives it directly |
+| `max_depth` | The largest output depth, or 0 if there are no outputs |
+| Feedback | Gates are grouped into strongly connected components (Tarjan). A group with more than one gate, or a gate that feeds itself, is feedback. |
+| `has_feedback`, `is_combinational` | `has_feedback` is true if any feedback group exists; `is_combinational` is its negation |
+
+`critical_path` is a real chain of connections. It starts from the first output, in port order, whose depth equals `max_depth`. From there it walks backward, each time stepping to the first predecessor exactly one level shallower. It stops at one of these:
+
+- a top-level input, which is included in the path
+- a gate with no such predecessor: a power pin, or a feedback gate fed only from inside its loop
+
+An output driven directly by an input gives `[input, output]`.
+
+```python continue
+from flattener.timing import compute_timing
+
+timing = compute_timing(net)
+for key, value in timing.items():
+    print(f"{key}: {value}")
+```
+
+```text title="Output"
+max_depth: 5
+output_depths: {'Sum_1_': 2, 'Sum_2_': 4, 'Cout': 5}
+is_combinational: True
+has_feedback: False
+critical_path: ['A_1_', 'add_fa1_x1', 'add_fa1_a2', 'add_fa1_o1', 'add_fa2_a2', 'add_fa2_o1', 'Cout']
+```
+
+`max_depth` is what `Circuit.settle()` steps by. See [Base SHDL: reading timing](./base-shdl.mdx) for more examples, including a sequential circuit and a constant-driven one.
+
+## Metadata and emission
+
+`build_meta` assembles the metadata object from `FlatResult`, the timing dict and three document fields:
+
+- `description`: the main module's doc comment, when there is one
+- `source`: the main file's basename
+- `flattened_at`: the timestamp
+
+`verify_meta` then runs `validate_meta`, which cross-checks every name the metadata mentions against the netlist. It checks nine invariants: ports, hierarchy gates, hierarchy ports, a one-to-one source map, source-map lines, constants, output depths, the critical path, and init targets.
+
+A failure raises `MetaValidationError`. That is a flattener bug, never a user error, so it has no error code.
+
+`emit_text` writes these, in order:
+
+1. the header
+2. the gate declarations, in the order they were added
+3. a blank line, if there are any gates
+4. the `connect` block, in emission order
+5. `meta ` followed by `json.dumps(meta, indent=2, ensure_ascii=False)`
+6. a trailing newline
+
+The key-by-key description of the metadata is on the [Base SHDL format](./base-shdl.mdx) page.
+
+```python continue
+from flattener.metadata import build_meta, verify_meta
+from flattener.emit import emit_text
+
+meta = build_meta(
+    flat,
+    timing,
+    description=program.main.doc_comment,
+    source=program.main.file,
+    flattened_at="2026-01-01T00:00:00Z",
+)
+verify_meta(meta, net)
+print(list(meta))
+text = emit_text(net, meta)
+print(text[: text.index("meta {")].rstrip())
+```
+
+```text title="Output"
+['version', 'ports', 'hierarchy', 'source_map', 'constants', 'timing', 'monitors', 'stats', 'doc', 'init']
+component Add2(A_1_, A_2_, B_1_, B_2_) -> (Sum_1_, Sum_2_, Cout) {
+    add_fa1_x1: XOR;
+    add_fa1_a1: AND;
+    add_fa1_x2: XOR;
+    add_fa1_a2: AND;
+    add_fa1_o1: OR;
+    add_fa2_x1: XOR;
+    add_fa2_a1: AND;
+    add_fa2_x2: XOR;
+    add_fa2_a2: AND;
+    add_fa2_o1: OR;
+    ZERO_bit1: __GND__;
+
+    connect {
+        A_1_ -> add_fa1_x1.A;
+        B_1_ -> add_fa1_x1.B;
+        A_1_ -> add_fa1_a1.A;
+        B_1_ -> add_fa1_a1.B;
+        add_fa1_x1.O -> add_fa1_x2.A;
+        ZERO_bit1.O -> add_fa1_x2.B;
+        add_fa1_x1.O -> add_fa1_a2.A;
+        ZERO_bit1.O -> add_fa1_a2.B;
+        add_fa1_a1.O -> add_fa1_o1.A;
+        add_fa1_a2.O -> add_fa1_o1.B;
+        A_2_ -> add_fa2_x1.A;
+        B_2_ -> add_fa2_x1.B;
+        A_2_ -> add_fa2_a1.A;
+        B_2_ -> add_fa2_a1.B;
+        add_fa2_x1.O -> add_fa2_x2.A;
+        add_fa1_o1.O -> add_fa2_x2.B;
+        add_fa2_x1.O -> add_fa2_a2.A;
+        add_fa1_o1.O -> add_fa2_a2.B;
+        add_fa2_a1.O -> add_fa2_o1.A;
+        add_fa2_a2.O -> add_fa2_o1.B;
+        add_fa2_x2.O -> Sum_2_;
+        add_fa1_x2.O -> Sum_1_;
+        add_fa2_o1.O -> Cout;
+    }
+}
+```
+
+Every detail of the order follows from the rules above:
+
+- **`ZERO_bit1` is declared last.** The top's power pins are registered after its child instance (`add`) has been fully inlined.
+- **The `FullAdder` connections come first.** Children are walked before the parent's own connections.
+- **The top's connections into `add` do not appear.** Their destinations are aliases, so they only link chains.
+- **`Sum_2_` is connected before `Sum_1_`.** `add.Sum -> Sum` is one 2-bit statement, and its bits are emitted MSB first.
+
+### Determinism
+
+The output is a pure function of the source files and the timestamp. The `flattened_at` value comes from, in order of precedence:
+
+1. the `timestamp` argument (`--timestamp` on the command line)
+2. the `SOURCE_DATE_EPOCH` environment variable, the usual convention for reproducible builds
+3. the current UTC time
+
+It is always formatted as `%Y-%m-%dT%H:%M:%SZ`.
+
+A `SOURCE_DATE_EPOCH` that is not a valid integer timestamp is E0001, reported at `<environment>:1:1`.
+
+The conformance corpus pins timestamps to `2026-01-01T00:00:00Z` so that its expected Base SHDL files match byte for byte. See [conformance](../tools/conformance.mdx).
+
+## Calling the pipeline
+
+Every step above runs inside one call:
+
+```python fragment
+from flattener.pipeline import flatten_program
+
+out = flatten_program("pipe.shdl", include_dirs=["libs"], top=None, timestamp=None)
+out.text   # the Base SHDL text
+```
+
+`flatten_program` returns a `FlattenOutput` that keeps every intermediate. The test suite relies on this: the high-level reference evaluator interprets the phase 3 model directly, independently of the emitted text (see [the reference interpreters](./overview.mdx)).
+
+| Field | Type | Stage |
+|---|---|---|
+| `program` | `Program` | phase 1 |
+| `mono` | `MonoProgram` (`top_key`, `specs`) | phase 2 |
+| `expanded` | `dict[str, ExpandedComponent]` | phase 3 |
+| `lowered` | `dict[str, LoweredComponent]` | phases 4 and 5 |
+| `flat` | `FlatResult` | phase 6 |
+| `timing` | `dict` | timing |
+| `meta` | `dict` | metadata |
+| `text` | `str` | emission |
+
+Every error surfaces as `flattener.diagnostics.SHDLError`. Its `diagnostic` attribute holds a `code` (an `ErrorCode`), a `message` and a `pos`, and it prints as `file:line:col: error[E0xxx]: message`. The full catalog is on the [errors page](../language-reference/errors.mdx) and in [shdl.md §14.3](/specs/shdl#143-error-code-catalog).
+
+## Error codes by stage
+
+| Stage | Module | Codes |
+|---|---|---|
+| Lexing | `flattener/lexer.py` | E0101 |
+| Parsing | `flattener/parser.py` | E0201 (syntax, and nesting deeper than 200), E0604 |
+| Loading imports | `flattener/loader.py` | E0101 (invalid UTF-8), E0301, E0701, E0702, E0703 |
+| Validation | `flattener/validate.py` | E0301, E0303, E0304, E0305, E0306, E0309, E0310, E0403, E0801, E0901, E0902 |
+| Top selection, timestamp | `flattener/pipeline.py` | E0001 |
+| Expression evaluation (phases 2 and 3) | `flattener/expr.py` | E0603, E0605 |
+| Phase 2 | `flattener/phases/monomorphize.py` | E0306, E0311, E0403, E0602, E0901 to E0906 |
+| Phase 3 | `flattener/phases/expand.py` | E0301, E0307, E0403, E0601, E0602, E0801 |
+| Phase 4 | `flattener/phases/expander.py` | E0401, E0402, E0404, E0504, E0505 |
+| Phase 5 | `flattener/phases/constants.py` | E0308 |
+| Connection check | `flattener/phases/expander.py` | E0501, E0502, E0503 |
+| Phase 6 | `flattener/phases/flatten.py` | E0308, E0501, E0502, E0503, E0506, E0A01, E0A02, E0A03 |
+| Timing, metadata, emission | `flattener/timing.py`, `metadata.py`, `emit.py` | none |
+
+Some errors are not raised by the flattener at all: the limits of 64 bits per port and 65,535 input wires are enforced later, by `shdlc`. See [shdl.md §14.2](/specs/shdl#142-documented-limits) and [compiler internals](./compiler-internals.mdx).

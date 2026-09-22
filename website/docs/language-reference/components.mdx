@@ -1,0 +1,282 @@
+---
+title: Components
+description: Defining components, ports and widths, instances, the component body, the single name namespace, top-component selection, and recursion.
+---
+
+A component is SHDL's unit of design: a named block with input ports, output ports, and a body of instances and connections. This page covers the component header and its ports, the items a body may contain, instances and how they are named after flattening, the rules for names inside a component, how the top component is chosen, and why recursion is rejected. Normative text: [shdl.md §4](/specs/shdl#4-components-and-ports) and [§5](/specs/shdl#5-instances).
+
+## Syntax
+
+```ebnf
+Component   = [ "top" ] "component" IDENT [ ParamList ]
+              "(" [ PortList ] ")" "->" "(" [ PortList ] ")"
+              "{" { BodyItem } "}" ;
+PortList    = Port { "," Port } ;
+Port        = IDENT [ "[" Arith "]" ] ;
+BodyItem    = ConnectBlock | InitBlock | DeclItem ;
+DeclItem    = Declaration | Generator | Conditional ;
+Declaration = NameTemplate ":" IDENT [ ArgList ] ";"         (* instance *)
+            | IDENT [ "[" Arith "]" ] "=" NUMBER ";" ;       (* constant *)
+```
+
+A complete module with two components, one instantiating the other:
+
+```shdl title="fullAdder2.shdl"
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x: XOR;  a: AND;
+
+    connect {
+        A -> x.A;  B -> x.B;  x.O -> Sum;
+        A -> a.A;  B -> a.B;  a.O -> Carry;
+    }
+}
+
+top component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    h1: HalfAdder;  h2: HalfAdder;  o: OR;
+
+    connect {
+        A -> h1.A;        B -> h1.B;
+        h1.Sum -> h2.A;   Cin -> h2.B;     h2.Sum -> Sum;
+        h1.Carry -> o.A;  h2.Carry -> o.B; o.O -> Cout;
+    }
+}
+```
+
+Flattening inlines both half adders into `FullAdder`, naming each gate by its instance path:
+
+```console check
+$ shdl-flatten fullAdder2.shdl -o fullAdder2.base.shdl
+$ sed -n '1,/^}/p' fullAdder2.base.shdl
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    h1_x: XOR;
+    h1_a: AND;
+    h2_x: XOR;
+    h2_a: AND;
+    o: OR;
+
+    connect {
+        A -> h1_x.A;
+        B -> h1_x.B;
+        A -> h1_a.A;
+        B -> h1_a.B;
+        h1_x.O -> h2_x.A;
+        Cin -> h2_x.B;
+        h1_x.O -> h2_a.A;
+        Cin -> h2_a.B;
+        h2_x.O -> Sum;
+        h1_a.O -> o.A;
+        h2_a.O -> o.B;
+        o.O -> Cout;
+    }
+}
+```
+
+## The header
+
+`[top] component Name[<parameters>](inputs) -> (outputs)` declares the component's interface.
+
+- **`top`** (optional) marks the component the tools use when you do not name one. See [Top-component selection](#top-selection).
+- **`Name`** must be unique among the components of its module (`E0301 duplicate component 'C' in module 'm'`), must not start with `__` or end in `_<digits>_`, and must not be a primitive name (`E0305`). See [reserved names](./lexical-elements.mdx#reserved-names).
+- **`<parameters>`** (optional) makes the component generic over compile-time integers, for example `<N = 8>`. See [Parameters](./parameters.mdx).
+- **`(inputs) -> (outputs)`** are two comma-separated port lists. Either list may be empty, as in `component Zero() -> (Y)`; a trailing comma is a syntax error.
+
+### Ports and widths
+
+| Declaration | Meaning |
+|---|---|
+| `A` | A 1-bit port |
+| `A[8]` | An 8-bit bus, bits `A[1]` (least significant) to `A[8]` (most significant) |
+| `A[N]`, `A[N * 2]`, `A[{N + 1} * 2]` | A width computed from the component's parameters |
+| `A[1]` | Identical to `A`: a 1-bit port that flattens to plain `A` |
+
+A width is any compile-time arithmetic expression over the component's parameters ([Generators](./generators.mdx#arithmetic) describes the operators). It must evaluate to at least 1:
+
+- In a component without parameters, a zero width is `E0403`, for example `port 'A' of 'm::Empty' has non-positive width 0`.
+- In a parameterized component, a width that works out to zero or less for some binding is `E0906` and names the specialization, for example `port 'A' of 'm::Pass<N=0>' has non-positive width 0`.
+
+There is no upper limit in the language. The top component's ports, which become the simulator's ports, must be at most 64 bits wide; `shdlc`, `Circuit` and the `shdl` CLI reject wider ones ([Overview](./overview.mdx#the-data-model)).
+
+Inside the component, an input port is a signal you read and an output port is a signal you drive. The reverse is an error: you cannot drive an input or read your own output (`E0505`, see [Connections](./connections.mdx#roles)). Every bit of every output must be driven (`E0503`); an input you never read is allowed and produces no warning.
+
+## The body
+
+A component body holds these items, in **any order** and freely interleaved:
+
+| Item | Syntax | How many |
+|---|---|---|
+| Instance | `name: Type;` or `name: Type<args>;` | Any number |
+| Constant | `NAME = value;` or `NAME[W] = value;` | Any number ([Constants](./constants.mdx)) |
+| Generator | `>i[range]{ ... }` around declarations | Any number ([Generators](./generators.mdx)) |
+| Conditional | `when {cond} { ... } else { ... }` around declarations | Any number ([Generators](./generators.mdx#conditionals)) |
+| `connect` block | `connect { ... }` | **Exactly one** |
+| `init` block | `init { ... }` | At most one ([Sequential logic](./sequential-logic.mdx)) |
+
+Declaring an instance after the `connect` block that uses it is fine:
+
+```shdl title="late.shdl"
+component Late(A) -> (Y) {
+    connect { A -> n.A;  n.O -> Y; }
+    n: NOT;
+}
+```
+
+A component with no `connect` block, or with two, is `E0309`. So is a second `init` block:
+
+```shdl error=E0309 title="e0309.shdl"
+component NoConnect(A) -> (Y) {
+    n: NOT;
+}
+```
+
+```console check
+$ shdl-flatten e0309.shdl
+e0309.shdl:1:1: error[E0309]: component 'NoConnect' must contain exactly one connect block (found 0)
+```
+
+The other messages are `component 'Two' must contain exactly one connect block (found 2)`, reported at the second block, and `component 'Two' may contain at most one init block`. An empty `connect { }` satisfies the rule, which is useful for a component with no outputs.
+
+Items outside `connect` are *declarations*; items inside it are *connections*. Putting one where the other belongs is a syntax error: `A -> Y;` among the declarations is `E0201 expected ':' (instance) or '=' (constant) after name, found '->'`, and `n: NOT;` inside `connect` is `E0201 expected '->', found ':'`. An item whose first token cannot start any item of its context is `E0604` ([Errors](./errors.mdx#e0604)).
+
+## Instances
+
+`name: Type;` creates one instance of `Type`. The type is one of:
+
+- a primitive: `AND`, `OR`, `NOT`, `XOR`, `__VCC__` or `__GND__` ([Standard gates](./standard-gates.mdx));
+- a component defined anywhere in the same module, before or after this one;
+- a component imported with `use` ([Imports](./imports.mdx)).
+
+Anything else is `E0306 unknown component type 'X'`. `NAND`, `NOR` and `XNOR` are not primitives; they come from the `stdgates` example library and must be imported.
+
+A parameterized type takes arguments in angle brackets: `r: RegisterN<16>;`, `t: Tap<K = 4, N = 8>;` ([Parameters](./parameters.mdx#arguments)). A primitive takes none (`E0901 primitive type 'NOT' takes no parameters`).
+
+Inside a generator, the instance name can be a template such as `fa{i}`, which produces `fa1`, `fa2`, ... ([Generators](./generators.mdx#name-templates)).
+
+### Instance ports
+
+You reach an instance's ports with a dot: `h1.Sum`, `o.O`. The ports are the ones declared by the instance's type: `A`, `B` and `O` for the two-input primitives, `A` and `O` for `NOT`, only `O` for the power primitives, and the declared names for a component. From the parent's point of view an instance's inputs are destinations and its outputs are sources. Every input of every instance must be connected (`E0502`); outputs may be left unused. An instance name on its own is not a signal: `n -> Y` is `E0307 instance 'n' used as a signal; reference one of its ports (e.g. 'n.O')`.
+
+### Names after flattening
+
+Flattening inlines every instance of a component into its parent. A primitive inside instance `h1` is named `h1_x`; a deeper path is joined the same way, so gate `x` inside instance `h1` inside instance `fa2` becomes `fa2_h1_x`. The component's own ports disappear: each becomes an alias for whatever drives it. Because the joined names could clash with a name you wrote yourself, the flattener checks for it and reports `E0308` (see [Errors](./errors.mdx#e0308)). The original hierarchy is kept in the `hierarchy` section of the Base SHDL metadata ([Base SHDL](../architecture/base-shdl.mdx)).
+
+## One namespace per component {/* #namespace */}
+
+Parameters, ports, instances and constants of a component share a single namespace. Declaring any name twice is `E0301`:
+
+```shdl error=E0301 title="e0301.shdl"
+component Dup(A, B) -> (A) {
+    connect { B -> A; }
+}
+```
+
+```console check
+$ shdl-flatten e0301.shdl
+e0301.shdl:1:25: error[E0301]: duplicate name 'A' in component 'Dup' (first declared at e0301.shdl:1:15)
+```
+
+The check covers declarations in **both** branches of every `when`, whether or not a branch is taken, so you cannot declare instance `g` once in the `when` branch and again in the `else` branch. Names produced by templates are checked after the generators are unrolled; a clash there reads `duplicate name 'g1' in component 'C'`, or `instance name 'x' collides with a port of 'C'` when a generated instance takes a port's name.
+
+Names in different components never clash: every component has its own namespace, and the flattener prefixes inlined names with their instance path.
+
+## Top-component selection {/* #top-selection */}
+
+When you run `shdl-flatten`, `shdlc`, `Circuit(...)` or the `shdl` CLI on a file, one component of that file (the *main module*) becomes the top. The flattener chooses, in this order:
+
+1. The component named by `--top NAME` (`shdl-flatten`, `shdlc`), `Circuit(path, top="NAME")`, or `project.top` in `shdl.toml`. This overrides any `top` marker.
+2. The component marked `top`, if exactly one is.
+3. The only component, if the file defines exactly one.
+
+Otherwise the result is `E0001`:
+
+```shdl lib title="two.shdl"
+component Left(A) -> (O) {
+    connect { A -> O; }
+}
+
+component Right(A) -> (O) {
+    n: NOT;
+    connect { A -> n.A;  n.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten two.shdl
+two.shdl:1:1: error[E0001]: cannot determine the top component of module 'two': no 'top' marker and 2 components (Left, Right); use --top
+$ shdl-flatten two.shdl --top Middle
+two.shdl:1:1: error[E0001]: --top component 'Middle' not found in module 'two' (has: Left, Right)
+$ shdl-flatten two.shdl --top Right -o right.base.shdl
+$ head -1 right.base.shdl
+component Right(A) -> (O) {
+```
+
+Rules around the `top` marker:
+
+- A module may mark at most one component. Two markers are `E0310 module 'm' marks more than one component as 'top'`, reported at the second one. This is checked in every loaded module, including imported ones.
+- Only the main module's components are candidates. `top` markers in imported modules are ignored for selection, and `--top` cannot name an imported component: the name must be defined in the file you pass. (The `shdl` CLI works around this: when `--top` or `project.top` names a component defined in another module of your project, it flattens that module instead; see [the shdl CLI](../tools/shdl-cli.mdx).)
+- A parameterized top is instantiated with its **default** values, and there is no way to supply others from the command line or from Python. Every parameter of a top must therefore have a default. A marked top without them is `E0902 'top' component 'Wide' has parameters without defaults`; a top chosen by `--top` or by being the only component gets `E0902 top component 'Wide' parameter 'N' has no default; a parameterized top requires defaults for all parameters`. To simulate other values, write a small wrapper component that instantiates it with the arguments you want.
+- The emitted Base SHDL component keeps the plain name (`AddSub`, not `AddSub<4>`).
+
+The top's ports become the circuit's ports. PySHDL reads and writes them by name (`c["Sum"]`) and the compiled library exposes them through its [C ABI](../tools/c-abi.mdx).
+
+## Recursion is rejected {/* #recursion */}
+
+A component may not instantiate itself, directly or through other components. The check runs on the chain of instantiations before parameters are evaluated, so it rejects even recursion that a `when` would stop:
+
+```shdl error=E0311 title="chain.shdl"
+component Chain<N>(A) -> (O) {
+    n: NOT;
+    when {N > 1} { rest: Chain<N - 1>; }
+    connect {
+        A -> n.A;
+        when {N > 1} { n.O -> rest.A;  rest.O -> O; }
+        else         { n.O -> O; }
+    }
+}
+
+top component Delay3(A) -> (O) {
+    c: Chain<3>;
+    connect { A -> c.A;  c.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten chain.shdl
+chain.shdl:3:20: error[E0311]: recursive instantiation: chain::Delay3 -> chain::Chain -> chain::Chain
+```
+
+Use a generator instead: `>i[N]{ n{i}: NOT; }` with a chain of connections builds the same structure without recursion ([Generators](./generators.mdx)).
+
+## Unused components
+
+Every component of every loaded module is *validated*, whether or not the top uses it. Validation covers the checks that need no parameter values: duplicate and reserved names (`E0301`, `E0303`, `E0304`, `E0305`), unknown types (`E0306`), the block counts (`E0309`), `top` markers (`E0310`, and `E0902` for a marked top without defaults), and constants with a literal width (`E0403`, `E0801`). Type names are checked in both branches of every `when`, so an unknown type in a branch that is never taken still fails.
+
+Only components reachable from the top are *expanded*: their generators unrolled, connections checked, widths matched. Errors from those later phases (unknown signals, width and index errors, driver errors) are not reported for a component nothing instantiates:
+
+```shdl title="unused.shdl"
+component Broken(A) -> (Y) {
+    connect { Nope -> Y; }      # never instantiated, so never expanded
+}
+
+top component Main(A) -> (Y) {
+    connect { A -> Y; }
+}
+```
+
+The same rule makes library modules cheap to import: a module of a hundred components costs only its validation until you use one.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0001` | No top can be determined, or `--top` names a component the main module does not define |
+| `E0201` | Syntax error in the header or body, or an item in the wrong context |
+| `E0301` | A duplicate component in a module, or a duplicate name in a component |
+| `E0303`, `E0304`, `E0305` | A reserved name ([Lexical elements](./lexical-elements.mdx#reserved-names)) |
+| `E0306` | An instance of an unknown type |
+| `E0309` | Not exactly one `connect` block, or more than one `init` block |
+| `E0310` | Two `top` markers in one module |
+| `E0311` | Recursive instantiation |
+| `E0403`, `E0906` | A port width that is not positive |
+| `E0902` | A top component with parameters that lack defaults |
+
+The full catalog, with an example of each, is on the [Errors](./errors.mdx) page.

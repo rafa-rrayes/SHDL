@@ -1,0 +1,263 @@
+---
+title: Installation
+description: Install PySHDL 1.1.0, which provides the SHDL Python package and the shdl, shdlc, shdl-flatten and shdl-conformance commands, and check that it works.
+---
+
+This page installs the SHDL toolchain, checks that it works, and fixes the usual problems. Everything ships as one PyPI package, **PySHDL**. It contains the `SHDL` Python package and four commands: `shdl`, `shdlc`, `shdl-flatten` and `shdl-conformance`.
+
+## Requirements
+
+| Requirement | Details |
+|---|---|
+| Python | **3.14 or newer.** PySHDL 1.1.0 declares `requires-python = ">=3.14"`. It has no third-party runtime dependencies. |
+| C compiler | **Clang or GCC**, or any compiler that accepts GCC-style flags. PySHDL needs it whenever it builds a circuit, not just at install time: `Circuit(...)`, `shdlc`, and `shdl build`/`test`/`run` all compile generated C into a shared library. Flattening (`shdl-flatten`) and the `shdl` package commands work without one. |
+| Operating system | macOS or Linux. CI tests Ubuntu with GCC, Ubuntu with Clang, and macOS with Clang. Windows is untested (see [Windows](#windows)). |
+| Network | Needed only to install PySHDL and when a `shdl` package command (`add`, `remove`, `install`, `search`, `info`, `publish`) contacts the Circuit Circus index. Building, testing and simulating are offline. |
+
+Getting a C compiler:
+
+- **macOS:** run `xcode-select --install` to get the Command Line Tools, which provide `cc` (Apple Clang).
+- **Debian/Ubuntu:** run `sudo apt install build-essential` for GCC, or install `clang`.
+- **Fedora:** run `sudo dnf install gcc`, or install `clang`.
+
+:::warning[Older Python silently gets an old PySHDL]
+
+Releases before 1.0 supported older Python versions. On anything older than 3.14, a plain `pip install PySHDL` or `uv tool install PySHDL` does **not** fail. It quietly installs an old 0.x release instead: **PySHDL 0.3.1** on Python 3.10 to 3.13. That release has a different, incompatible API and only one command. Nothing on this site applies to it. Use Python 3.14, or ask for the version explicitly (`PySHDL>=1.1`). The resolver then refuses clearly instead:
+
+```text
+  × No solution found when resolving dependencies:
+  ╰─▶ Because the current Python version (3.12.13) does not satisfy
+      Python>=3.14 and pyshdl==1.1.0 depends on Python>=3.14, we can conclude
+      that pyshdl==1.1.0 cannot be used.
+```
+
+:::
+
+## Install
+
+Pick the option that matches how you work.
+
+### Into a uv project (recommended for Python work)
+
+Create the project with Python 3.14 so its `requires-python` excludes the old release, then add PySHDL:
+
+```bash
+uv init --python 3.14 myproject
+cd myproject
+uv add PySHDL
+```
+
+`uv add` records `"pyshdl>=1.1.0"` in `pyproject.toml` and installs 1.1.0 into the project's `.venv`. Run the commands and your scripts through uv:
+
+```bash
+uv run shdl-flatten --help
+uv run python my_script.py
+```
+
+If your project already exists with a `requires-python` lower than 3.14, raise it first. Otherwise uv resolves PySHDL 0.3.1 for the older Python versions the project still claims to support.
+
+### With pip
+
+Inside a virtual environment created with Python 3.14:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+pip install "PySHDL>=1.1"
+```
+
+### As a standalone tool
+
+If you want the commands on your `PATH` everywhere and do not need to `import SHDL` from your own code, install PySHDL as a uv tool:
+
+```bash
+uv tool install --python 3.14 PySHDL
+```
+
+```text
+Installed 4 executables: shdl, shdl-conformance, shdl-flatten, shdlc
+```
+
+The `--python 3.14` matters. Without it uv uses your default interpreter, and if that is older than 3.14 you get 0.3.1 with a single `shdlc` executable. The tool gets its own isolated environment, so `from SHDL import Circuit` in your scripts still needs PySHDL installed in that script's environment as well. If the shell cannot find the commands afterwards, run `uv tool update-shell` and open a new terminal.
+
+### From a clone of the repository
+
+Work from source to run the bundled [examples](https://github.com/rafa-rrayes/SHDL/tree/master/examples), the test suite, or your own changes to the toolchain:
+
+```bash
+git clone https://github.com/rafa-rrayes/SHDL.git
+cd SHDL
+uv sync
+```
+
+`uv sync` installs the pinned toolchain in editable mode, plus the development tools (pytest and Ruff), into `.venv`. uv fetches a Python 3.14 interpreter if you do not have one. Prefix commands with `uv run`:
+
+```bash
+uv run shdl-flatten examples/fullAdder.shdl      # print the Base SHDL
+uv run shdlc examples/fullAdder.shdl             # build fullAdder.dylib (.so on Linux)
+uv run python examples/interacting.py            # a guided PySHDL walkthrough
+uv run pytest -q                                 # the full test suite (~1,900 tests)
+uv run shdl-conformance run                      # the conformance suite
+```
+
+:::note[The examples live only in the repository]
+
+The PyPI package contains the toolchain but not the `examples/` directory, so it has no `stdgates.shdl` and no CPU. Pages on this site that load `examples/...` assume a clone, or that you downloaded the file from [GitHub](https://github.com/rafa-rrayes/SHDL/tree/master/examples).
+
+:::
+
+## Verify the installation
+
+### The four commands
+
+Each command prints usage with `-h`. None of them has a `--version` flag.
+
+```console check
+$ shdl-flatten -h | head -n 1
+usage: shdl-flatten [-h] [--top NAME] [-I DIR] [-o FILE] [--timestamp TS] file
+$ shdlc -h | head -n 1
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+$ shdl -h | head -n 1
+usage: shdl [-h]
+$ shdl-conformance -h | head -n 1
+usage: shdl-conformance [-h] {run,verify-oracle,regen,list} ...
+```
+
+### The version
+
+Ask the package metadata for the installed version:
+
+```console check
+$ python -c "from importlib.metadata import version; print(version('PySHDL'))"
+1.1.0
+```
+
+:::note
+
+`SHDL.__version__` reads `1.0.0` even in the 1.1.0 release, so use the package metadata shown above. If the command prints `0.3.1`, you are on an old Python. See [the warning above](#requirements).
+
+:::
+
+### A circuit end to end
+
+This script runs the whole pipeline: it flattens an inverter written inline, compiles it with your C compiler, loads the library and simulates it. If it prints the truth table, both Python and the compiler work.
+
+```python
+from SHDL import Circuit
+
+src = """
+top component Inverter(A) -> (Y) {
+    n: NOT;
+    connect { A -> n.A; n.O -> Y; }
+}
+"""
+with Circuit.from_source(src) as c:
+    print(c)
+    for a in (0, 1):
+        c["A"] = a
+        c.settle()
+        print(a, "->", c["Y"])
+```
+
+```text title="Output"
+<SHDL.Circuit 'Inverter' (A) -> (Y)>
+0 -> 1
+1 -> 0
+```
+
+### The conformance suite
+
+The conformance corpus ships inside the package. Running one case checks flattening (tier A) and simulation (tier B) against golden files:
+
+```console check
+$ shdl-conformance run --filter sr_latch
+SHDL conformance suite v1.1.0 — run
+flatten timestamp: 2026-01-01T00:00:00Z
+cases: 1 selected of 38
+
+PASS  A  sr_latch                 expected.base.shdl
+PASS  B  sr_latch                 traces/set_hold_reset.json
+
+summary: 2 checks, 0 failure(s)
+```
+
+Drop `--filter` to run all 38 cases. The last line should read `summary: 78 checks, 0 failure(s)`. See [Conformance](../tools/conformance.mdx).
+
+## How the C compiler is found
+
+Every tool that builds a library (`shdlc`, `shdl build`/`test`/`run` and `Circuit`) resolves the compiler the same way, stopping at the first rule that applies:
+
+| Order | Source | Notes |
+|---|---|---|
+| 1 | An explicit compiler: `--cc CC` on `shdlc` and `shdl build`/`test`/`run`, or `Circuit(..., cc="...")` in Python | Always used when given. It is an error if it cannot be found. |
+| 2 | The `CC` environment variable | Used if it is set and not blank. An empty `CC` counts as unset. |
+| 3 | The first of `cc`, `clang`, `gcc` found on `PATH` | The normal case on macOS and Linux. |
+
+The first two sources are split like a shell command line, so a wrapper works: `CC="ccache clang"`. The first word must be on `PATH` or be an existing absolute path. PySHDL never falls back silently: if the compiler you named is missing, the build fails and tells you which rule picked it.
+
+The compiler is called as `<cc> -std=c11 -O2 -shared -fPIC -fvisibility=hidden -o <library> <generated.c>`. With `--dev`, `-O0` replaces `-O2`, which compiles large circuits much faster at the cost of slower simulation. The library suffix follows the platform: `.dylib` on macOS, `.so` on Linux, `.dll` on Windows. See [shdlc](../tools/shdlc.mdx) for all compiler options and [Python API](../tools/python-api.mdx) for `cc` and `cflags` in `Circuit`.
+
+## Windows
+
+Windows is **untested** in 1.1.0 and not covered by CI. What is known from the code:
+
+- The build step passes GCC/Clang-style flags (`-std=c11 -shared -fPIC ...`), so MSVC's `cl` cannot be used as the compiler. You need a GCC-compatible compiler such as MinGW-w64 GCC or Clang on `PATH`, or named by `CC`.
+- The compiled library gets a `.dll` suffix.
+- Every `shdl` command prints a warning on Windows:
+
+```text
+shdl: warning: Windows is untested for this release; paths and C toolchain discovery may misbehave
+```
+
+WSL (Windows Subsystem for Linux) behaves like Linux and is the safer choice.
+
+## Troubleshooting
+
+### The compiler is not found
+
+If no compiler is named and none of `cc`, `clang` or `gcc` is on `PATH`:
+
+```text
+C compiler not found: no explicit compiler given, $CC is unset, and none of 'cc', 'clang', 'gcc' is on PATH
+```
+
+Install one (see [Requirements](#requirements)). If you named a compiler that does not exist, the message says where the name came from:
+
+```console check
+$ CC=no-such-cc shdlc examples/inverter.shdl
+shdlc: error: C compiler not found: 'no-such-cc' (from $CC: 'no-such-cc') is not on PATH and is not an existing absolute path
+```
+
+Fix or unset `CC`. From Python, the same problem raises `SHDL.errors.BuildError` with the same text. The `shdl` commands print it as `shdl: error: ...` and exit with status 1.
+
+### The compiler runs but fails
+
+The error shows the exact command and everything the compiler printed. Here `false`, a command that always exits with status 1, stands in for a broken compiler (`-o` and `--emit-c` only make the file names in the message predictable):
+
+```console check
+$ CC=false shdlc examples/inverter.shdl -o inverter.so --emit-c inverter.c
+shdlc: error: C compiler failed with exit code 1: false -std=c11 -O2 -shared -fPIC -fvisibility=hidden -o inverter.so inverter.c
+--- stderr ---
+```
+
+With a real compiler, its error messages follow the `--- stderr ---` line. A compiler that rejects GCC-style flags (MSVC `cl`, for example) fails here. In Python, `BuildError.argv` holds the command and `BuildError.stderr` holds the compiler output.
+
+### The API does not match these docs
+
+If `Circuit(...)` rejects keywords such as `top=` or `include_dirs=`, or `settle()` does not exist, you have the old 0.3.1 release. Check with `version('PySHDL')` as shown in [The version](#the-version), then reinstall under Python 3.14.
+
+### A command is not found after installing
+
+- **pip in a virtual environment:** activate the environment (`source .venv/bin/activate`) or run the command as `.venv/bin/shdl`.
+- **uv project:** run commands through `uv run`, as in `uv run shdl build`.
+- **uv tool:** run `uv tool update-shell` and open a new terminal.
+
+### `use stdgates::{...}` fails
+
+`stdgates` is not part of the package. It is an ordinary module, `examples/stdgates.shdl`, in the repository. Copy it next to your file, or pass its directory with `-I` (or `include_dirs=[...]` in Python). See [Imports](../language-reference/imports.mdx).
+
+## Next steps
+
+- [Your first circuit](./first-circuit.mdx): write, flatten and simulate a half adder.
+- [Using PySHDL](./using-pyshdl.mdx): a tour of the `Circuit` class.
+- [Projects and packages](./projects.mdx): the `shdl` command and Circuit Circus.

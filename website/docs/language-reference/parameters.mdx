@@ -1,0 +1,266 @@
+---
+title: Parameters
+description: Compile-time integer parameters, defaults, positional and named arguments, specialization, and the rules for parameterized top components.
+---
+
+Parameters make a component generic over compile-time integers, typically widths: one `RegisterN<N>` definition serves every register size. This page covers declaring parameters and defaults, where parameters may be used, passing arguments when you instantiate, how each distinct set of arguments becomes its own specialization, and parameterized top components. Normative text: [shdl.md §4.4](/specs/shdl#44-parameterized-components) and [§5.3](/specs/shdl#53-parameter-arguments).
+
+## Syntax
+
+```ebnf
+ParamList = "<" Param { "," Param } ">" ;
+Param     = IDENT [ "=" NUMBER ] ;
+ArgList   = "<" Arg { "," Arg } ">" ;
+Arg       = [ IDENT "=" ] Arith ;
+```
+
+The parameter list goes between the component name and its ports; the argument list goes after the type name in an instance declaration:
+
+```shdl title="taps.shdl"
+# N is required; K defaults to 1.
+component Tap<N, K = 1>(A[N]) -> (Y) {
+    connect { A[K] -> Y; }
+}
+
+top component Taps(D[8]) -> (Lo, Hi, Mid) {
+    lo:  Tap<8>;              # positional: N = 8, K takes its default 1
+    hi:  Tap<8, 8>;           # positional: N = 8, K = 8
+    mid: Tap<K = 4, N = 8>;   # named, in any order
+
+    connect {
+        D -> lo.A;   D -> hi.A;   D -> mid.A;
+        lo.Y -> Lo;  hi.Y -> Hi;  mid.Y -> Mid;
+    }
+}
+```
+
+`Tap` has no gates, so each instance flattens to a single wire from the selected bit:
+
+```console check
+$ shdl-flatten taps.shdl -o taps.base.shdl
+$ sed -n '1,/^}/p' taps.base.shdl
+component Taps(D_1_, D_2_, D_3_, D_4_, D_5_, D_6_, D_7_, D_8_) -> (Lo, Hi, Mid) {
+    connect {
+        D_1_ -> Lo;
+        D_8_ -> Hi;
+        D_4_ -> Mid;
+    }
+}
+```
+
+## Declaring parameters
+
+- A parameter is a name, optionally followed by `= default`. Parameters with and without defaults may appear in any order.
+- A **default must be a numeric literal**. It cannot be an expression or refer to another parameter: `<N = 2 + 1>` is `E0201 expected '>', found '+'`, and `<N, M = N>` is `E0201 expected parameter default value, found 'N'`.
+- An empty list `<>` is not allowed (`E0201 expected parameter name, found '>'`). Leave the brackets out instead.
+- Parameter names share the component's namespace with ports, instances and constants, so `component P<A>(A) -> ...` is `E0301` ([Components](./components.mdx#namespace)). They follow the [reserved-name rules](./lexical-elements.mdx#reserved-names) too. By convention they are upper case (`N`, `WIDTH`).
+
+Parameter values are **non-negative integers**. Zero is a valid value, but any width it produces must still be at least 1.
+
+## Where parameters can be used
+
+A parameter is a compile-time constant visible throughout its component's body and nowhere else. You can use it in any arithmetic expression:
+
+| Place | Example |
+|---|---|
+| Port widths | `A[N]`, `Sum[N + 1]`, `Lo[N / 2]` |
+| Indices and slice bounds | `A[N]`, `A[{N / 2 + 1}:N]` |
+| Generator ranges | `>i[N]`, `>i[2:N]` |
+| `when` conditions | `when {N > 1}`, `when {INVERT == 1}` |
+| Arguments to other instances | `r: RegisterN<N * 2>;` |
+| Replication counts | `{2 * N{S, T}}`, `{N{S, T}}` ([Signals](./signals.mdx#parameter-counts)) |
+| Constant widths | `MASK[N] = 0;` |
+
+Two places do **not** accept parameters, because they take literals: parameter defaults and constant values (`K = N;` is a syntax error). A parameter is also not a signal: `N -> Y` is `E0307 unknown signal 'N'`. To turn a parameter into a wire value, select bits of a constant, or choose between `__VCC__` and `__GND__` with `when`.
+
+A generator variable with the same name as a parameter shadows it inside the generator body: `>N[N]{ A[N] -> O[N]; }` is legal, and inside the body `N` is the loop variable. This is legal but confusing, so prefer distinct names.
+
+## Arguments {/* #arguments */}
+
+You bind parameters when you instantiate the component, in angle brackets after the type name:
+
+| Form | Example | Meaning |
+|---|---|---|
+| Positional | `Tap<8, 4>` | Binds parameters in declaration order: `N = 8`, `K = 4` |
+| Named | `Tap<K = 4, N = 8>` | Binds by name, in any order |
+| Mixed | `Tap<8, K = 4>` | Positional arguments first, then named ones |
+| Omitted | `Tap<8>` | `K` takes its default |
+
+Positional arguments always bind in declaration order, whether or not a parameter has a default. With `component Tap<K = 1, N>`, the argument in `Tap<4>` binds `K`, leaving `N` unbound; write `Tap<N = 4>`.
+
+Each argument is an arithmetic expression over literals, the enclosing component's parameters and any enclosing generator variables. Arguments may therefore differ from one iteration of a generator to the next:
+
+```shdl title="reverse.shdl"
+component Tap<N, K = 1>(A[N]) -> (Y) {
+    connect { A[K] -> Y; }
+}
+
+top component Reverse<N = 4>(D[N]) -> (Q[N]) {
+    >i[N]{ t{i}: Tap<N, N + 1 - i>; }
+    connect {
+        >i[N]{ D -> t{i}.A;  t{i}.Y -> Q[i]; }
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("reverse.shdl") as c:
+    c["D"] = 0b1101
+    print(f"{c['Q']:04b}")
+```
+
+```text title="Output"
+1011
+```
+
+### Argument errors
+
+| Mistake | Code | Message |
+|---|---|---|
+| A named argument that matches no parameter | `E0901` | `'Pass' has no parameter named 'Width'` |
+| Any argument to a primitive | `E0901` | `primitive type 'NOT' takes no parameters` |
+| A parameter with no argument and no default | `E0902` | `parameter 'N' of 'Pass' is not bound and has no default` |
+| More positional arguments than parameters | `E0903` | `too many positional arguments for 'Pass' (1 parameter(s))` |
+| Any positional argument to a component without parameters | `E0903` | `too many positional arguments for 'Plain' (0 parameter(s))` |
+| A positional argument after a named one | `E0903` | `positional argument after named argument` |
+| The same parameter bound twice | `E0904` | `parameter 'N' of 'Pass' bound twice` |
+| An argument that evaluates to a negative number | `E0905` | `argument for parameter 'N' of 'Pass' evaluates to -1; parameters must be non-negative` |
+| A width that works out to zero or less | `E0906` | `port 'A' of 'm::Pass<N=0>' has non-positive width 0` |
+
+For example:
+
+```shdl error=E0902 title="unbound.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten unbound.shdl
+unbound.shdl:6:5: error[E0902]: parameter 'N' of 'Pass' is not bound and has no default
+```
+
+`E0906` names the specialization, with every parameter's value, so you can see which binding produced the bad width. A width of zero in a component without parameters is `E0403` instead ([Components](./components.mdx#ports-and-widths)).
+
+## Specialization {/* #specialization */}
+
+Parameters are resolved entirely at flatten time. For every distinct combination of parameter values that is instantiated anywhere in the design, the flattener makes one specialized copy of the component (defaults count as values, so `Tap<8>` and `Tap<8, 1>` are the same specialization). Base SHDL never sees a parameter: an `AdderN<8>` and an `AdderN<32>` simply flatten to different numbers of gates.
+
+All checks that depend on parameter values (widths, indices, ranges, drivers) run once per specialization, so a component can be correct for one binding and fail for another. A component that is never instantiated is never specialized, and those checks do not run for it ([Components](./components.mdx#unused-components)).
+
+The bound values of every instance are recorded in the `hierarchy` section of the Base SHDL metadata, in declaration order with defaults filled in:
+
+```console check
+$ shdl-flatten reverse.shdl -o reverse.base.shdl
+```
+
+```python
+import json
+
+text = open("reverse.base.shdl").read()
+meta = json.loads(text[text.index("\nmeta {") + 6:])
+for name, inst in meta["hierarchy"]["Reverse"]["instances"].items():
+    print(name, inst["type"], inst["params"], "Y =", inst["ports"]["Y"])
+```
+
+```text title="Output"
+t1 Tap {'N': 4, 'K': 4} Y = D_4_
+t2 Tap {'N': 4, 'K': 3} Y = D_3_
+t3 Tap {'N': 4, 'K': 2} Y = D_2_
+t4 Tap {'N': 4, 'K': 1} Y = D_1_
+```
+
+A component cannot instantiate itself, even with different arguments and a `when` that would end the recursion ([Components](./components.mdx#recursion)).
+
+## Parameters that select structure
+
+Because `when` conditions can test parameters, a parameter can switch between different circuits, not only change their width. A flag parameter with values 0 and 1 is a common pattern:
+
+```shdl title="buffer.shdl"
+component Buffer<N = 4, INVERT = 0>(A[N]) -> (Y[N]) {
+    when {INVERT == 1} { >i[N]{ n{i}: NOT; } }
+    connect {
+        when {INVERT == 1} { >i[N]{ A[i] -> n{i}.A;  n{i}.O -> Y[i]; } }
+        else               { A -> Y; }
+    }
+}
+
+top component Both(A[4]) -> (Same[4], Inverted[4]) {
+    s: Buffer;               # N = 4, INVERT = 0 (both defaults)
+    v: Buffer<INVERT = 1>;   # N = 4 (default), INVERT = 1
+    connect {
+        A -> s.A;  s.Y -> Same;
+        A -> v.A;  v.Y -> Inverted;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("buffer.shdl") as c:
+    c["A"] = 0b0011
+    c.settle()
+    print(f"Same={c['Same']:04b} Inverted={c['Inverted']:04b}")
+```
+
+```text title="Output"
+Same=0011 Inverted=1100
+```
+
+Only the chosen branch produces gates: `s` flattens to four wires and `v` to four `NOT` gates. See [Generators](./generators.mdx#conditionals) for `when`.
+
+## Parameterized top components {/* #top-parameters */}
+
+The component you flatten or simulate is instantiated with its **default** values. There is no command-line flag or `Circuit` argument that sets them, so every parameter of a top component needs a default (`E0902` otherwise; both messages are shown in [Components](./components.mdx#top-selection)).
+
+To simulate other values, add a small wrapper and make it the top:
+
+```shdl title="adder16.shdl"
+use adderN::{AdderN};
+
+top component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
+    add: AdderN<16>;
+    connect {
+        A -> add.A;  B -> add.B;  Cin -> add.Cin;
+        add.Sum -> Sum;  add.Cout -> Cout;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("adder16.shdl", include_dirs=["examples"]) as c:
+    c["A"], c["B"], c["Cin"] = 40000, 30000, 0
+    c.settle()
+    print(c["Sum"], c["Cout"])
+```
+
+```text title="Output"
+4464 1
+```
+
+The emitted Base SHDL component keeps the plain name of the top (`AddSub`, not `AddSub<4>`), and the top's own parameter values are not recorded in the metadata.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0201` | A default that is not a literal, or an empty `<>` |
+| `E0301` | A parameter name that repeats another parameter, port, instance or constant |
+| `E0307` | A parameter used as a signal |
+| `E0901` | An unknown named argument, or arguments to a primitive |
+| `E0902` | An unbound parameter without a default, or a top component whose parameters lack defaults |
+| `E0903` | Too many positional arguments, or a positional argument after a named one |
+| `E0904` | A parameter bound twice |
+| `E0905` | An argument that evaluates to a negative number |
+| `E0906` | A parameter-dependent port width that is not positive |
+| `E0311` | Recursive instantiation |

@@ -1,0 +1,457 @@
+---
+title: Latches
+sidebar_label: Latches
+description: An SR latch from cross-coupled gates and a gated D latch built on it, with power-on state from init, why settle() is refused, and cycle-by-cycle traces of setting, holding and a too-short enable pulse.
+---
+
+A latch stores one bit. SHDL has no special syntax for state: a latch is a
+loop of ordinary gates whose output feeds back into its own input, and the
+[unit-delay model](../concepts/simulation-model.mdx) gives that loop a
+well-defined meaning. This page builds the two latches in `examples/`, an SR
+latch and a gated D latch, and steps through them one cycle at a time to show
+how the loop holds a value, how long a write takes, and what goes wrong without
+a defined power-on state.
+
+## SR latch
+
+An SR latch has a *set* input `S`, a *reset* input `R`, and two outputs: `Q`
+and its complement `Qn`.
+
+| S | R | Q after the change | Meaning |
+|---|---|---|---|
+| 0 | 0 | unchanged | hold |
+| 1 | 0 | 1 | set |
+| 0 | 1 | 0 | reset |
+| 1 | 1 | `Q = Qn = 0` | not allowed: both outputs forced low |
+
+It is two NOR gates, each feeding the other. A NOR outputs 1 only when both of
+its inputs are 0. If `Q` is 1, the NOR that makes `Qn` sees a 1 and outputs 0;
+that 0 goes back to the NOR that makes `Q`, which keeps outputting 1 as long as
+`R` stays 0. The pair holds either state indefinitely, and `S` or `R` pushes it
+from one to the other.
+
+### Source
+
+[`examples/srLatch.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/srLatch.shdl):
+
+```shdl title="srLatch.shdl"
+"""
+11 -- SRLatch: state from cross-coupled gates, with defined power-on.
+
+Feedback is well-defined in SHDL's unit-delay model (§11.2): every
+gate recomputes once per cycle from last cycle's values, so a wire
+may depend on its own previous value.  Cross-coupled NOR structures
+therefore hold state with no special syntax.
+
+In this model, the state of a feedback loop is ALL of its gate
+outputs, and `init` must specify a fixed point of the loop -- every
+seed below equals what that gate computes from the other seeds with
+S = R = 0, so the state holds from tick 0.  A component that seeds a
+loop must therefore own every gate in it: a composite like
+stdgates::NOR is fine anywhere except inside a seeded loop, because
+`n1.O` would alias only its internal NOT while the internal OR's
+output remains a separate, unseeded net.  (An incompletely seeded
+loop does not "settle" -- a symmetric state never breaks symmetry in
+a deterministic unit-delay network; it oscillates forever.)
+"""
+
+top component SRLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;     # NOR #1, owned by the latch
+    o2: OR;  i2: NOT;     # NOR #2
+
+    init {
+        o1.O = 1;   # OR(R=0, Qn=1) — the gate a stdgates::NOR seed would miss
+        i1.O = 0;   # Q  = 0
+        o2.O = 0;   # OR(S=0, Q=0)
+        i2.O = 1;   # Qn = 1
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+```
+
+Line by line:
+
+- **`o1: OR;  i1: NOT;`** Each NOR is written as an `OR` followed by a `NOT`.
+  NOR is not a primitive; `stdgates` defines it the same way. See
+  [Standard gates](../language-reference/standard-gates.mdx).
+- **`i2.O -> o1.B;`** and **`i1.O -> o2.B;`** close the loop: each NOR's output
+  is an input of the other. Nothing marks this as special. The flattener
+  detects the cycle and records `has_feedback: true` in the metadata. See
+  [Sequential logic](../language-reference/sequential-logic.mdx) and
+  [shdl.md §11.2](/specs/shdl#112-feedback-and-sequential-circuits).
+- **`init { ... }`** sets the value of named nets at cycle 0, the power-on
+  state. Without it every net starts at 0. The four seeds describe the latch in
+  its reset state: `Q = 0`, `Qn = 1`, and the two OR outputs consistent with
+  those. `init` produces no gates. See
+  [shdl.md §11.4](/specs/shdl#114-initial-state).
+- **The seeds form a fixed point.** With `S = R = 0`, each seeded gate computes
+  exactly its own seed from the others: `o1 = R OR Qn = 1`, `i1 = NOT o1 = 0`,
+  `o2 = S OR Q = 0`, `i2 = NOT o2 = 1`. So on the first cycle nothing changes,
+  and the latch holds from cycle 0.
+- **Why the latch spells out its own NORs.** In the unit-delay model the state
+  of a loop is the output of *every* gate in it, including the ORs. If the latch
+  used `stdgates::NOR`, a seed like `n1.O = 0` would reach only that NOR's inner
+  `NOT`; the inner `OR` would start at 0 and the loop would not be at a fixed
+  point. The docstring explains this, and the section
+  [Without init](#without-init) below shows what happens then.
+
+### Size and timing
+
+| Property | Value |
+|---|---|
+| Gates | 4 (2 OR, 2 NOT) |
+| Connections | 8 |
+| `has_feedback` | true |
+| `max_depth` | 1 |
+| `init` entries | 4 |
+
+For a circuit with feedback, `max_depth` is not the time the circuit needs to
+respond: a signal can travel around the loop many times. That is why `settle()`
+refuses to run it.
+
+### Simulate it
+
+The sessions on this page run from the root of a checkout of the repository.
+First, the metadata and the power-on state:
+
+```python
+from SHDL import Circuit, SettleRefusedError
+
+with Circuit("examples/srLatch.shdl") as c:
+    print(c)
+    print(c.timing)
+    print("init:", dict(c.info.init))
+    print("power-on: Q =", c["Q"], " Qn =", c["Qn"])
+    try:
+        c.settle()
+    except SettleRefusedError as e:
+        print("SettleRefusedError:", e)
+```
+
+```text title="Output"
+<SHDL.Circuit 'SRLatch' (S, R) -> (Q, Qn)>
+TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+init: {'o1.O': 1, 'Q': 0, 'o2.O': 0, 'Qn': 1}
+power-on: Q = 0  Qn = 1
+SettleRefusedError: settle() is refused: circuit 'SRLatch' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+```
+
+The `init` mapping uses the names from the flattened netlist. A seed on a gate
+that drives an output port is listed under the port's name (`Q`, `Qn`), and the
+others under the gate output (`o1.O`, `o2.O`).
+
+`settle()` is refused because a circuit with feedback has no guaranteed number
+of cycles after which it stops changing; the ring oscillator on the
+[ring oscillator](./ring-oscillator.mdx) page never stops at all. Advance a
+sequential circuit with `step(n)` instead. See the
+[Python API](../tools/python-api.mdx).
+
+Now set the latch, hold, reset it, and hold again, one cycle at a time:
+
+```python
+from SHDL import Circuit
+
+def run(c, label, cycles):
+    for cycle in range(1, cycles + 1):
+        c.step(1)
+        print(f"{label} cycle {cycle}: Q={c['Q']} Qn={c['Qn']}")
+
+with Circuit("examples/srLatch.shdl") as c:
+    c["S"] = 1
+    run(c, "S=1 R=0", 4)
+    c["S"] = 0
+    run(c, "S=0 R=0", 2)
+    c["R"] = 1
+    run(c, "S=0 R=1", 4)
+    c["R"] = 0
+    run(c, "S=0 R=0", 2)
+```
+
+```text title="Output"
+S=1 R=0 cycle 1: Q=0 Qn=1
+S=1 R=0 cycle 2: Q=0 Qn=0
+S=1 R=0 cycle 3: Q=0 Qn=0
+S=1 R=0 cycle 4: Q=1 Qn=0
+S=0 R=0 cycle 1: Q=1 Qn=0
+S=0 R=0 cycle 2: Q=1 Qn=0
+S=0 R=1 cycle 1: Q=1 Qn=0
+S=0 R=1 cycle 2: Q=0 Qn=0
+S=0 R=1 cycle 3: Q=0 Qn=0
+S=0 R=1 cycle 4: Q=0 Qn=1
+S=0 R=0 cycle 1: Q=0 Qn=1
+S=0 R=0 cycle 2: Q=0 Qn=1
+```
+
+Setting takes four cycles because the new value has to travel through all four
+gates of the loop:
+
+1. `o2` sees `S = 1` and outputs 1.
+2. `i2` inverts that: `Qn` falls to 0.
+3. `o1` sees `Qn = 0` (and `R = 0`) and outputs 0.
+4. `i1` inverts that: `Q` rises to 1.
+
+For two cycles both outputs read 0. After that the loop holds `Q = 1` on its
+own, so `S` can return to 0. Reset is the mirror image.
+
+### Both inputs high
+
+`S = R = 1` forces both NORs to output 0. The trouble comes when both inputs
+drop in the same cycle: the two halves of the latch are now identical, and in a
+deterministic unit-delay simulation nothing can break the tie.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/srLatch.shdl") as c:
+    c["S"], c["R"] = 1, 1
+    c.step(4)
+    print(f"S=1 R=1 after 4 cycles: Q={c['Q']} Qn={c['Qn']}")
+    c["S"], c["R"] = 0, 0
+    for cycle in range(1, 9):
+        c.step(1)
+        print(f"S=0 R=0 cycle {cycle}: Q={c['Q']} Qn={c['Qn']}")
+```
+
+```text title="Output"
+S=1 R=1 after 4 cycles: Q=0 Qn=0
+S=0 R=0 cycle 1: Q=0 Qn=0
+S=0 R=0 cycle 2: Q=1 Qn=1
+S=0 R=0 cycle 3: Q=1 Qn=1
+S=0 R=0 cycle 4: Q=0 Qn=0
+S=0 R=0 cycle 5: Q=0 Qn=0
+S=0 R=0 cycle 6: Q=1 Qn=1
+S=0 R=0 cycle 7: Q=1 Qn=1
+S=0 R=0 cycle 8: Q=0 Qn=0
+```
+
+The latch oscillates with a period of four cycles, forever. Real latches
+eventually fall to one side, because no two gates are exactly alike; the model
+has no such asymmetry. This is why `S = R = 1` is not allowed.
+
+### Without init
+
+Remove the `init` block and the latch powers up with all four gate outputs at
+0. That is not a fixed point: both ORs see 0 and 0, so both NOTs output 1 on the
+next cycle, and the two symmetric halves chase each other the same way.
+
+```shdl title="srNoInit.shdl"
+top component SRNoInit(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;
+    o2: OR;  i2: NOT;
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("srNoInit.shdl") as c:
+    print("power-on: Q =", c["Q"], " Qn =", c["Qn"])
+    for cycle in range(1, 7):
+        c.step(1)
+        print(f"cycle {cycle}: Q={c['Q']} Qn={c['Qn']}")
+    c["S"] = 1
+    c.step(4)
+    c["S"] = 0
+    c.step(4)
+    print(f"after a set pulse: Q={c['Q']} Qn={c['Qn']}")
+```
+
+```text title="Output"
+power-on: Q = 0  Qn = 0
+cycle 1: Q=1 Qn=1
+cycle 2: Q=1 Qn=1
+cycle 3: Q=0 Qn=0
+cycle 4: Q=0 Qn=0
+cycle 5: Q=1 Qn=1
+cycle 6: Q=1 Qn=1
+after a set pulse: Q=1 Qn=0
+```
+
+A set or reset pulse breaks the symmetry, and from then on the latch works.
+But until the first write its outputs are meaningless, and anything reading
+them sees a square wave. A seeded fixed point avoids that: the latch comes up
+in a known state.
+
+## D latch
+
+A D latch (a *gated* or *transparent* latch) replaces the two control inputs
+with a data input `D` and an enable `EN`:
+
+| EN | D | Q |
+|---|---|---|
+| 1 | 0 | 0 (follows `D`) |
+| 1 | 1 | 1 (follows `D`) |
+| 0 | any | unchanged (holds) |
+
+While `EN` is high the latch is *transparent*: `Q` follows `D`. When `EN`
+falls, `Q` keeps the last value.
+
+### Source
+
+[`examples/dLatch.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/dLatch.shdl):
+
+```shdl title="dLatch.shdl"
+"""
+12 -- DLatch: a gated (level-sensitive) D latch built on SRLatch.
+
+While EN is high, Q follows D; while EN is low, the latch holds its
+last value.  Composing a sequential component is no different from a
+combinational one -- the state is just feedback inside the instance,
+and SRLatch's init seeds carry through flattening.
+"""
+
+use srLatch::{SRLatch};
+
+top component DLatch(D, EN) -> (Q, Qn) {
+    inv:   NOT;
+    gSet:  AND;        # S = D AND EN
+    gRst:  AND;        # R = (NOT D) AND EN
+    latch: SRLatch;
+
+    connect {
+        D -> inv.A;
+
+        D     -> gSet.A;   EN -> gSet.B;
+        inv.O -> gRst.A;   EN -> gRst.B;
+
+        gSet.O -> latch.S;
+        gRst.O -> latch.R;
+
+        latch.Q  -> Q;
+        latch.Qn -> Qn;
+    }
+}
+```
+
+- **`use srLatch::{SRLatch};`** imports the SR latch from the module above.
+  Importing a sequential component is no different from importing a
+  combinational one. See [Imports](../language-reference/imports.mdx).
+- **`gSet` and `gRst`** turn `D` into set and reset requests, gated by `EN`.
+  Because one is driven by `D` and the other by `NOT D`, they are never both 1,
+  so the D latch cannot reach the forbidden `S = R = 1` state.
+- **The `init` seeds carry through.** `DLatch` has no `init` block of its own,
+  but flattening renames `SRLatch`'s seeds along with its gates:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/dLatch.shdl") as c:
+    print(c)
+    print(dict(c.info.stats["by_type"]), c.timing)
+    print("init:", dict(c.info.init))
+```
+
+```text title="Output"
+<SHDL.Circuit 'DLatch' (D, EN) -> (Q, Qn)>
+{'NOT': 3, 'AND': 2, 'OR': 2} TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+init: {'latch_o1.O': 1, 'Q': 0, 'latch_o2.O': 0, 'Qn': 1}
+```
+
+The latch's gates are now `latch_o1`, `latch_i1` and so on, with the instance
+name as a prefix. See the [full adder](./full-adder.mdx) page for how
+hierarchy flattens.
+
+### Follow and hold
+
+Drive `D = 1` with the latch enabled, then disable it and change `D`, then
+enable it again:
+
+```python
+from SHDL import Circuit
+
+def run(c, label, cycles):
+    for cycle in range(1, cycles + 1):
+        c.step(1)
+        print(f"{label} cycle {cycle}: Q={c['Q']} Qn={c['Qn']}")
+
+with Circuit("examples/dLatch.shdl") as c:
+    c["D"], c["EN"] = 1, 1
+    run(c, "D=1 EN=1", 5)
+    c["EN"] = 0
+    run(c, "D=1 EN=0", 1)
+    c["D"] = 0
+    run(c, "D=0 EN=0", 3)
+    c["EN"] = 1
+    run(c, "D=0 EN=1", 5)
+```
+
+```text title="Output"
+D=1 EN=1 cycle 1: Q=0 Qn=1
+D=1 EN=1 cycle 2: Q=0 Qn=1
+D=1 EN=1 cycle 3: Q=0 Qn=0
+D=1 EN=1 cycle 4: Q=0 Qn=0
+D=1 EN=1 cycle 5: Q=1 Qn=0
+D=1 EN=0 cycle 1: Q=1 Qn=0
+D=0 EN=0 cycle 1: Q=1 Qn=0
+D=0 EN=0 cycle 2: Q=1 Qn=0
+D=0 EN=0 cycle 3: Q=1 Qn=0
+D=0 EN=1 cycle 1: Q=1 Qn=0
+D=0 EN=1 cycle 2: Q=1 Qn=0
+D=0 EN=1 cycle 3: Q=0 Qn=0
+D=0 EN=1 cycle 4: Q=0 Qn=0
+D=0 EN=1 cycle 5: Q=0 Qn=1
+```
+
+A write is complete after five cycles: one for `gSet` (or `gRst`) and four
+around the SR latch's loop. Which output moves first depends on the direction:
+writing a 1 lowers `Qn` on cycle 3 and raises `Q` on cycle 5, and writing a 0
+lowers `Q` on cycle 3 and raises `Qn` on cycle 5. While `EN` is low, changing
+`D` has no effect on `Q`.
+
+### A minimum enable pulse
+
+Because the write has to travel all the way around the loop, `EN` must stay high
+long enough. `reset()` returns the circuit to its power-on state (every input 0,
+every net 0 except the `init` seeds), so one circuit can try several pulse
+widths:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/dLatch.shdl") as c:
+    for width in range(1, 6):
+        c.reset()
+        c["D"], c["EN"] = 1, 1
+        c.step(width)
+        c["EN"] = 0
+        trace = []
+        for _ in range(8):
+            c.step(1)
+            trace.append(f"{c['Q']}{c['Qn']}")
+        print(f"EN high {width} cycles, then Q Qn:", " ".join(trace))
+```
+
+```text title="Output"
+EN high 1 cycles, then Q Qn: 01 00 01 11 01 00 01 11
+EN high 2 cycles, then Q Qn: 00 00 11 11 00 00 11 11
+EN high 3 cycles, then Q Qn: 00 10 11 10 00 10 11 10
+EN high 4 cycles, then Q Qn: 10 10 10 10 10 10 10 10
+EN high 5 cycles, then Q Qn: 10 10 10 10 10 10 10 10
+```
+
+With `EN` high for 4 cycles or more, the latch ends up holding `Q = 1`. With a
+shorter pulse, the set request disappears before the loop has taken over, and
+the latch is left oscillating. With 4 cycles of `EN`, `gSet` drives `S` for
+four cycles, one for each gate of the loop, so the loop is holding itself by
+the time `S` drops.
+
+Real latches have the same kind of limit, called the *minimum pulse width*. A
+design built from latches has to keep its enable pulses longer than that. The
+driver of the [SR16 CPU](./sr16-cpu.mdx), whose registers are made of these
+latches, holds each clock phase high for 16 cycles (`T_CAP` in
+[`sr16tools/driver.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16tools/driver.py)).
+
+## Next
+
+The [register](./register.mdx) page puts `N` D latches side by side to store a
+whole word. The [ring oscillator](./ring-oscillator.mdx) page uses feedback for
+the opposite purpose: a loop that never settles.

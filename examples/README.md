@@ -12,13 +12,25 @@ uv run shdl-flatten examples/stdgates.shdl --top NAND    # pick a component expl
 uv run shdl-flatten examples/adderN.shdl -o adderN.bshdl # write to a file
 ```
 
-Or compile straight to a simulation library (a `.dylib`/`.so` exporting
-`reset`/`poke`/`peek`/`step`); `shdlc` accepts `.shdl` sources (flattened
+Or compile straight to a simulation library (a `.dylib`/`.so`/`.dll` exporting
+`reset`/`poke`/`peek`/`step`/`step_settle`/`run_batch`); `shdlc` accepts `.shdl` sources (flattened
 in-process) or pre-flattened Base SHDL:
 
 ```sh
 uv run shdlc examples/fullAdder.shdl                     # -> fullAdder.dylib
-uv run shdlc adderN.bshdl --emit-c adderN.c              # keep the generated C
+uv run shdlc adderN.bshdl --emit-c adderN.c              # also keep the generated C
+```
+
+Or drive them from Python with PySHDL — `examples/interacting.py` is a
+runnable walkthrough (`uv run python examples/interacting.py`):
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"], c["B"] = 100, 55
+    c.settle()
+    print(c["Sum"])   # 155
 ```
 
 Imports resolve relative to the importing file, so the directory works as-is
@@ -43,6 +55,15 @@ with no `-I` flags.
 | 13 | `registerN.shdl`   | `RegisterN<N=8>` | Generators over user-defined sequential components |
 | 14 | `ringClock.shdl`   | `RingClock<N=8>` | Oscillators: feedback rings as clocks |
 | 15 | `alu.shdl`         | `ALU<N=8>`    | Capstone: everything combined |
+
+## Larger projects
+
+- **`CPU/`** — SR16, a 16-bit RISC CPU built entirely from primitive gates
+  (registers, 256-word RAM, flags, a multi-cycle FSM, two-phase clock), with
+  an assembler and golden-model tools. See [`CPU/README.md`](CPU/README.md).
+- **`GameOfLife/`** — Conway's Game of Life in gates, laid out as a `shdl`
+  project (`shdl.toml` + `shdl.lock`, the `arith` package from Circuit Circus,
+  a local flip-flop module, `tests/`). See [`GameOfLife/README.md`](GameOfLife/README.md).
 
 ## Conventions the examples follow
 

@@ -1,0 +1,431 @@
+---
+title: Sequential logic and initial state
+sidebar_label: Sequential logic
+description: How feedback loops hold state and oscillate under the unit-delay model, and how the init block sets a circuit's power-on values.
+---
+
+SHDL has no flip-flop primitive, no clock type and no `always` block. State comes from **feedback**: a loop of connections that passes through gates, so that a gate's output eventually feeds its own input. This page covers how such loops behave in the unit-delay model, how to simulate a circuit that has them, the power-on state, and the `init` block that seeds chosen nets with a starting value. Normative text: [shdl.md §11.2](/specs/shdl#112-feedback-and-sequential-circuits) and [§11.4](/specs/shdl#114-initial-state).
+
+## The timing model in brief
+
+Everything on this page follows from two rules of [the simulation model](../concepts/simulation-model.mdx):
+
+- **Unit delay.** On every cycle, every gate computes its output from the values its inputs had at the end of the previous cycle. A wire has no delay, and a gate has a delay of exactly one cycle.
+- **Cycle 0 is all zeros.** Before the first cycle, every net is 0, unless an `init` block seeds it with another value ([below](#init)).
+
+Because a gate always reads the previous cycle's values, a loop is well defined: each cycle, the gate's output depends on what it output one cycle earlier. No special syntax is needed for latches, registers or oscillators.
+
+## Feedback {/* #feedback */}
+
+A connection may lead back to where it came from, as long as the loop passes through at least one gate ([Connections](./connections.mdx#feedback)). A loop made only of wires is `E0506`.
+
+The smallest feedback circuit is a `NOT` gate that reads its own output. It flips every cycle:
+
+```shdl title="blinker.shdl"
+component Blinker() -> (Y) {
+    n: NOT;
+    connect {
+        n.O -> n.A;     # the NOT reads its own output
+        n.O -> Y;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("blinker.shdl") as c:
+    trace = []
+    for _ in range(6):
+        trace.append(c["Y"])
+        c.step()
+    print(trace)
+    timing = c.info.timing
+    print(timing.max_depth, timing.has_feedback, timing.is_combinational)
+```
+
+```text title="Output"
+[0, 1, 0, 1, 0, 1]
+1 True False
+```
+
+At cycle 0 the output is 0, like every net. On cycle 1 the gate reads that 0 and outputs 1, on cycle 2 it reads the 1 and outputs 0, and so on.
+
+A longer loop gives a longer period. A ring of `N` buffers circulates a pulse with period `N`, which is how a clock is built. `examples/ringClock.shdl` defines `RingClock<N = 8>(seed) -> (out[N])`, a ring of `OR` gates used as buffers. Here it has four stages:
+
+```shdl title="ring4.shdl"
+use ringClock::{RingClock};
+
+top component Ring4(seed) -> (out[4]) {
+    r: RingClock<4>;
+    connect { seed -> r.seed;  r.out -> out; }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("ring4.shdl", include_dirs=["examples"]) as c:
+    c["seed"] = 1               # inject one pulse
+    c.step()
+    trace = [f"{c['out']:04b}"]
+    c["seed"] = 0
+    for _ in range(5):
+        c.step()
+        trace.append(f"{c['out']:04b}")
+    print(" ".join(trace))
+```
+
+```text title="Output"
+0001 0010 0100 1000 0001 0010
+```
+
+The pulse moves one stage per cycle and returns to stage 1 after four cycles. See [Ring oscillator](../examples/ring-oscillator.mdx) for the full example.
+
+### Simulating a circuit with feedback {/* #simulating */}
+
+The timing metadata marks a circuit with any feedback loop with `has_feedback` set to true and `is_combinational` set to false ([timing metadata](../concepts/simulation-model.mdx#timing-metadata)). This changes how you advance it:
+
+| Call | On a circuit with feedback |
+|---|---|
+| [`settle()`](../tools/python-api.mdx#settle) | Refused with `SettleRefusedError`. A loop has no guaranteed fixed point, so `max_depth` is not a number of cycles after which the outputs are final. |
+| [`step(n)`](../tools/python-api.mdx#step) | Runs exactly `n` cycles. You choose `n`. |
+| [`step_settle(n)`](../tools/python-api.mdx#step-settle) | Runs up to `n` cycles, and stops after the first cycle that changes no gate. It returns the number of cycles it ran, including that last one. The state is then the same as after `step(n)`. An oscillator never stops changing, so it always runs all `n`. |
+
+```python
+from SHDL import Circuit, SettleRefusedError
+
+with Circuit("blinker.shdl") as c:
+    try:
+        c.settle()
+    except SettleRefusedError as e:
+        print(e)
+    print(c.step_settle(10))
+```
+
+```text title="Output"
+settle() is refused: circuit 'Blinker' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+10
+```
+
+`max_depth` still exists for such a circuit, but it only measures the paths that are not part of a loop.
+
+## The power-on state {/* #power-on */}
+
+Every net starts at 0 at cycle 0, including the outputs of gates whose inputs would make them 1. For combinational logic this does not matter, because the correct values ripple through within `max_depth` cycles. For state it does: the power-on value is the stored value until something changes it.
+
+It also matters because not every state of a loop is stable. In an SR latch made of two cross-coupled `NOR` gates, the all-zero state is not stable: each `NOR` sees two zeros and outputs 1, then each sees a 1 and outputs 0, and the latch oscillates forever instead of settling ([An unseeded latch oscillates](../concepts/simulation-model.mdx#an-unseeded-latch-oscillates)). The unit-delay model is fully deterministic, so nothing breaks the symmetry. To start a loop in a stable state, seed it with `init`.
+
+## The `init` block {/* #init */}
+
+```ebnf
+InitBlock  = "init" "{" { InitAssign } "}" ;
+InitAssign = Primary "=" NUMBER ";" ;
+```
+
+An `init` block lists nets and the value each has at cycle 0. This SR latch is the one in `examples/srLatch.shdl`. It writes each `NOR` as an `OR` followed by a `NOT` so that it can seed all four nets of its loop:
+
+```shdl title="latch.shdl"
+# An SR latch: two NORs, each written out as OR + NOT.
+component SRLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;     # Q  = NOT (R OR Qn)
+    o2: OR;  i2: NOT;     # Qn = NOT (S OR Q)
+
+    init {
+        o1.O = 1;         # R OR Qn  = 0 OR 1
+        i1.O = 0;         # Q        = NOT 1
+        o2.O = 0;         # S OR Q   = 0 OR 0
+        i2.O = 1;         # Qn       = NOT 0
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+```
+
+The latch powers up with `Q = 0` and `Qn = 1` and holds that state. Pulsing `S` sets it and pulsing `R` resets it:
+
+```python
+from SHDL import Circuit
+
+with Circuit("latch.shdl") as c:
+    print(f"power-on: Q={c['Q']} Qn={c['Qn']}")
+    for s, r in [(1, 0), (0, 0), (0, 1), (0, 0)]:
+        c["S"], c["R"] = s, r
+        cycles = c.step_settle(100)
+        print(f"S={s} R={r}: Q={c['Q']} Qn={c['Qn']} after {cycles} cycles")
+```
+
+```text title="Output"
+power-on: Q=0 Qn=1
+S=1 R=0: Q=1 Qn=0 after 5 cycles
+S=0 R=0: Q=1 Qn=0 after 1 cycles
+S=0 R=1: Q=0 Qn=1 after 5 cycles
+S=0 R=0: Q=0 Qn=1 after 1 cycles
+```
+
+Setting takes four cycles to propagate through the two gate pairs, and `step_settle` confirms the fixed point with a fifth. With `S = R = 0` the latch holds, and `step_settle` stops after one cycle.
+
+### Where it goes
+
+The `init` block goes in the component body, next to the declarations and the `connect` block, in any order. It is conventionally written before `connect`.
+
+- A component has **at most one** `init` block: a second one is `E0309 component 'C' may contain at most one init block`.
+- An empty block, `init { }`, is allowed and has no effect.
+- `init` cannot appear inside `connect` (`E0604 expected a connection, found 'init'`), inside a generator or `when` (`E0604 expected an instance or constant declaration, found 'init'`), and cannot contain generators or conditionals (`E0201 expected identifier, found 'when'`). Each seed is written out explicitly.
+
+### Targets {/* #init-targets */}
+
+A target is a single signal: an instance output or an output port of this component, whole, one bit or a slice. Name templates may use the component's parameters, so `o{N}.O = 1;` seeds the last gate of a generated chain. A target cannot be a concatenation.
+
+| Target | Example | Result |
+|---|---|---|
+| Instance output | `n.O = 1;`, `r.Q[2] = 1;` | Seeds the net |
+| Output port of this component | `Q = 0;`, `Q[2:3] = 2;` | Seeds the net that drives the port |
+| Input port | `D = 1;` | `E0A01 init target 'D' is an input port; inputs are set by poke, not init` |
+| Instance input | `n.A = 1;` | `E0A01 init target 'n.A' is an instance input; only instance outputs and output ports can be seeded` |
+| Constant | `K = 1;` | `E0A01 init target 'K' is a constant` |
+| Output port wired straight to an input | `Y = 1;` with `A -> Y` | `E0A01 init target 'Y' resolves to input 'A'; inputs are set by poke, not init` |
+| An instance, without a port | `n = 1;` | `E0307 instance 'n' used as a signal; reference one of its ports (e.g. 'n.O')` |
+| An unknown name | `Z = 1;` | `E0307 unknown signal 'Z'` |
+
+A seed applies to a **net**, the wire driven by one gate output, not to a name. An output port has no value of its own: seeding `Q` seeds the gate that drives `Q`. This is where the `resolves to input` error comes from. When an output port or an instance output is connected, possibly through several pass-through components, to an input port of the top component, the net it names is an input, and inputs get their values from `poke`.
+
+### Values {/* #init-values */}
+
+- The value is a single [numeric literal](./lexical-elements.mdx#numeric-literals): decimal, `0x` or `0b`. It cannot be a parameter (`E0201 expected init value, found 'N'`), an expression, or negative.
+- A multi-bit target receives the value **least significant bit first**, like a `poke`: with `Q[2]`, `Q = 2;` seeds `Q[1]` with 0 and `Q[2]` with 1.
+- The value must fit the target: `Y = 5;` on a 2-bit `Y` is `E0A03 init value 5 does not fit the 2-bit target 'Y'`.
+- Seeding 0 is allowed. It changes nothing in simulation, since 0 is the default, but it is recorded and documents the intended state, as `i1.O = 0;` does in the latch above.
+
+### One seed per net {/* #one-seed-per-net */}
+
+Each net can be seeded only once, even under two different names:
+
+```shdl error=E0A02 title="twoNames.shdl"
+component TwoNames() -> (Y) {
+    n: NOT;
+    init { n.O = 1;  Y = 0; }    # n.O drives Y: the same net
+    connect { n.O -> n.A;  n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten twoNames.shdl
+twoNames.shdl:3:22: error[E0A02]: net 'Y' is seeded more than once (first seed at twoNames.shdl:3:12)
+```
+
+The message names the net the way the metadata does ([below](#metadata)): by the top-level output port it drives, here `Y`.
+
+## A seed must be a fixed point {/* #fixed-point */}
+
+A seed is only the value at cycle 0. From the first cycle on, every gate computes its output from its inputs as usual, and the seed is overwritten. So:
+
+- **Seeding a combinational net is legal but has no lasting effect.** It lasts one cycle:
+
+```shdl title="seedWire.shdl"
+component SeedWire(A, B) -> (Y) {
+    g: AND;
+    init { g.O = 1; }
+    connect { A -> g.A;  B -> g.B;  g.O -> Y; }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("seedWire.shdl") as c:
+    print("cycle 0:", c["Y"])
+    c.step()
+    print("cycle 1:", c["Y"])
+```
+
+```text title="Output"
+cycle 0: 1
+cycle 1: 0
+```
+
+- **A state holds only if the seeds form a fixed point of the loop:** every gate in the loop must be seeded, directly or by default, with the value it computes from the seeded values of its inputs while the inputs are 0. In `latch.shdl`, each of the four comments checks one gate. A loop that is seeded only in part is a transient, and it can oscillate.
+
+The latch in the specification's §11.4 example is built from `NOR` gates imported from `stdgates` and seeds only `n1.O` and `n2.O`:
+
+```shdl title="norLatch.shdl"
+use stdgates::{NOR};
+
+component NorLatch(S, R) -> (Q, Qn) {
+    n1: NOR;  n2: NOR;
+    init { n1.O = 0;  n2.O = 1; }
+    connect {
+        R -> n1.A;  n2.O -> n1.B;  n1.O -> Q;
+        S -> n2.A;  n1.O -> n2.B;  n2.O -> Qn;
+    }
+}
+```
+
+`NOR` is a component made of an `OR` and a `NOT` ([Standard gates](./standard-gates.mdx#derived-gates)), and `n1.O` is the output of its `NOT`. The internal `OR` outputs are not seeded, so they start at 0. But `n1`'s `OR` computes `R OR Qn`, which is 1 with the seeded `Qn = 1`, so the seeds are not a fixed point, and the latch never settles:
+
+```python
+from SHDL import Circuit
+
+with Circuit("norLatch.shdl", include_dirs=["examples"]) as c:
+    trace = []
+    for _ in range(6):
+        trace.append((c["Q"], c["Qn"]))
+        c.step()
+    print(trace)
+```
+
+```text title="Output"
+[(0, 1), (1, 1), (0, 1), (0, 0), (0, 1), (1, 1)]
+```
+
+The specification notes this itself: a latch that should hold from cycle 0 must own every gate of its loop, which is why `latch.shdl` spells out its gates.
+
+The forbidden input of an SR latch leads to the same kind of oscillation. With `S = R = 1`, both outputs of `latch.shdl` go to 0. If both inputs then return to 0 on the same cycle, the state is symmetric and not a fixed point, and the latch oscillates.
+
+## Seeds and hierarchy {/* #hierarchy */}
+
+A component's `init` block belongs to the component, so **every instance is seeded separately**, and the seeds carry through any number of levels. `examples/dLatch.shdl` and `examples/registerN.shdl` rely on this: a register is a row of D latches, and each D latch contains a seeded `SRLatch`.
+
+```shdl title="twoLatches.shdl"
+use latch::{SRLatch};
+
+top component TwoLatches(S[2], R[2]) -> (Q[2]) {
+    a: SRLatch;  b: SRLatch;
+    connect {
+        S[1] -> a.S;  R[1] -> a.R;  a.Q -> Q[1];
+        S[2] -> b.S;  R[2] -> b.R;  b.Q -> Q[2];
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("twoLatches.shdl") as c:
+    for net, value in c.info.init.items():
+        print(net, value)
+```
+
+```text title="Output"
+a_o1.O 1
+Q_1_ 0
+a_o2.O 0
+a_i2.O 1
+b_o1.O 1
+Q_2_ 0
+b_o2.O 0
+b_i2.O 1
+```
+
+### Seeding from the parent
+
+A parent can seed a net inside a child only through the child's output ports, as `inst.Port`. There is no syntax to reach a gate nested inside an instance. This works when the child does not seed that net itself and when the seed is a fixed point on its own. Here `Sticky` is an `OR` gate that holds its output once it has seen a 1, and the parent makes one of its two instances power up set:
+
+```shdl title="flags.shdl"
+component Sticky(S) -> (Q) {
+    o: OR;
+    connect { S -> o.A;  o.O -> o.B;  o.O -> Q; }
+}
+
+top component Flags(S[2]) -> (F[2]) {
+    a: Sticky;  b: Sticky;
+    init { b.Q = 1; }            # b powers up set; a keeps the default 0
+    connect {
+        S[1] -> a.S;  a.Q -> F[1];
+        S[2] -> b.S;  b.Q -> F[2];
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("flags.shdl") as c:
+    print(f"power-on: {c['F']:02b}")
+    c.step(5)
+    print(f"5 cycles later: {c['F']:02b}")
+    c["S"] = 0b01
+    c.step()
+    c["S"] = 0
+    c.step(5)
+    print(f"after a pulse on S[1]: {c['F']:02b}")
+```
+
+```text title="Output"
+power-on: 10
+5 cycles later: 10
+after a pulse on S[1]: 11
+```
+
+A parent **cannot override** a seed the child already sets. Seeding `l.Q` of the self-seeding latch seeds the net of `i1.O` a second time:
+
+```shdl error=E0A02 title="reseed.shdl"
+use latch::{SRLatch};
+
+component Preset(S, R) -> (Q) {
+    l: SRLatch;
+    init { l.Q = 1; }
+    connect { S -> l.S;  R -> l.R;  l.Q -> Q; }
+}
+```
+
+```console check
+$ shdl-flatten reseed.shdl
+reseed.shdl:5:12: error[E0A02]: net 'Q' is seeded more than once (first seed at latch.shdl:8:9)
+```
+
+A component's power-on state therefore cannot be chosen per instance when the component seeds itself. Since `init` values are literals and `init` cannot contain `when`, it cannot depend on a parameter either. For a latch that powers up set, write a second component with the other seeds.
+
+## What `init` becomes {/* #metadata */}
+
+`init` produces **no gates**. When the design is flattened, the seeds go into the `init` section of the Base SHDL metadata, one entry per seeded bit:
+
+```console check
+$ shdl-flatten latch.shdl -o latch.base.shdl
+$ grep -A6 '"init"' latch.base.shdl
+  "init": {
+    "o1.O": 1,
+    "Q": 0,
+    "o2.O": 0,
+    "Qn": 1
+  }
+}
+```
+
+Each entry is keyed by the name of its net: the top-level output port wire the net drives, such as `Q` or `Q_2_`, or, if it drives none, the gate output that drives it, such as `a_o1.O` for gate `o1` of instance `a`. The same dictionary is available as `Circuit.info.init`.
+
+The simulator loads these values as the state at cycle 0, and restores them on every [`reset()`](../tools/python-api.mdx#reset). A reset returns the whole circuit to its power-on state, **including its inputs**, which go back to 0:
+
+```python
+from SHDL import Circuit
+
+with Circuit("latch.shdl") as c:
+    c["S"] = 1
+    c.step(4)
+    print(f"set: Q={c['Q']} Qn={c['Qn']}")
+    c.reset()
+    print(f"after reset(): Q={c['Q']} Qn={c['Qn']} S={c['S']}")
+```
+
+```text title="Output"
+set: Q=1 Qn=0
+after reset(): Q=0 Qn=1 S=0
+```
+
+See [Reset](../concepts/simulation-model.mdx#reset) for the rest of the simulation model's handling of state.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0201` | A non-literal or negative `init` value, a generator or `when` inside `init`, or a missing `;` |
+| `E0307` | An `init` target that names no signal, or an instance without a port |
+| `E0309` | A second `init` block in the same component |
+| `E0506` | A feedback loop with no gate in it |
+| `E0604` | An `init` block inside `connect`, a generator or a `when` |
+| `E0A01` | An `init` target that is an input port, an instance input, a constant, or an output that resolves to an input |
+| `E0A02` | A net seeded more than once, under the same name or two names, or by a parent and a child |
+| `E0A03` | An `init` value that does not fit the target's width |

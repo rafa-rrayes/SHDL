@@ -1,0 +1,380 @@
+---
+title: Game of Life
+sidebar_label: Game of Life
+description: Conway's Game of Life as a 32×32 grid of gate-level cells, packaged as an shdl project with a registry dependency, with how it is built, tested, run and generated.
+---
+
+[`examples/GameOfLife/`](https://github.com/rafa-rrayes/SHDL/tree/master/examples/GameOfLife)
+is Conway's Game of Life built from gates. Each cell of a 32×32 grid counts its
+live neighbours with adders, applies the rule with a handful of AND, OR and NOT
+gates, and stores its state in a master-slave flip-flop. One clock cycle
+advances the whole grid by one generation.
+
+It is also the example of an `shdl` project: it has a manifest and a lock file,
+takes its adders from the `arith` package in the
+[Circuit Circus](https://rafa-rrayes.github.io/CCircus) registry, and ships a
+test file that `shdl test` runs.
+
+![Gliders and a pulsar on the 32×32 grid, rendered from the gate-level simulation](https://raw.githubusercontent.com/rafa-rrayes/SHDL/master/examples/GameOfLife/life.gif)
+
+## What it does
+
+The grid wraps around at the edges (a torus), so every cell has exactly eight
+neighbours. On each clock cycle every cell applies the B3/S23 rule at once:
+
+| Cell now | Live neighbours | Cell next |
+|---|---|---|
+| dead | 3 | alive (born) |
+| dead | anything else | dead |
+| alive | 2 or 3 | alive (survives) |
+| alive | anything else | dead |
+
+While the `Load` input is high, the clock loads a pattern from the seed inputs
+instead of computing the next generation.
+
+## Files
+
+| File | Contents |
+|---|---|
+| [`shdl.toml`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/shdl.toml) | The project manifest |
+| [`shdl.lock`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/shdl.lock) | The lock file: exact versions and hashes of `arith` and `gates` |
+| [`cell.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/cell.shdl) | `Cell`: one Life cell |
+| [`msffe.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/msffe.shdl) | `SRLatch`, `DLatch` and `MSFFE`, a local module |
+| [`gen_life.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/gen_life.py) | Generates a grid of any size as SHDL source |
+| [`life32.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/life32.shdl) | The generated 32×32 grid, `Life`, the project's top component |
+| [`tests/gameoflife.tests.json`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/tests/gameoflife.tests.json) | Three `Cell` test cases for `shdl test` |
+| [`validate.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/validate.py) | A two-phase clock driver, and a check of an 8×8 grid against a Python model |
+| [`gol_render.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/gol_render.py) | Runs the 32×32 grid for 120 generations and writes `life.gif` |
+
+## The project
+
+```toml title="shdl.toml"
+# Conway's Game of Life as a shdl project:
+#   shdl install && shdl build && shdl test
+[project]
+name = "gameoflife"
+version = "0.1.0"
+main = "life32.shdl"
+top = "Life"
+shdl = ">=1.1.0"
+
+[dependencies]
+arith = "^0.1.0"
+```
+
+- **`main` and `top`** name the file and component that `shdl build` compiles.
+- **`shdl = ">=1.1.0"`** is the toolchain version the project needs.
+- **`arith = "^0.1.0"`** is the one registry dependency: any 0.1.x version of
+  the `arith` package. `arith` itself depends on `gates`, so installing it
+  fetches both.
+
+`shdl.lock` records what was resolved: for each package the exact version, the
+module file (`arith.shdl`, `gates.shdl`), its exported components, the SHA-256
+of its contents and the registry it came from. `shdl install` fetches exactly
+those versions, and verifies the hashes, into `shdl_modules/`.
+
+The project mixes both kinds of dependency. `cell.shdl` imports the adders from
+the package and the flip-flop from the file next to it:
+
+```shdl fragment
+use arith::{HalfAdder, FullAdder};
+use msffe::{MSFFE};
+```
+
+`msffe` resolves because `msffe.shdl` sits next to the file that imports it.
+`arith` resolves because `shdl build` passes each `shdl_modules/<package>/`
+directory to the flattener as an include directory. `shdl_modules/`, `build/`
+and the 8×8 grid that `validate.py` generates are listed in the project's
+`.gitignore`.
+
+See [Projects](../getting-started/projects.mdx),
+[Project manifest](../tools/project-manifest.mdx),
+[Packages](../tools/packages.mdx) and [Imports](../language-reference/imports.mdx).
+
+## Build, test and run
+
+`shdl install` downloads from the registry, so the blocks in this section are
+not run by the docs checker; their output was captured from a real run. From
+the project directory in a checkout of the repository, with PySHDL 1.1.0
+[installed](../getting-started/installation.mdx):
+
+```bash
+cd examples/GameOfLife
+shdl install
+```
+
+```text
+  fetched arith 0.1.0 (8.8 kB)
+  fetched gates 0.1.0 (2.3 kB)
+```
+
+`shdl build` flattens `life32.shdl` and compiles it to a shared library in
+`build/`. It takes about 15 seconds, most of it in the C compiler:
+
+```bash
+shdl build
+```
+
+```text
+built /…/GameOfLife/build/gameoflife.dylib
+```
+
+The command prints the library's absolute path, shortened here. `shdl test`
+runs every `*.tests.json` file in `tests/`:
+
+```bash
+shdl test
+```
+
+```text
+[gameoflife.tests.json]
+  ok    Cell
+  ok    Cell
+  ok    Cell
+
+3/3 cases green
+```
+
+The three cases drive a single `Cell` through the two-phase clock and check its
+output after each cycle:
+
+| Case | Inputs | Expected `Q` |
+|---|---|---|
+| Seed load | `Load = 1`, `Seed = 1`, no neighbours; then `Load = 0` | 1, then 0 (a lone cell dies) |
+| Birth, survival, death | 3 neighbours; then 2; then 1 | 1 (born), 1 (survives), 0 (dies) |
+| Overcrowding | Seeded alive with 4 neighbours; then `Load = 0` | 1, then 0 |
+
+See [shdl CLI](../tools/shdl-cli.mdx) and [Testing](../tools/testing.mdx) for
+the commands and the test file format.
+
+`validate.py` checks the hardware against an independent Python model of the
+rules. It generates an 8×8 grid with `gen_life.py`, loads a blinker and a
+glider, and compares all 64 cells after every generation:
+
+```bash
+python validate.py
+```
+
+```text
+loaded pattern, hardware vs reference match: True
+gen  1: match=True
+gen  2: match=True
+gen  3: match=True
+gen  4: match=True
+gen  5: match=True
+gen  6: match=True
+gen  7: match=True
+gen  8: match=True
+gen  9: match=True
+gen 10: match=True
+gen 11: match=True
+gen 12: match=True
+ALL MATCH
+```
+
+`gol_render.py` does the same on the full 32×32 grid, seeded with five gliders
+and a pulsar, for 120 generations, then paints the GIF at the top of this page. It
+needs Pillow, which PySHDL does not install:
+
+```bash
+python gol_render.py
+```
+
+```text
+building 32x32 circuit (C compile of ~92160 gates)...
+ran 120 generations; mismatches vs reference: 0
+wrote /…/GameOfLife/life.gif
+```
+
+The gate count in its first line is a rough estimate of 90 gates per cell; the
+real figure is below.
+
+## One cell
+
+[`cell.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/cell.shdl)
+has three parts:
+
+1. **A popcount.** Four full adders and four half adders add the eight
+   neighbour bits into a 4-bit count `T3 T2 T1 T0`. The first layer adds
+   neighbours 1 to 3, 4 to 6 and 7 to 8 in three small adders, and the next
+   layers add their 2-bit results.
+2. **The rule.** The count is 2 or 3 exactly when `T3` and `T2` are 0 and `T1`
+   is 1; `T0` then separates 3 from 2. So `born` is that term AND `T0`, and
+   `stays` is the current state AND the term AND NOT `T0`. The next state is
+   `born OR stays`.
+3. **A load multiplexer and a flip-flop.** `D = Load ? Seed : next` feeds an
+   `MSFFE` whose load enable is tied to the constant `One = 1`, so it captures
+   `D` on every clock.
+
+```shdl fragment
+    One = 1;            # tie the flip-flop's load-enable high
+    ff: MSFFE;
+
+    connect {
+        ...
+        # B3/S23: next = eq3 OR (Self AND eq2)
+        ff.Q  -> surv.A;  eq2g.O -> surv.B;
+        eq3g.O -> nx.A;   surv.O -> nx.B;
+
+        # load mux: D = Load ? Seed : next
+        Load  -> nLoad.A;
+        Seed  -> mSeed.A;  Load   -> mSeed.B;
+        nx.O  -> mNext.A;  nLoad.O -> mNext.B;
+        mSeed.O -> dmux.A; mNext.O -> dmux.B;
+
+        # the flip-flop
+        dmux.O -> ff.D;   One -> ff.LD;
+        Phi1 -> ff.Phi1;  Phi2 -> ff.Phi2;
+        ff.Q -> Q;
+    }
+```
+
+`ff.Q -> surv.A` is the cell reading its own state: the loop through the
+flip-flop is what makes the cell sequential. `One` is a
+[constant](../language-reference/constants.mdx) and flattens to a single
+`__VCC__` pin.
+
+`msffe.shdl` is the same `SRLatch`, `DLatch` and `MSFFE` chain as
+[`examples/srLatch.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/srLatch.shdl),
+[`examples/dLatch.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/dLatch.shdl)
+and the SR16 CPU's `seq.shdl`, gathered in one file so that the project does not
+depend on the repository's `examples/` directory. See the
+[latches](./latches.mdx) and [register](./register.mdx) pages.
+
+### Size and timing
+
+| | `Cell` | `Life` (32×32) |
+|---|---|---|
+| Gates | 57: 12 XOR, 24 AND, 10 OR, 10 NOT, 1 `__VCC__` | 58,368, exactly 1,024 × 57 |
+| Connections | 103 | 105,472 |
+| `init` entries | 8 | 8,192 |
+| Port bits | 12 in, 1 out | 1,027 in, 1,024 out |
+| `max_depth` | 1 | 1 |
+| `has_feedback` | true | true |
+
+The 57 gates of a cell: 28 in the adders (a half adder is an XOR and an AND, a
+full adder is two half adders and an OR), 7 to compare the count, 2 for the
+rule, 4 for the load multiplexer, 15 in the flip-flop and the `One` pin. The
+`init` entries are the SR latch seeds, four in each of the two D latches of
+every flip-flop. `max_depth` is 1 because both circuits have feedback and the
+depth is measured with the loops cut; see
+[Simulation model](../concepts/simulation-model.mdx).
+
+## The two-phase clock
+
+Every cell reads its neighbours' `Q` outputs and writes its own flip-flop in
+the same cycle. That only works because a flip-flop's output does not change
+while the neighbours are still reading it. The `MSFFE` guarantees this with two
+non-overlapping clock phases:
+
+- While `Phi1` is high, each master latch captures `D`: the next state, computed
+  from the current outputs.
+- While `Phi2` is high, each slave latch copies its master to `Q`.
+
+Nothing a master captures reaches `Q` before `Phi2`, and by then `Phi1` is
+low, so every cell computes its next state from the same generation, exactly as
+synchronous hardware would. `validate.py` drives one clock cycle like this:
+
+```python fragment
+    def _clock(self):
+        c = self.c
+        c.step_settle(self.s)
+        c.poke("Phi1", 1); c.step_settle(self.cap)
+        c.poke("Phi1", 0); c.step_settle(self.gap)
+        c.poke("Phi2", 1); c.step_settle(self.cap)
+        c.poke("Phi2", 0); c.step_settle(self.gap)
+```
+
+The defaults are 80 cycles to settle, 16 for each phase and 4 for each gap.
+`step_settle(n)` runs up to `n` cycles and stops early once a cycle changes no
+gate, so the budgets are ceilings; see the
+[Python API](../tools/python-api.mdx). The test file uses the same shape with
+exact counts: 24 cycles to settle, then 16, 4, 16 and 4.
+
+To load a pattern, `validate.py` sets `Load` to 1, writes one row per seed port
+(bit 0 is column 1), runs one clock cycle and sets `Load` back to 0. After
+that, each clock cycle is one generation, and each `Q` port holds one row.
+
+The [SR16 CPU](./sr16-cpu.mdx) page covers the same clocking in more depth.
+
+## Generating the grid
+
+`life32.shdl` is 332 KB of generated SHDL. Rather than use
+[generators](../language-reference/generators.mdx), whose index arithmetic has
+no modulo operator for the wrap-around,
+[`gen_life.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/gen_life.py)
+writes out every cell and every connection from Python. It takes the width, the
+height and the output file:
+
+```console check
+$ python examples/GameOfLife/gen_life.py 4 4 life4.shdl
+wrote life4.shdl: 4x4 grid (16 cells)
+```
+
+The generated file declares one seed port and one output port per row, then one
+`Cell` instance per square, then each cell's connections on one line:
+
+```python
+from pathlib import Path
+
+lines = Path("life4.shdl").read_text().splitlines()
+print("\n".join(lines[6:15]))
+i = lines.index("        # cell (1,1)")
+for conn in lines[i + 1].split(";")[:-1]:
+    print(conn.strip() + ";")
+```
+
+```text title="Output"
+use cell::{Cell};
+
+top component Life(S1[4], S2[4], S3[4], S4[4], Load, Phi1, Phi2)
+    -> (Q1[4], Q2[4], Q3[4], Q4[4]) {
+
+    c1_1: Cell;  c1_2: Cell;  c1_3: Cell;  c1_4: Cell;
+    c2_1: Cell;  c2_2: Cell;  c2_3: Cell;  c2_4: Cell;
+    c3_1: Cell;  c3_2: Cell;  c3_3: Cell;  c3_4: Cell;
+    c4_1: Cell;  c4_2: Cell;  c4_3: Cell;  c4_4: Cell;
+c4_4.Q -> c1_1.N1;
+c4_1.Q -> c1_1.N2;
+c4_2.Q -> c1_1.N3;
+c1_4.Q -> c1_1.N4;
+c1_2.Q -> c1_1.N5;
+c2_4.Q -> c1_1.N6;
+c2_1.Q -> c1_1.N7;
+c2_2.Q -> c1_1.N8;
+S1[1] -> c1_1.Seed;
+Load -> c1_1.Load;
+Phi1 -> c1_1.Phi1;
+Phi2 -> c1_1.Phi2;
+c1_1.Q -> Q1[1];
+```
+
+Cell `(1,1)` is in the top-left corner, so five of its neighbours wrap around:
+`c4_4`, `c4_1` and `c4_2` are in the bottom row, and `c1_4` and `c2_4` are in
+the last column. The neighbour offsets come from this table in `gen_life.py`,
+applied modulo the grid size:
+
+```python fragment
+DELTAS = [(-1, -1), (-1, 0), (-1, 1),
+          ( 0, -1),          ( 0, 1),
+          ( 1, -1), ( 1, 0), ( 1, 1)]
+```
+
+The order does not matter, because the cell only counts its neighbours.
+
+Each row gets its own `S` and `Q` port rather than one port for the whole
+grid, because no port can be wider than 64 bits in the compiled library's C
+interface: a 32×32 grid as one port would need 1,024. See
+[C ABI](../tools/c-abi.mdx). With one port per row, a grid can be up to 64
+cells wide.
+
+To simulate another size, generate it next to `cell.shdl`, then either set
+`main` in `shdl.toml` to the new file, or load it with
+[`Circuit`](../tools/python-api.mdx) and pass the project directory and each
+`shdl_modules/<package>/` directory as `include_dirs`, as `validate.py` does.
+
+## Next
+
+See [Projects](../getting-started/projects.mdx) to start a project of your
+own, and [Packages](../tools/packages.mdx) for how registry packages are
+installed and resolved.

@@ -1,0 +1,601 @@
+---
+title: SR16 CPU
+sidebar_label: SR16 CPU
+description: A 16-bit load-store RISC processor built from 42,530 primitive gates, with its architecture, instruction set and two-phase clock, how to build it and run programs on it, and how it is verified in lockstep against a Python golden model.
+---
+
+SR16 is a complete 16-bit processor written in SHDL, in
+[`examples/CPU/`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/README.md).
+Every part of it, including its 256-word memory, is built from the primitive
+gates, so it flattens to a single netlist of 42,530 gates. This page summarizes
+its architecture and instruction set, builds it, runs programs on it, and shows
+how it is checked instruction by instruction against a reference model written
+in Python. The full specification is
+[`examples/CPU/ISA.md`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/ISA.md);
+this page links to it rather than repeating it.
+
+## What it is
+
+- Eight 16-bit registers, `R0` to `R7`. `R7` is the stack pointer by
+  convention; `R0` is an ordinary register, not a hardwired zero.
+- A 16-bit program counter and four flags: Z (zero), N (negative), C (carry)
+  and V (signed overflow).
+- 256 words of 16-bit memory inside the circuit, shared by code and data.
+  Addresses are 16 bits wide, and only the low 8 bits select a word, so
+  addresses repeat every 256 words.
+- Loads and stores, conditional branches on the flags, a stack with `PUSH`,
+  `POP`, `CALL` and `RET`, and `HALT`.
+- A multi-cycle control unit: most instructions take 2 clock cycles, `POP` and
+  `RET` take 3.
+- A two-phase clock, `Phi1` and `Phi2`, that the host drives through input
+  ports.
+- A DMA port that lets the host write and read memory while the CPU is frozen,
+  and output ports that expose every register, the PC, the instruction
+  register, the flags and the control state.
+
+At power-on every register, flag and memory word is 0, and the CPU is about to
+fetch from address 0.
+
+## Files
+
+| File | Contents |
+|---|---|
+| [`seq.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/seq.shdl) | `MSFFE`, a master-slave flip-flop with load enable, and `RegE<N>`, a register of them. See the [register](./register.mdx) page. |
+| [`parts.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/parts.shdl) | Wide multiplexers (`Mux8N`, `Mux16N`), decoders (`Dec2`, `Dec3`, `Dec4`), the `+1` incrementer `Inc16`, and the OR-reduction `Or16` |
+| [`alu.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/alu.shdl) | The 16-bit ALU: 13 operations and the Z, N, C, V flags |
+| [`regfile.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/regfile.shdl) | 8 × 16-bit register file, two read ports, one write port |
+| [`ram.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/ram.shdl) | `RAM256`: 256 × 16-bit memory, one read/write port |
+| [`control.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/control.shdl) | The control unit: decodes the state, instruction and flags into every enable and select |
+| [`sr16.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16.shdl) | The top level, `SR16`: the datapath, the DMA port and the observability outputs |
+| [`sr16tools/asm.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16tools/asm.py) | The assembler |
+| [`sr16tools/golden.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16tools/golden.py) | The golden model: an instruction-level simulator in plain Python |
+| [`sr16tools/driver.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16tools/driver.py) | A `ctypes` driver for the compiled circuit, with a command-line entry point |
+| [`programs/`](https://github.com/rafa-rrayes/SHDL/tree/master/examples/CPU/programs) | Three example programs: `mul.s`, `popcount.s`, `maxarray.s` |
+| [`tests/cpu/`](https://github.com/rafa-rrayes/SHDL/tree/master/tests/cpu) | The CPU test suite (in the repository, not in the PyPI package) |
+
+The directory also holds `adder16.shdl` and `bench_adder16.py`, a standalone
+16-bit adder and a speed benchmark for the compiled library, and `profiling/`,
+a set of performance experiments.
+
+## Architecture
+
+The top level wires five large parts together with multiplexers that the
+control unit steers:
+
+| Part | Instances in `SR16` | Gates | Notes |
+|---|---|---|---|
+| `RAM256` | `ram` | 37,429 | 4,096 D-latch cells, an address decoder and a balanced OR read tree |
+| `RegFile` | `rf` | 2,629 | Eight `RegE<16>` registers and two `Mux8N<16>` read multiplexers |
+| `ALU` | `alu` | 967 | Combinational, `max_depth` 50 |
+| `Control` | `ctl` | 212 | Combinational, `max_depth` 14 |
+| `RegE<16>` | `pc`, `ir` | 480 | 240 each |
+| `MSFFE` | `fZ`, `fN`, `fC`, `fV`, `st1`, `st2` | 90 | The four flags and the two state bits, 15 each |
+| Glue | `pinc: Inc16`, 11 multiplexers, `weA`, `weO`, 23 constant pins | 723 | |
+| **Total** | | **42,530** | |
+
+Memory is 88% of the machine. The figures come from flattening each module
+with `Circuit(path, include_dirs=["examples"])` and reading
+`c.info.stats["total_gates"]`.
+
+The ALU's worst path starts at the operation code, goes through the op
+decoder and the B-input inverter, ripples through all 16 carry stages, climbs
+the result multiplexer tree and ends in the zero-flag OR tree: `Op[2]`,
+`dec_d3_d2_n2`, …, `dec_a2`, `bx1`, `add_fa1_ha1_x1`, `add_fa1_ha2_a1`,
+`add_fa1_o1`, …, `add_fa15_o1`, `add_fa16_ha2_x1`, `res_lo_lo_mLow_gA16`, …,
+`res_out_o16`, `zRed_t8`, `zRed_u4`, `zRed_v2`, `zRed_w`, `zInv`, `Z`. The control unit's worst path runs from the N flag
+through the signed-branch condition to the PC write enable. See the
+[ALU](./alu.mdx) page for the 8-bit version of the same design.
+
+### The control state machine
+
+A 2-bit state register sequences each instruction:
+
+| State | Value | Work done |
+|---|---|---|
+| FETCH | 0 | `IR = MEM[PC]`, `PC = PC + 1` |
+| EXEC | 1 | Everything the instruction does, except that `POP` and `RET` only increment `R7` here |
+| MEMRD | 2 | `POP` writes `MEM[R7 - 1]` to its register; `RET` loads it into the PC |
+| HALTED | 3 | Nothing. The `Halted` output is 1. |
+
+FETCH is followed by EXEC. EXEC returns to FETCH, goes to MEMRD for `POP` and
+`RET`, or to HALTED for `HALT` and for any reserved encoding. `POP` needs the
+extra state because both its register write and the `R7` increment go through
+the register file's single write port, so the increment happens in EXEC and
+the load in MEMRD, through `R7 - 1`. `RET` uses the same two steps, with the PC
+as the destination.
+
+## Instruction set
+
+Every instruction is one 16-bit word. The top 4 bits are the opcode:
+
+| Opcode | Instructions | Format |
+|---|---|---|
+| `0000` | `ADD`, `SUB`, `AND`, `OR`, `XOR`, `MOV`, `CMP`, `ADC` (3-bit function code) | R: `op rd rs1 rs2 funct` |
+| `0001` | `SHL`, `SHR`, `SAR`, `ROL`, `ROR`, `NOT` | R, `rs2` ignored |
+| `0010` | `LDI rd, imm8`: load a sign-extended 8-bit constant | I8 |
+| `0011` | `LDIH rd, imm8`: replace the high byte | I8 |
+| `0100` | `LD rd, [rs1+simm6]` | M |
+| `0101` | `ST [rs1+simm6], rs2` | M |
+| `0110` | `ADDI rd, rs1, simm6` | M |
+| `0111` | `BEQ`, `BNE`, `BCS`/`BHS`, `BCC`/`BLO`, `BMI`, `BPL`, `BLT`, `BGE` with a 9-bit signed offset | B |
+| `1000` | `JMP imm12` | J |
+| `1001` | `CALL imm12` | J |
+| `1010` | `PUSH`, `POP`, `RET`, `JR`, `NOP` (`0xA004`), `HALT` (`0xA005`) | R-like |
+| `1011` to `1111` | Reserved: executing one halts the CPU | |
+
+- `SUB` and `CMP` set C when there is no borrow, as on ARM, so `BHS` and `BLO`
+  after `CMP a, b` test `a >= b` and `a < b` unsigned.
+- The stack is full-descending: `PUSH` decrements `R7`, then stores. With
+  `R7 = 0` at power-on, the first push writes the top word of memory.
+- The assembler's `LI rd, k` pseudo-instruction loads any 16-bit constant: one
+  `LDI` when `k` fits in a signed byte, otherwise `LDI` followed by `LDIH`.
+
+The flags each instruction sets, the exact branch conditions and the encoding
+of every field are in
+[ISA.md §2 and §3](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/ISA.md).
+
+## Clocking
+
+Every state element is a master-slave pair of D latches (`MSFFE`), and the host
+supplies the two clock phases as input ports:
+
+- While `Phi1` is high, the masters capture their inputs, and the RAM cells
+  write.
+- While `Phi2` is high, the slaves copy the masters to the outputs.
+
+Because the two phases never overlap, a value captured on `Phi1` cannot reach
+any latch input again until the next cycle, even though every path from a
+register's output back to its input is combinational. The
+[register](./register.mdx) page walks through one `RegE` load.
+
+One clock cycle, as the driver's `clock()` produces it:
+
+1. Wait `T_SETTLE` = 200 cycles for the combinational logic to settle.
+2. Raise `Phi1` for `T_CAP` = 16 cycles, then lower it and wait `T_GAP` = 4.
+3. Raise `Phi2` for 16 cycles, then lower it and wait 4.
+
+That is 260 simulation cycles per clock cycle. `T_CAP` has to cover the D
+latch's write delay (see the [latches](./latches.mdx) page). `T_SETTLE`
+has to cover the longest combinational path, from the control decode through
+the register read, the ALU, the RAM decode and read tree, to the writeback
+multiplexer; the driver's comment estimates it at roughly 120 gate levels.
+The settle wait comes first in the cycle so that the control decode is
+stable when the masters capture. ISA.md §5 lists the same four phases starting
+from `Phi1`; the order is the same, rotated. The test suite doubles all three
+constants and checks that nothing changes.
+
+The CPU's `max_depth` is no help in choosing these numbers. SR16 has
+feedback, and `max_depth` is measured with the loops cut, so it covers only the
+path from the nearest latch to an output: 1. See
+[Simulation model](../concepts/simulation-model.mdx).
+
+## The top level
+
+Most of [`sr16.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16.shdl)
+is ordinary wiring. Its declarations, and a few of its connections:
+
+```shdl fragment
+use seq::{MSFFE, RegE};
+use parts::{Inc16};
+use muxN::{MuxN, Mux4N};
+use control::{Control};
+use alu::{ALU};
+use regfile::{RegFile};
+use ram::{RAM256};
+
+top component SR16(Phi1, Phi2, LdEn, LdWe, LdAddr[16], LdData[16])
+    -> (Halted, PCout[16], IRout[16], Flags[4], State[2], MemOut[16],
+        R0out[16], R1out[16], R2out[16], R3out[16],
+        R4out[16], R5out[16], R6out[16], R7out[16]) {
+
+    ZERO = 0;  ONE = 1;  SEVEN = 7;
+
+    ctl: Control;
+    rf:  RegFile;
+    alu: ALU;
+    ram: RAM256;
+
+    pc:   RegE<16>;
+    ir:   RegE<16>;
+    pinc: Inc16;
+
+    fZ: MSFFE;  fN: MSFFE;  fC: MSFFE;  fV: MSFFE;
+    st1: MSFFE;  st2: MSFFE;       # FSM state, bit 1 / bit 2
+
+    rp1M: MuxN<3>;     # read port 1: rs1 field / R7
+    ...
+    wbM:  Mux4N<16>;   # writeback: ALU / RAM / sext8 / LDIH merge
+    pcM:  Mux4N<16>;   # next PC: PC+1 / ALU / imm12 / RAM
+    ...
+
+    connect {
+        ...
+        {ZERO[13:16], ir.Q[1:12]} -> pcM.D2;     # imm12, zero-extended
+        ...
+        {8{ir.Q[8]}, ir.Q[1:8]}  -> wbM.D2;      # LDI: sign-extended imm8
+        {ir.Q[1:8], rf.RD2[1:8]} -> wbM.D3;      # LDIH: imm8 over old low byte
+        ...
+        ir.Q[7:9]   -> rp1M.A;   SEVEN[1:3]  -> rp1M.B;   ctl.Rp1Sel -> rp1M.S;
+        ...
+        ONE[1:16]                -> a2M.D2;      # stack +-1
+        ...
+    }
+}
+```
+
+- **The `use` lines** import from the modules next to `sr16.shdl`, and
+  `muxN` from `examples/`. `seq.shdl` in turn imports `dLatch` from
+  `examples/`, so the build passes `-I examples`. See
+  [Imports](../language-reference/imports.mdx).
+- **`RegE<16>`, `MuxN<3>`, `Mux4N<16>`** instantiate the same parameterized
+  components at different widths. See
+  [Parameters](../language-reference/parameters.mdx).
+- **`ZERO = 0; ONE = 1; SEVEN = 7;`** are constants. A constant has as many
+  bits as you reference, and every bit above its value is 0, so `ONE[1:16]` is
+  the 16-bit value 1 and `SEVEN[1:3]` is the register number 7. Each
+  referenced bit becomes one `__VCC__` or `__GND__` pin. See
+  [Constants](../language-reference/constants.mdx) and
+  [shdl.md §8](/specs/shdl#8-constants).
+- **`{ZERO[13:16], ir.Q[1:12]}`** is a concatenation, most significant part
+  first: four 0 bits on top of the instruction's 12-bit jump target.
+- **`{8{ir.Q[8]}, ir.Q[1:8]}`** repeats the sign bit of the 8-bit immediate 8
+  times: sign extension. The ALU's B input gets 6- and 9-bit immediates
+  extended the same way.
+- **`{ir.Q[1:8], rf.RD2[1:8]}`** builds the result of `LDIH`: the immediate
+  becomes the high byte and the register's old low byte is kept.
+
+See [Signals](../language-reference/signals.mdx) and
+[shdl.md §6.5](/specs/shdl#65-concatenation-and-split) for concatenation and
+replication. `ram.shdl` is a good read for generators: it declares its 4,096
+cells as `>w[256]{ >b[16]{ c{w}_{b}: DLatch; ... } }`, and its read tree as
+one generator per level. See [Generators](../language-reference/generators.mdx).
+
+:::note[Memory size]
+
+`ISA.md` describes the memory size as a parameter `A` and the top level as
+`SR16<A = 8>`. In the shipped `sr16.shdl`, `SR16` has no parameters and
+`RAM256` is fixed at 256 words; the golden model's `MEM_WORDS = 256` matches.
+
+:::
+
+## Build it
+
+The commands on this page run from the root of a checkout of the repository.
+Flatten the CPU to Base SHDL, then compile that to a shared library:
+
+```console check
+$ shdl-flatten examples/CPU/sr16.shdl -I examples -o sr16.bshdl
+$ shdlc sr16.bshdl -o sr16.dylib
+```
+
+Both are silent on success. The Base SHDL file is about 24 MB, and the C
+compile takes several seconds at the default `-O2`; `shdlc --dev` compiles at
+`-O0`, much faster, for a slower simulator. `shdlc` also accepts the `.shdl`
+file directly, with the same `-I`. Any file name works for the library; the
+driver passes it to `dlopen`. See [shdl-flatten](../tools/shdl-flatten.mdx) and
+[shdlc](../tools/shdlc.mdx).
+
+PySHDL can load the library you just built together with its Base SHDL, which
+supplies the port names and statistics, without compiling again:
+
+```python
+from pathlib import Path
+from SHDL import Circuit
+
+with Circuit.from_library("sr16.dylib", base=Path("sr16.bshdl")) as c:
+    print(c)
+    stats = c.info.stats
+    print(stats["total_gates"], "gates:", dict(stats["by_type"]))
+    print(stats["total_connections"], "connections,", len(c.info.init), "init entries")
+    print(c.timing)
+```
+
+```text title="Output"
+<SHDL.Circuit 'SR16' (Phi1, Phi2, LdEn, LdWe, LdAddr[16], LdData[16]) -> (Halted, PCout[16], IRout[16], Flags[4], State[2], MemOut[16], R0out[16], R1out[16], R2out[16], R3out[16], R4out[16], R5out[16], R6out[16], R7out[16])>
+42530 gates: {'NOT': 13390, 'AND': 15271, 'OR': 13763, 'XOR': 82, '__GND__': 20, '__VCC__': 4}
+71805 connections, 17712 init entries
+TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+```
+
+The 17,712 `init` entries are four seeds for each of the machine's 4,428 D
+latches: 4,096 memory cells, and two per bit of the eight registers, the PC,
+the IR, the flags and the state. They are what makes every register and memory
+word read 0 at power-on. See [Sequential logic](../language-reference/sequential-logic.mdx).
+
+## Run a program
+
+[`programs/mul.s`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/programs/mul.s)
+multiplies by repeated addition, since SR16 has no multiply instruction:
+
+```text title="examples/CPU/programs/mul.s"
+; mul.s — multiply by repeated addition (SR16 has no MUL).
+; Result: R3 = 12 * 11 = 132 (0x0084).
+
+        LI   r1, 12         ; multiplicand
+        LI   r2, 11         ; loop counter
+        LI   r3, 0          ; product
+loop:   ADD  r3, r3, r1
+        ADDI r2, r2, -1     ; sets Z when the counter hits 0
+        BNE  loop
+        HALT
+```
+
+The driver module has a command-line entry point,
+`python -m sr16tools.driver LIB ASM_FILE [MAX_INSTRUCTIONS]`. It resets the
+CPU, assembles the file, loads it through the DMA port, clocks until `HALT`
+and prints the final state. `LIB` goes to `ctypes` unchanged, so write `./sr16.dylib`
+rather than `sr16.dylib`. On Linux the dynamic loader treats a library name without a `/` as a name to search for on the system library path, not as a file in the current directory (macOS also tries the current directory).
+
+```console check continue
+$ PYTHONPATH=examples/CPU python -m sr16tools.driver ./sr16.dylib examples/CPU/programs/mul.s
+halted after 74 cycles, pc=0x0007
+flags: z=1 n=0 c=1 v=0
+  R0 = 0x0000 (0)
+  R1 = 0x000c (12)
+  R2 = 0x0000 (0)
+  R3 = 0x0084 (132)
+  R4 = 0x0000 (0)
+  R5 = 0x0000 (0)
+  R6 = 0x0000 (0)
+  R7 = 0x0000 (0)
+```
+
+`R3` holds 132. The program ran 37 instructions of 2 cycles each: three `LI`,
+eleven passes through the three-instruction loop, and `HALT`. The PC stops at
+7, one past the `HALT` at address 6. C is 1 because the last `ADDI` added
+`0xffff` to 1.
+
+`PYTHONPATH` makes the `sr16tools` package importable; the README instead runs
+the module from inside `examples/CPU/`. The `MAX_INSTRUCTIONS` argument,
+10,000 by default, stops a program that never halts.
+
+The same driver is a Python class. This runs all three example programs, with
+`fast_settle=True`, which ends every wait as soon as a simulation cycle changes
+no gate. The result is identical and the runs are several times faster:
+
+```python
+import sys
+sys.path.insert(0, "examples/CPU")
+from pathlib import Path
+from sr16tools.asm import assemble
+from sr16tools.driver import SR16
+
+cpu = SR16("./sr16.dylib", fast_settle=True)
+for name in ("mul", "popcount", "maxarray"):
+    cpu.reset()
+    cpu.load_program(assemble(Path(f"examples/CPU/programs/{name}.s").read_text()))
+    cycles = cpu.run()
+    regs = cpu.state()["regs"]
+    print(f"{name:9} {cycles:3} cycles  R2={regs[2]:#06x}  R3={regs[3]:#06x}  "
+          f"MEM[0x30]={cpu.read_mem(0x30):#06x}")
+```
+
+```text title="Output"
+mul        74 cycles  R2=0x0000  R3=0x0084  MEM[0x30]=0x0000
+popcount  192 cycles  R2=0x000a  R3=0x0001  MEM[0x30]=0x0000
+maxarray   70 cycles  R2=0x0000  R3=0xbeef  MEM[0x30]=0xbeef
+```
+
+- `popcount.s` counts the 1 bits of `0xB7C5` into `R2`: 10.
+- `maxarray.s` finds the unsigned maximum of a five-word table at `0x20`,
+  `0xBEEF`, and stores it at `0x30` with `ST`. `read_mem` reads it back through
+  the DMA port.
+
+### The driver
+
+| Method | What it does |
+|---|---|
+| `SR16(lib, *, t_cap=16, t_gap=4, t_settle=200, fast_settle=False)` | Loads the library with `ctypes`. `fast_settle` needs the `step_settle` export, which `shdlc` 1.1.0 libraries have. |
+| `reset()` | Power-on state |
+| `clock(n=1)` | `n` full clock cycles, as described under [Clocking](#clocking) |
+| `load_program(words)` | Writes `words` to address 0 onward through the DMA port |
+| `read_mem(addr)` | Reads one word through the DMA port |
+| `step_instruction()` | Clocks until the state machine is back in FETCH, or halted, and returns the number of cycles |
+| `run(max_instructions=10000)` | Runs to `HALT` and returns the total cycles |
+| `state()` | A dict with `pc`, `ir`, `state`, `halted`, `z`, `n`, `c`, `v` and `regs` |
+| `poke`, `peek`, `step` | Direct access to the ports and the simulation |
+
+`load_program` holds `LdEn` and `LdWe` high and pulses `Phi1` once per word.
+`LdEn` masks every state-write enable in the control unit, so the CPU does not
+run while memory is written, and starts cleanly at address 0 afterwards. A
+library is loaded with `dlopen`, which caches by path: two `SR16` objects
+created from the same file share one simulation.
+
+### Assembling
+
+`assemble(source)` returns the program as a list of 16-bit words. It accepts
+`;` and `#` comments, labels, `.org` and `.word` directives, the `LI`
+pseudo-instruction, and `SP` as a name for `R7`. The listing of `mul.s`:
+
+```python
+import sys
+sys.path.insert(0, "examples/CPU")
+from pathlib import Path
+from sr16tools.asm import assemble
+
+source = Path("examples/CPU/programs/mul.s").read_text()
+words = assemble(source)
+lines = [line.split(";")[0].strip() for line in source.splitlines()]
+lines = [line for line in lines if line]
+for addr, (word, line) in enumerate(zip(words, lines)):   # one word per line in mul.s
+    print(f"{addr:04x}: {word:04x}  {line}")
+```
+
+```text title="Output"
+0000: 220c  LI   r1, 12
+0001: 240b  LI   r2, 11
+0002: 2600  LI   r3, 0
+0003: 06c8  loop:   ADD  r3, r3, r1
+0004: 64bf  ADDI r2, r2, -1
+0005: 73fd  BNE  loop
+0006: a005  HALT
+```
+
+`ADD r3, r3, r1` is opcode `0000`, `rd = 011`, `rs1 = 011`, `rs2 = 001`,
+function `000`: `0000 011 011 001 000`, or `0x06c8`. `BNE loop` stores the
+offset from the next instruction, `3 - 6 = -3`, as 9 bits: `0x73fd`.
+
+## Lockstep verification
+
+The golden model, [`sr16tools/golden.py`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/sr16tools/golden.py),
+implements ISA.md in about 200 lines of Python, one instruction per `step()`,
+and returns each instruction's cycle cost. It knows nothing about gates. The
+test suite runs every program on both the gate-level CPU and the golden model
+and compares them after every instruction.
+
+This program calls a subroutine that saves a register on the stack, so it
+exercises `CALL`, `PUSH`, `POP` and `RET`, the two 3-cycle instructions, and a
+store. After each instruction the loop compares the cycle count, the PC, all
+eight registers, the four flags and the halted state. At the end it compares
+all 256 memory words through the DMA port:
+
+```python
+import sys
+sys.path.insert(0, "examples/CPU")
+from sr16tools.asm import assemble
+from sr16tools.driver import SR16
+from sr16tools.golden import Golden
+
+words = assemble("""
+        LI   r1, 7
+        LI   r2, 100
+        CALL triple         ; return address goes on the stack
+        ST   [r0+16], r1    ; MEM[0x10] = r1
+        HALT
+triple: PUSH r2             ; save r2
+        ADD  r2, r1, r1
+        ADD  r1, r2, r1     ; r1 = 3 * r1
+        POP  r2             ; restore r2
+        RET
+""")
+
+cpu = SR16("./sr16.dylib", fast_settle=True)
+gold = Golden()
+cpu.reset()
+cpu.load_program(words)
+gold.load(words)
+
+while not gold.halted:
+    pc, ir = gold.pc, gold.mem[gold.pc]
+    want = gold.step()
+    got = cpu.step_instruction()
+    st = cpu.state()
+    assert got == want
+    assert st["pc"] == gold.pc
+    assert st["regs"] == gold.regs
+    assert (st["z"], st["n"], st["c"], st["v"]) == (gold.z, gold.n, gold.c, gold.v)
+    assert st["halted"] == gold.halted
+    r = st["regs"]
+    print(f"pc={pc:04x} ir={ir:04x}  {got} cycles  r1={r[1]:<3} r2={r[2]:<3} r7={r[7]:04x}")
+
+diff = [a for a in range(len(gold.mem)) if cpu.read_mem(a) != gold.mem[a]]
+print(f"{len(gold.mem) - len(diff)} of {len(gold.mem)} memory words match")
+for addr in (0x10, 0xFE, 0xFF):
+    print(f"MEM[{addr:#04x}] = {cpu.read_mem(addr)}")
+```
+
+```text title="Output"
+pc=0000 ir=2207  2 cycles  r1=7   r2=0   r7=0000
+pc=0001 ir=2464  2 cycles  r1=7   r2=100 r7=0000
+pc=0002 ir=9005  2 cycles  r1=7   r2=100 r7=ffff
+pc=0005 ir=a400  2 cycles  r1=7   r2=100 r7=fffe
+pc=0006 ir=0448  2 cycles  r1=7   r2=14  r7=fffe
+pc=0007 ir=0288  2 cycles  r1=21  r2=14  r7=fffe
+pc=0008 ir=a401  3 cycles  r1=21  r2=100 r7=ffff
+pc=0009 ir=a002  3 cycles  r1=21  r2=100 r7=0000
+pc=0003 ir=5210  2 cycles  r1=21  r2=100 r7=0000
+pc=0004 ir=a005  2 cycles  r1=21  r2=100 r7=0000
+256 of 256 memory words match
+MEM[0x10] = 21
+MEM[0xfe] = 100
+MEM[0xff] = 3
+```
+
+- `CALL` at address 2 decrements `R7` from 0 to `0xffff` and stores the
+  return address, 3, in the top word of memory.
+- `PUSH r2` stores 100 below it, at `0xfe`.
+- `POP` and `RET` take 3 cycles each, and restore `r2`, `R7` and the PC.
+- The `ST` after the return writes 21 to `0x10`.
+
+### What a mismatch looks like
+
+Lockstep finds an error at the instruction that causes it. Here the settle
+budget is cut from 200 to 20 cycles, so the logic has less time to settle
+before `Phi1` captures it:
+
+```python
+import sys
+sys.path.insert(0, "examples/CPU")
+from pathlib import Path
+from sr16tools.asm import assemble
+from sr16tools.driver import SR16
+from sr16tools.golden import Golden
+
+words = assemble(Path("examples/CPU/programs/mul.s").read_text())
+cpu = SR16("./sr16.dylib", t_settle=20)
+gold = Golden()
+cpu.reset()
+cpu.load_program(words)
+gold.load(words)
+
+count = 0
+while not gold.halted:
+    pc, ir = gold.pc, gold.mem[gold.pc]
+    gold.step()
+    cpu.step_instruction()
+    count += 1
+    regs = cpu.state()["regs"]
+    if regs != gold.regs:
+        print(f"instruction {count} (pc={pc:04x} ir={ir:04x}) diverged")
+        print(f"  circuit: r2={regs[2]:#06x}  golden: r2={gold.regs[2]:#06x}")
+        break
+```
+
+```text title="Output"
+instruction 20 (pc=0004 ir=64bf) diverged
+  circuit: r2=0x8005  golden: r2=0x0005
+```
+
+Instruction `0x64bf` is `ADDI r2, r2, -1`, computing `6 + 0xffff`. The carry
+out of bit 1 has to ripple through every stage to clear the upper bits, and
+bit 16 was captured before it arrived. How long a ripple-carry adder takes
+depends on its operands and on what its carry chain held before, as the
+[ALU](./alu.mdx) page shows, so a budget can be enough for 19 instructions and
+too short for the 20th. The final registers alone would show only that the
+product is wrong; lockstep names the instruction.
+
+### The test suite
+
+The repository's `tests/cpu/` builds the CPU once per pytest session and
+compares it with the golden model:
+
+```bash
+uv run pytest tests/cpu
+```
+
+```text
+103 passed in 65.55s (0:01:05)
+```
+
+| File | Tests | What it checks |
+|---|---|---|
+| `test_seq.py`, `test_parts.py`, `test_alu.py`, `test_alu_reserved.py`, `test_regfile.py`, `test_ram.py` | 56 | Each part on its own, driven at its ports |
+| `test_poweron.py` | 9 | Every stateful part holds its power-on state |
+| `test_instructions.py` | 23 | Every opcode, function, branch condition and reserved encoding, in lockstep |
+| `test_corners.py` | 4 | Writes to `R0`, and shifts preserving V |
+| `test_freeze.py` | 2 | `LdEn` freezes a running CPU |
+| `test_programs.py` | 5 | Fibonacci, an array sum with wraparound, GCD, recursive calls, `memcpy`, in lockstep |
+| `test_examples.py` | 3 | The three programs in `programs/`, in lockstep, plus hand-derived results |
+| `test_margin.py` | 1 | Doubling `T_CAP`, `T_GAP` and `T_SETTLE` leaves the trace unchanged |
+
+The lockstep runner is `lockstep()` in
+[`tests/cpu/conftest.py`](https://github.com/rafa-rrayes/SHDL/blob/master/tests/cpu/conftest.py).
+It makes the same comparisons as the loop above, then compares every memory
+word the golden model wrote and a fixed set of untouched words. See
+[Testing](../tools/testing.mdx) for the test tools that ship with PySHDL.
+
+## Next
+
+The [Game of Life](./game-of-life.mdx) page shows a different kind of large
+circuit: a grid of 1,024 identical cells, built as an `shdl` project with a
+dependency from the package index.

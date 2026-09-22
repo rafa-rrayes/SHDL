@@ -1,0 +1,228 @@
+---
+title: Imports
+description: The use statement, how a module file is found, what an import makes visible, how imported modules are checked, and how to reach the stdgates library.
+---
+
+A design can be split across several files. Each file is a **module**, and a `use` statement at the top of a file makes components defined in another module available in it. This page covers the `use` syntax, what a module is, which names an import makes visible, how the module file is found, how imported modules are checked, and the `stdgates` library. Normative text: [shdl.md §9](/specs/shdl#9-imports-and-the-standard-library) and [§9.1](/specs/shdl#91-resolution).
+
+## Syntax
+
+```ebnf
+Import = "use" IDENT "::" "{" IDENT { "," IDENT } "}" ";" ;
+```
+
+`use module::{A, B};` looks for the file `module.shdl` and makes its components `A` and `B` usable as instance types, exactly like components defined in the same file:
+
+```shdl lib title="halfAdder.shdl"
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x: XOR;  a: AND;
+
+    connect {
+        A -> x.A;  B -> x.B;  x.O -> Sum;
+        A -> a.A;  B -> a.B;  a.O -> Carry;
+    }
+}
+```
+
+```shdl title="adder.shdl"
+use halfAdder::{HalfAdder};
+
+# A full adder from two half adders.
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    h1: HalfAdder;  h2: HalfAdder;  o: OR;
+
+    connect {
+        A -> h1.A;        B -> h1.B;
+        h1.Sum -> h2.A;   Cin -> h2.B;     h2.Sum -> Sum;
+        h1.Carry -> o.A;  h2.Carry -> o.B; o.O -> Cout;
+    }
+}
+```
+
+Imports leave no trace in Base SHDL. An imported component is inlined like any other, and its gates get the instance's prefix:
+
+```console check
+$ shdl-flatten adder.shdl -o adder.base.shdl
+$ sed -n '1,/^}/p' adder.base.shdl
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    h1_x: XOR;
+    h1_a: AND;
+    h2_x: XOR;
+    h2_a: AND;
+    o: OR;
+
+    connect {
+        A -> h1_x.A;
+        B -> h1_x.B;
+        A -> h1_a.A;
+        B -> h1_a.B;
+        h1_x.O -> h2_x.A;
+        Cin -> h2_x.B;
+        h1_x.O -> h2_a.A;
+        Cin -> h2_a.B;
+        h2_x.O -> Sum;
+        h1_a.O -> o.A;
+        h2_a.O -> o.B;
+        o.O -> Cout;
+    }
+}
+```
+
+The `hierarchy` section of the metadata still records, for every instance, the file its component came from (`source_file`).
+
+The form is fixed. The following are all syntax errors:
+
+| You write | Result |
+|---|---|
+| `use m::*;` | `E0201 expected '{', found '*'` |
+| `use m::{Buf as B};` | `E0201 expected '}', found 'as'` |
+| `use m::{Buf,};` | `E0201 expected imported component name, found '}'` |
+| `use m::{};` | `E0201 expected imported component name, found '}'` |
+| `use lib/m::{Buf};` | `E0201 expected '::', found '/'` |
+| `use m.shdl::{Buf};` | `E0201 expected '::', found '.'` |
+| `use m::{Buf}` with no `;` | `E0201 expected ';', found 'component'` |
+| `b: m::Buf;` (a qualified type name) | `E0201 expected ';', found '::'` |
+
+There are no wildcard imports, no aliases and no qualified names: list every component you use, by its own name.
+
+## Modules {/* #modules */}
+
+A module is one `.shdl` file, and its name is the file name without `.shdl`: `halfAdder.shdl` is the module `halfAdder`.
+
+- **The `use` statements come first**, before any component. A `use` after a component is `E0201 imports must precede all component definitions`. A file can have any number of `use` statements, and several may name the same module.
+- **Only components can be imported.** A module contains nothing else at the top level: constants and parameters live inside components.
+- **A module name is an identifier.** A file whose name is not a valid [identifier](./lexical-elements.mdx#identifiers), such as `my-design.shdl`, can be flattened as the main file but cannot be imported: `use my-design::{X};` is `E0201 expected '::', found '-'`.
+- **The module name is matched case-sensitively** against the real file name on every platform, including case-insensitive file systems ([below](#resolution)).
+
+## What an import makes visible {/* #visibility */}
+
+Each module has its own set of component names: the components it defines, plus the names it imports. The six [primitives](./standard-gates.mdx) are visible everywhere without an import. An instance type is looked up only in that set:
+
+- **Imports are not transitive.** If `adder.shdl` imports `HalfAdder` from `halfAdder`, and `halfAdder.shdl` imported something from a third module, `adder.shdl` cannot use that third module's components without its own `use`. Using one is `E0306 unknown component type`.
+- **There are no re-exports.** A `use` can only name a component that the target module *defines*. Naming one the target merely imports is `E0703 module 'm' does not define component 'Inv'`.
+- **Primitives cannot be imported.** `use stdgates::{AND};` is `E0703 module 'stdgates' does not define component 'AND'`. Primitives need no import.
+- **An imported name must not collide** with a component defined in the importing file or with an earlier import (including the same name twice in one `use`): `E0301 imported name 'Inv' collides with an existing component or import in module 'col'`. Two components with the same name in one file are `E0301 duplicate component 'X' in module 'dup'`.
+- **Different modules may reuse a name.** A module can define its own `Inv` while importing a component from a module that uses a different `Inv` internally. Each module sees only its own, so there is no clash. The two still appear in the metadata with the same `type`, `Inv`, and `source_file` tells them apart.
+
+Diagnostics that name a specialization qualify it with the module that defines the component, as in `m::Pass<N=0>` ([Parameters](./parameters.mdx#argument-errors)).
+
+## Finding the module file {/* #resolution */}
+
+For each `use NAME::{…}`, the toolchain looks for `NAME.shdl`:
+
+1. **In the directory of the file that contains the `use`.** This is not the main file's directory and not the current directory. A module in `lib/` finds its own neighbours in `lib/`, wherever it is imported from.
+2. **Then in each include directory, in the order given.** Relative include directories are relative to the current working directory.
+
+The first match wins. The current working directory is never searched unless it is one of these directories.
+
+Include directories come from the tool you run:
+
+| Tool | Include directories |
+|---|---|
+| [`shdl-flatten`](../tools/shdl-flatten.mdx#module-search) and [`shdlc`](../tools/shdlc.mdx) | `-I DIR` / `--include DIR`, repeatable |
+| [`Circuit(path, include_dirs=[...])`](../tools/python-api.mdx#constructor-options) | The `include_dirs` list |
+| `Circuit.from_source(text, include_dirs=[...])` | The `include_dirs` list only: the text is written to a temporary directory first, so there is no useful importing-file directory |
+| The [`shdl` CLI](../tools/shdl-cli.mdx) in a project | Added for you: `shdl_modules/<package>` for each installed package, then each path dependency ([include path](../tools/project-manifest.mdx#include-path)) |
+
+If no directory has the file, the result is `E0701`, reported at the module name in the `use` statement:
+
+```shdl error=E0701 title="missing.shdl"
+use halfAdders::{HalfAdder};
+
+component Half(A, B) -> (S, C) {
+    h: HalfAdder;
+    connect { A -> h.A;  B -> h.B;  h.Sum -> S;  h.Carry -> C; }
+}
+```
+
+```console check
+$ shdl-flatten missing.shdl
+missing.shdl:1:5: error[E0701]: module 'halfAdders' not found (searched <scratch> and 0 include dir(s))
+$ shdl-flatten missing.shdl -I examples
+missing.shdl:1:5: error[E0701]: module 'halfAdders' not found (searched <scratch> and 1 include dir(s))
+```
+
+Three more rules make resolution the same on every machine:
+
+- **Names are case-sensitive.** `use HalfAdder::{…}` does not load `halfAdder.shdl`. On a case-insensitive file system, which would otherwise open the file, the result is `E0701 module 'HalfAdder' not found: the file on disk is 'halfAdder.shdl' (case mismatch with 'HalfAdder.shdl')`.
+- **One file per module name.** Each module is loaded once, however many files import it. If the same module name resolves to two different files from two importers, for example a `common.shdl` next to the main file and another next to a nested import, the result is `E0701 module 'common' resolves to two different files: already loaded <path>, now <path>`. The toolchain never silently picks one.
+- **No cycles.** A module may not import itself, directly or through other modules, and that includes importing the main file back: `E0702 circular import: ca -> cb -> ca`, reported at the `use` that closes the cycle. Move the shared components into a third module that both import.
+
+A worked example with a separate `lib/` directory and `-I` is on the [`shdl-flatten`](../tools/shdl-flatten.mdx#module-search) page.
+
+## How imported modules are checked {/* #checking */}
+
+Every module reachable through `use` statements is read and parsed in full, even if you import one component from it. Each component in it is then checked against the rules that do not depend on parameter values: known instance types, unique names, exactly one `connect` block, at most one `init` block, no redefined primitives, the reserved-name rules and literal constant overflow. Each module may also mark at most one component `top` (`E0310`). This applies even to components nobody instantiates, so a broken component anywhere in an imported file stops the build:
+
+```shdl lib error=E0306 title="tools.shdl"
+component Good(A) -> (O) {
+    connect { A -> O; }
+}
+
+component Broken(A) -> (O) {
+    g: NOSUCH;
+    connect { A -> g.A;  g.O -> O; }
+}
+```
+
+```shdl error=E0306 title="useGood.shdl"
+use tools::{Good};
+
+component UseGood(A) -> (O) {
+    g: Good;
+    connect { A -> g.A;  g.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten useGood.shdl
+tools.shdl:6:8: error[E0306]: unknown component type 'NOSUCH'
+```
+
+The diagnostic names the file that contains the error, not the file you flattened. The checks that depend on parameters, such as widths, indices and drivers, run only for the components that are actually instantiated, once per specialization ([Parameters](./parameters.mdx#specialization)).
+
+The top component always comes from the main file. A `top` marker in an imported module does not select anything (it is still checked: a `top` component whose parameters lack defaults is `E0902` in any module), and an imported component cannot be chosen with `--top`: flattening a file that imports `Buf` with `--top Buf` gives `E0001 --top component 'Buf' not found in module 'p8' (has: P)`. To simulate an imported component on its own, write a small wrapper component that instantiates it, as in [Parameters](./parameters.mdx#top-parameters). See [Top-component selection](./components.mdx#top-selection).
+
+## The `stdgates` library {/* #stdgates */}
+
+`stdgates` is the conventional standard library, providing `NAND`, `NOR` and `XNOR` built from the primitives ([Standard gates](./standard-gates.mdx#derived-gates)). In PySHDL 1.1.0 it is an ordinary module, shipped in the repository as [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl). It is not bundled in the PySHDL package and is not on any default search path. To use it, copy it next to your design or add its directory as an include directory.
+
+```shdl title="nandDemo.shdl"
+use stdgates::{NAND};
+
+component NandDemo(A, B) -> (Y) {
+    n: NAND;
+    connect { A -> n.A;  B -> n.B;  n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten nandDemo.shdl -I examples -o nandDemo.base.shdl
+$ sed -n '1,/^}/p' nandDemo.base.shdl
+component NandDemo(A, B) -> (Y) {
+    n_a1: AND;
+    n_n1: NOT;
+
+    connect {
+        A -> n_a1.A;
+        B -> n_a1.B;
+        n_a1.O -> n_n1.A;
+        n_n1.O -> Y;
+    }
+}
+```
+
+Reusable libraries beyond `stdgates` are distributed as packages. See [Packages](../tools/packages.mdx).
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0001` | `--top` names a component that the main file does not define |
+| `E0201` | A malformed `use` statement, or a `use` after a component |
+| `E0301` | An imported name that collides with a local component or an earlier import |
+| `E0306` | An instance type that is neither defined nor imported in this module, or an unknown type anywhere in an imported module |
+| `E0310` | More than one `top` marker in one module, imported or not |
+| `E0701` | A module file that cannot be found, has the wrong case, or resolves to two different files; also a missing main file (`file not found: X`) |
+| `E0702` | A circular import |
+| `E0703` | An imported name that the module does not define, including primitives and names the module itself imports |

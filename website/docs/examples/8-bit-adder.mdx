@@ -1,0 +1,438 @@
+---
+id: 8-bit-adder
+title: 8-bit adder
+sidebar_label: 8-bit adder
+description: Ripple-carry adders built from full adders with generators, a width parameter with when/else, and named constants, with the carry ripple traced cycle by cycle.
+---
+
+Chain eight [full adders](./full-adder.mdx), feeding each stage's carry out
+into the next stage's carry in, and you get an 8-bit ripple-carry adder. This
+page shows three versions from the `examples/` directory:
+
+- `Adder8`, which uses a generator to avoid writing eight stages by hand;
+- `AdderN<N>`, which makes the width a parameter and uses `when`/`else` for the
+  first stage;
+- `Add100`, which adds a named constant to its input.
+
+It then traces the carry as it ripples through the stages, one gate delay at a
+time.
+
+## What it computes
+
+`Sum` is the low 8 bits of `A + B + Cin`, and `Cout` is bit 8 of it (the
+unsigned overflow):
+
+```text
+A + B + Cin = Cout * 256 + Sum          A, B, Sum: 0 to 255; Cin, Cout: 0 or 1
+```
+
+For example, `100 + 55 + 0` gives `Sum = 155, Cout = 0`, and
+`255 + 1 + 0` gives `Sum = 0, Cout = 1`.
+
+## Adder8: stages from a generator
+
+[`examples/adder8.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/adder8.shdl):
+
+```shdl title="adder8.shdl"
+"""
+06 -- Adder8: an 8-bit ripple-carry adder written with generators.
+
+A generator >i[range]{ ... } is a compile-time loop: its body is
+emitted once per value, with every {expr} substituted (§7).  One
+generator declares the eight FullAdder instances; another wires the
+interior stages.  Compare with adderN, which folds the boundary
+stages back into the loop with `when`.
+"""
+
+use fullAdder::{FullAdder};
+
+top component Adder8(A[8], B[8], Cin) -> (Sum[8], Cout) {
+    >i[8]{ fa{i}: FullAdder; }     # fa1, fa2, ..., fa8
+
+    connect {
+        # Stage 1 takes the external carry-in.
+        A[1] -> fa1.A;  B[1] -> fa1.B;  Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+
+        # Stages 2..8 chain the carry.
+        >i[2:8]{
+            A[{i}]       -> fa{i}.A;
+            B[{i}]       -> fa{i}.B;
+            fa{i-1}.Cout -> fa{i}.Cin;
+            fa{i}.Sum    -> Sum[{i}];
+        }
+
+        fa8.Cout -> Cout;
+    }
+}
+```
+
+The interesting lines:
+
+- **`use fullAdder::{FullAdder};`** imports one component from
+  `fullAdder.shdl`, found next to this file (or in a directory passed with
+  `-I`). See [Imports](../language-reference/imports.mdx).
+- **`A[8], B[8]`** and **`Sum[8]`** are 8-bit ports. Bits are numbered from 1,
+  and bit 1 is the least significant: `A[1]` is the bit worth 1, `A[8]` the bit
+  worth 128. See [Signals](../language-reference/signals.mdx).
+- **`>i[8]{ fa{i}: FullAdder; }`** is a generator: a loop that runs at compile
+  time. `[8]` means `i` takes the values 1 to 8, and `{i}` inside the body is
+  replaced by the current value, so this line declares `fa1` through `fa8`. See
+  [Generators](../language-reference/generators.mdx).
+- **`A[1] -> fa1.A; ... Cin -> fa1.Cin;`** wires the first stage by hand,
+  because its carry in comes from the `Cin` port rather than a previous stage.
+- **`>i[2:8]{ ... }`** loops over 2 to 8 inclusive. **`fa{i-1}.Cout`** uses
+  arithmetic inside the braces to reach the previous stage. Generator
+  expressions support `+`, `-`, `*` and integer `/`.
+- **`A[{i}]`** substitutes into a bit index, so the body connects bit `i` of each
+  bus to stage `i`.
+
+### Size and timing
+
+| Property | Value |
+|---|---|
+| Gates | 40 (16 XOR, 16 AND, 8 OR): 8 full adders of 5 gates |
+| Connections | 89 |
+| `max_depth` | 17 |
+| Output depths | `Sum[1]` 2, `Sum[2]` 4, ..., `Sum[8]` 16, `Cout` 17 |
+| Critical path | `A[1]`, `fa1_ha1_x1`, `fa1_ha2_a1`, `fa1_o1`, `fa2_ha2_a1`, `fa2_o1`, ..., `fa8_ha2_a1`, `fa8_o1`, `Cout` |
+
+The critical path is the carry chain. The first stage costs three levels (XOR,
+AND, OR), and each later stage adds two (its `ha2_a1` AND and its `o1` OR),
+because every stage's `ha1_x1` computed `A XOR B` in parallel at the very start.
+That gives `3 + 7 * 2 = 17`. Each `Sum[i]` is ready one level before the carry
+of its stage, at depth `2i`.
+
+In the flattened netlist, the bits of a bus become separate wires named
+`A_1_` through `A_8_`, and the gates of stage 3 are `fa3_ha1_x1`, `fa3_ha1_a1`,
+`fa3_ha2_x1`, `fa3_ha2_a1` and `fa3_o1`.
+
+### Simulate it
+
+The Python sessions on this page run from the root of a checkout of the
+repository, so the example paths start with `examples/`. `use` statements
+resolve against the directory of the file being loaded, which is how
+`adder8.shdl` finds `fullAdder.shdl`.
+
+With `max_depth` 17, `settle()` advances 17 cycles. Wide ports read and write as
+unsigned integers, bit 1 being the least significant:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    a_port = c.info.port("A")
+    print("A: width", a_port.width, "range", a_port.min_value, "to", a_port.max_value)
+    print("max_depth:", c.timing.max_depth)
+    for a, b, cin in [(100, 55, 0), (200, 100, 0), (255, 1, 0), (127, 127, 1), (0, 0, 1)]:
+        c["A"], c["B"], c["Cin"] = a, b, cin
+        c.settle()
+        print(f"{a:3} + {b:3} + {cin} = Sum {c['Sum']:3}, Cout {c['Cout']}")
+```
+
+```text title="Output"
+A: width 8 range -128 to 255
+max_depth: 17
+100 +  55 + 0 = Sum 155, Cout 0
+200 + 100 + 0 = Sum  44, Cout 1
+255 +   1 + 0 = Sum   0, Cout 1
+127 + 127 + 1 = Sum 255, Cout 0
+  0 +   0 + 1 = Sum   1, Cout 0
+```
+
+A port accepts any value from `-(2**(width-1))` to `2**width - 1`. A negative
+value is written as its two's complement, so `-1` on an 8-bit port is `255`,
+and the same adder adds signed numbers. Out-of-range values are rejected:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"], c["B"], c["Cin"] = -1, 1, 0
+    c.settle()
+    print("-1 + 1: Sum", c["Sum"], "Cout", c["Cout"])
+    c["A"], c["B"] = -100, 30
+    c.settle()
+    s = c["Sum"]
+    print("-100 + 30: Sum", s, "as signed:", s - 256 if s >= 128 else s)
+    try:
+        c["A"] = 256
+    except Exception as e:
+        print(type(e).__name__ + ":", e)
+```
+
+```text title="Output"
+-1 + 1: Sum 0 Cout 1
+-100 + 30: Sum 186 as signed: -70
+PortValueError: value 256 does not fit 8-bit port 'A' (allowed -128..255); use strict=False for the ABI's masking semantics
+```
+
+The [Python API](../tools/python-api.mdx) page covers `strict` mode and value
+encoding in full.
+
+### Watching the carry ripple
+
+The worst case for a ripple-carry adder is a carry that has to travel through
+every stage: `255 + 0 + 1`. This session pokes those inputs into a freshly
+reset circuit and prints the outputs after every cycle:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"], c["B"], c["Cin"] = 255, 0, 1
+    for cycle in range(1, 19):
+        c.step(1)
+        print(f"cycle {cycle:2}: Sum={c['Sum']:08b} Cout={c['Cout']}")
+```
+
+```text title="Output"
+cycle  1: Sum=00000001 Cout=0
+cycle  2: Sum=11111110 Cout=0
+cycle  3: Sum=11111110 Cout=0
+cycle  4: Sum=11111100 Cout=0
+cycle  5: Sum=11111100 Cout=0
+cycle  6: Sum=11111000 Cout=0
+cycle  7: Sum=11111000 Cout=0
+cycle  8: Sum=11110000 Cout=0
+cycle  9: Sum=11110000 Cout=0
+cycle 10: Sum=11100000 Cout=0
+cycle 11: Sum=11100000 Cout=0
+cycle 12: Sum=11000000 Cout=0
+cycle 13: Sum=11000000 Cout=0
+cycle 14: Sum=10000000 Cout=0
+cycle 15: Sum=10000000 Cout=0
+cycle 16: Sum=00000000 Cout=0
+cycle 17: Sum=00000000 Cout=1
+cycle 18: Sum=00000000 Cout=1
+```
+
+Read it from the right, the least significant bit:
+
+- On cycle 1, every stage's first XOR computes `A[i] XOR B[i] = 1`, but the
+  second XOR of each stage still sees the old value 0 of that first XOR. Only
+  stage 1, whose carry in is already 1, outputs 1: `Sum` briefly reads
+  `00000001`.
+- On cycle 2, every second XOR sees the partial sum 1, and stage 1 also sees its
+  carry in: `Sum[1]` becomes 0 and the rest become 1.
+- From then on, the carry moves one stage every two cycles (an AND, then an OR),
+  clearing one more `Sum` bit each time it arrives. `Sum[8]` clears on cycle 16,
+  and `Cout` rises on cycle 17, exactly `max_depth`.
+
+The intermediate values are not bugs: they are what a real ripple-carry adder
+does while its carry propagates. The [Simulation model](../concepts/simulation-model.mdx)
+page explains why reading a combinational circuit after `max_depth` cycles is
+always safe.
+
+### Checking every input
+
+The adder has `2**17 = 131072` possible inputs. `run_batch` drives all of them
+in one call into the compiled library and returns every output:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    frames = [{"A": a, "B": b, "Cin": cin}
+              for a in range(256) for b in range(256) for cin in (0, 1)]
+    rows = c.run_batch(frames, cycles=c.timing.max_depth)
+    bad = [f for f, r in zip(frames, rows)
+           if r["Sum"] + 256 * r["Cout"] != f["A"] + f["B"] + f["Cin"]]
+    print(len(frames), "cases,", len(bad), "mismatches")
+```
+
+```text title="Output"
+131072 cases, 0 mismatches
+```
+
+## AdderN: a width parameter and when/else
+
+[`examples/adderN.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/adderN.shdl)
+builds the same adder for any width:
+
+```shdl title="adderN.shdl"
+"""
+07 -- AdderN: a width-parameterized ripple-carry adder.
+
+<N = 8> declares a compile-time parameter with a default, so one
+definition serves every width (§4.4).  The `when` conditional folds
+the boundary stage back into a single uniform loop (§7.7.1) instead
+of hoisting stage 1 out by hand as adder8 does.
+
+Instantiate at any width:    add: AdderN<16>;
+"""
+
+use fullAdder::{FullAdder};
+
+top component AdderN<N = 8>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ fa{i}: FullAdder; }
+
+    connect {
+        >i[N]{
+            A[{i}] -> fa{i}.A;
+            B[{i}] -> fa{i}.B;
+            when {i == 1} { Cin          -> fa{i}.Cin; }   # first stage: external carry-in
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }   # interior: chain the carry
+            fa{i}.Sum -> Sum[{i}];
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+```
+
+What is new:
+
+- **`AdderN<N = 8>`** declares a compile-time parameter `N` with default 8. `N`
+  can be used anywhere a number can: in port widths (`A[N]`), in generator
+  ranges (`>i[N]`), and inside braces (`fa{N}`). See
+  [Parameters](../language-reference/parameters.mdx).
+- **`when {i == 1} { ... } else { ... }`** emits its first body when the
+  condition holds for the current generator value, and the `else` body
+  otherwise. It lets one loop handle the first stage, which takes `Cin`, and
+  the other stages, which take the previous carry. Conditions support `==`,
+  `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||` and parentheses. See
+  [Generators](../language-reference/generators.mdx) and
+  [shdl.md §7.7](/specs/shdl#77-conditional-emission).
+- **`fa{N}.Cout -> Cout;`** reaches the last stage through the parameter.
+
+Built as the top with its default, `AdderN` flattens to exactly the netlist of
+`Adder8`: 40 gates, 89 connections, `max_depth` 17.
+
+To use another width, instantiate it with an argument, `AdderN<16>`. This
+wrapper builds a 16-bit adder:
+
+```shdl title="adder16.shdl"
+use adderN::{AdderN};
+
+top component Adder16(A[16], B[16], Cin) -> (Sum[16], Cout) {
+    add: AdderN<16>;
+
+    connect {
+        A -> add.A;  B -> add.B;  Cin -> add.Cin;
+        add.Sum -> Sum;  add.Cout -> Cout;
+    }
+}
+```
+
+`A -> add.A` connects a whole 16-bit bus in one statement, since both sides
+have the same width. See [Connections](../language-reference/connections.mdx).
+
+This file lives outside `examples/`, so loading it needs `include_dirs` to find
+`adderN.shdl` (and, through it, `fullAdder.shdl`). It is the Python counterpart
+of `shdl-flatten -I examples`.
+
+```python
+from SHDL import Circuit
+
+with Circuit("adder16.shdl", include_dirs=["examples"]) as c:
+    print(c.info.stats["by_type"], "max_depth:", c.timing.max_depth)
+    c["A"], c["B"], c["Cin"] = 40000, 30000, 0
+    c.settle()
+    print("40000 + 30000 =", c["Sum"] + 65536 * c["Cout"],
+          f"(Sum {c['Sum']}, Cout {c['Cout']})")
+```
+
+```text title="Output"
+{'XOR': 32, 'AND': 32, 'OR': 16} max_depth: 33
+40000 + 30000 = 70000 (Sum 4464, Cout 1)
+```
+
+The depth grows by two per extra bit: `3 + 15 * 2 = 33`.
+
+## Add100: constants as inputs
+
+[`examples/add100.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/add100.shdl)
+wires an `AdderN<8>` so that one operand is always 100:
+
+```shdl title="add100.shdl"
+"""
+08 -- Add100: named constants as connection sources.
+
+A constant is an unbounded unsigned integer: bit k of `Hundred` is
+the k-th bit of 100, and every bit above the significant ones reads
+as 0 (§8.1).  The declared width [8] is purely an overflow assertion.
+Each referenced bit materializes as a __VCC__ or __GND__ power pin
+during flattening; constants may only ever be connection sources.
+"""
+
+use adderN::{AdderN};
+
+top component Add100(A[8]) -> (Sum[8], Cout) {
+    Hundred[8] = 100;     # 0b01100100
+    ZERO      = 0;
+
+    add: AdderN<8>;
+
+    connect {
+        A    -> add.A;                          # whole-vector connection
+        ZERO -> add.Cin;                        # a constant driving a single-bit sink
+        >i[8]{ Hundred[{i}] -> add.B[{i}]; }    # ...or any individual bit
+
+        add.Sum  -> Sum;
+        add.Cout -> Cout;
+    }
+}
+```
+
+- **`Hundred[8] = 100;`** declares a named constant. The `[8]` is an assertion
+  that 100 fits in 8 bits; the flattener reports an error if it does not.
+- **`ZERO = 0;`** is a constant with no declared width.
+- **`Hundred[{i}] -> add.B[{i}];`** reads one bit of the constant. A constant can
+  only be a source, never a destination.
+
+See [Constants](../language-reference/constants.mdx). Each referenced constant
+bit becomes a power pin in the netlist: `__VCC__` for a 1, `__GND__` for a 0.
+100 is `0b01100100`, so bits 3, 6 and 7 are `__VCC__`:
+
+```console check
+$ shdl-flatten examples/add100.shdl | grep -E ": __(VCC|GND)__;"
+    ZERO_bit1: __GND__;
+    Hundred_bit1: __GND__;
+    Hundred_bit2: __GND__;
+    Hundred_bit3: __VCC__;
+    Hundred_bit4: __GND__;
+    Hundred_bit5: __GND__;
+    Hundred_bit6: __VCC__;
+    Hundred_bit7: __VCC__;
+    Hundred_bit8: __GND__;
+```
+
+| Property | Value |
+|---|---|
+| Gates | 49 (16 XOR, 16 AND, 8 OR, 6 `__GND__`, 3 `__VCC__`) |
+| Connections | 89 |
+| `max_depth` | 18 |
+| Output depths | `Sum[1]` 3, `Sum[2]` 5, ..., `Sum[8]` 17, `Cout` 18 |
+
+The adder is the same 40 gates as before, so why is `max_depth` 18 instead of
+17? Power pins are gates too. Like every other gate, they output 0 when the
+circuit powers on and take one cycle to produce their value, so a path that
+starts at a constant is one level longer than a path that starts at an input.
+The critical path now begins at `Hundred_bit1` instead of `A[1]`.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/add100.shdl") as c:
+    print("inputs:", c.inputs, "outputs:", c.outputs, "max_depth:", c.timing.max_depth)
+    for a in (0, 1, 55, 155, 156, 255):
+        c["A"] = a
+        c.settle()
+        print(f"{a:3} + 100 = Sum {c['Sum']:3}, Cout {c['Cout']}")
+```
+
+```text title="Output"
+inputs: ('A',) outputs: ('Sum', 'Cout') max_depth: 18
+  0 + 100 = Sum 100, Cout 0
+  1 + 100 = Sum 101, Cout 0
+ 55 + 100 = Sum 155, Cout 0
+155 + 100 = Sum 255, Cout 0
+156 + 100 = Sum   0, Cout 1
+255 + 100 = Sum  99, Cout 1
+```
+
+## Next
+
+The [multiplexer](./multiplexer.mdx) uses the same parameter technique to
+select between whole buses. The [ALU](./alu.mdx) reuses `AdderN` as its
+arithmetic lane.

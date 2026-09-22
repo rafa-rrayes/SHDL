@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SHDL">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <path d="M8 24h12M8 40h12" stroke="#64748b"/>
+    <path d="M20 14h12a18 18 0 0 1 0 36H20z" stroke="#4ade80"/>
+    <path d="M50 32h7" stroke="#4ade80"/>
+  </g>
+  <circle cx="57" cy="32" r="3" fill="#facc15"/>
+</svg>

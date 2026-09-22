@@ -1,0 +1,238 @@
+---
+title: Signals
+description: How to refer to ports, bits, slices, instance ports and constants, and how to build wider signals with concatenation and replication.
+---
+
+A *signal* is anything that can appear on either side of `->` in a connection: a port, a bit or slice of one, a port of an instance, a constant, or a concatenation of these. This page covers every signal form, bit numbering, the index expressions allowed inside `[ ]`, and concatenation and replication. How signals are wired together, and which of them may be sources or destinations, is covered in [Connections](./connections.mdx). Normative text: [shdl.md §6](/specs/shdl#6-signals-and-connections).
+
+## Syntax
+
+```ebnf
+Signal       = Concat | Primary ;
+Primary      = NameTemplate [ "." NameTemplate ] [ "[" Index "]" ] ;
+Index        = Arith | Arith ":" Arith | ":" Arith | Arith ":" ;
+Concat       = "{" ConcatItem { "," ConcatItem } "}" ;
+ConcatItem   = Replication | Primary ;
+Replication  = Arith "{" ConcatItem { "," ConcatItem } "}" ;
+NameTemplate = IDENT { "{" Arith "}" [ IDENT ] } ;
+```
+
+## Signal forms
+
+| Form | Example | Width | Refers to |
+|---|---|---|---|
+| Port | `A` | Width of `A` | Every bit of a port of this component |
+| Bit | `A[3]` | 1 | Bit 3 of `A` |
+| Slice | `A[2:5]` | 4 | Bits 2 to 5 of `A`, both ends included |
+| Low slice | `A[:4]` | 4 | Bits 1 to 4 |
+| High slice | `A[5:]` | width − 4 | Bits 5 to the top bit |
+| Instance port | `fa.Sum`, `r.Q[3]`, `r.Q[2:5]` | As above | A port of an instance; takes the same indices and slices |
+| Constant | `K`, `K[2]`, `K[1:4]` | As above | A named constant ([Constants](./constants.mdx)) |
+| Concatenation | `{Hi, Lo}` | Sum of the items | The items side by side, first item in the high bits |
+| Replication | `{4{S}}`, `{2{A, B}}` | Count × items | Copies of the items, inside a concatenation |
+
+A scalar (1-bit) port is a port of width 1, so `S` and `S[1]` mean the same bit, and `S[2]` is out of range.
+
+Names in any of these forms can be *templates* such as `fa{i}.Sum` or `t.O{i}` when they appear inside a generator; the braces are replaced with the value of the expression before the name is looked up ([Generators](./generators.mdx#name-templates)).
+
+## Bit numbering {/* #bit-numbering */}
+
+Bits are numbered from **1**, and **bit 1 is the least significant bit**. For a port `A[8]`, `A[1]` is the LSB and `A[8]` the MSB. When you set or read a port as an integer, bit k of the integer is `A[k + 1]`.
+
+A slice `A[a:b]` needs `a <= b`; it is a bus of `b - a + 1` bits whose low bit is `A[a]`. There are no descending slices: to reverse bits, list them in a concatenation, as shown [below](#concatenation).
+
+```shdl title="slices.shdl"
+component Slices(A[8]) -> (B3, Lo[4], Hi[4], Mid[4], Top[3]) {
+    connect {
+        A[3]   -> B3;      # one bit
+        A[:4]  -> Lo;      # bits 1..4
+        A[5:]  -> Hi;      # bits 5..8
+        A[3:6] -> Mid;     # bits 3..6
+        A[6:8] -> Top;     # bits 6..8
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("slices.shdl") as c:
+    c["A"] = 0b1011_0110
+    print(c["B3"], f"{c['Lo']:04b}", f"{c['Hi']:04b}", f"{c['Mid']:04b}", f"{c['Top']:03b}")
+```
+
+```text title="Output"
+1 0110 1011 1101 101
+```
+
+This circuit has no gates, only wires, so its outputs follow its inputs without any `step`.
+
+## Index expressions {/* #index-expressions */}
+
+The index of a bit, and each bound of a slice, is a compile-time integer expression. It may use literals, the component's parameters, the variables of enclosing generators, and the operators `+`, `-`, `*` and `/` ([Generators](./generators.mdx#arithmetic)). Braces around the expression are optional: `A[i + 1]` and `A[{i + 1}]` are the same.
+
+```shdl title="picks.shdl"
+component Picks<N = 6>(A[N]) -> (Msb, Mid, Rest[N - 1]) {
+    connect {
+        A[N]        -> Msb;     # the top bit
+        A[N / 2]    -> Mid;     # bit 3 when N = 6
+        A[:N - 1]   -> Rest;    # every bit but the top one
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("picks.shdl") as c:
+    c["A"] = 0b100101
+    print(c["Msb"], c["Mid"], f"{c['Rest']:05b}")
+```
+
+```text title="Output"
+1 1 00101
+```
+
+Rules for index expressions:
+
+- Division truncates toward zero, as in C: `{0 - 7} / 2` is `-3`, not `-4`.
+- Parentheses are not grouping operators; use braces. `A[(N)]` is `E0201 expected a number, identifier, or '{expr}', found '('`.
+- A name that is not a parameter or generator variable in scope is `E0603`, for example `'k' is not a parameter or generator variable in scope`.
+- Dividing by zero is `E0605 division by zero`.
+- The result must lie within the signal. `A[0]`, a computed negative index and `A[5]` on a 4-bit `A` are all `E0402`, for example `bit index [0] out of range for 'A' of width 4`. A slice that runs past the top is `E0402 slice [4:5] out of range for 'A' of width 4`.
+- A slice whose bounds are reversed is `E0404 invalid slice [3:2] on 'A'`.
+
+Every index is checked when the component is expanded, so an index that is out of range only for some parameter values fails only for those specializations.
+
+## Instance ports {/* #instance-ports */}
+
+`inst.Port` names a port of an instance declared in the same component, and takes the same `[bit]` and `[a:b]` suffixes as a local port. You can use the same instance output any number of times; each use is another fan-out branch of the same wire.
+
+```shdl title="ports.shdl"
+component Invert2(A[2]) -> (O[2]) {
+    n1: NOT;  n2: NOT;
+    connect {
+        A[1] -> n1.A;  n1.O -> O[1];
+        A[2] -> n2.A;  n2.O -> O[2];
+    }
+}
+
+top component UseInvert(A[2]) -> (Low, Both[2]) {
+    inv: Invert2;
+    connect {
+        A        -> inv.A;      # whole port
+        inv.O[1] -> Low;        # one bit of an instance port
+        inv.O    -> Both;       # the same port again: fan-out is free
+    }
+}
+```
+
+The errors for names that do not resolve are all `E0307`:
+
+| Reference | Message |
+|---|---|
+| `Z` where no port or constant `Z` exists | `unknown signal 'Z'` |
+| `n.Q` on a primitive | `primitive 'NOT' has no port 'Q'` |
+| `i.Q` on a component instance | `component 'Inner' has no port 'Q'` |
+| `A.O` where `A` is not an instance | `unknown instance 'A'` |
+| `n` alone, where `n` is an instance | `instance 'n' used as a signal; reference one of its ports (e.g. 'n.O')` |
+
+Whether a given instance port may be read or driven depends on its direction; see [Connections](./connections.mdx#roles).
+
+## Concatenation {/* #concatenation */}
+
+`{a, b, c}` joins signals into one wider signal. Items are written **most significant first**: the last item occupies the lowest bits, exactly like reading a binary number left to right. A concatenation's width is the sum of its items' widths.
+
+Concatenation works on both sides of `->`. On the left it builds a bus; on the right it *splits* the incoming bits among several destinations.
+
+```shdl title="busops.shdl"
+component BusOps(A[4], B[4], S) -> (Cat[8], Swap[8], Ext[8], Fill[4], Rev[4], Hi[2], Lo[2]) {
+    connect {
+        {A, B}                       -> Cat;       # A in bits 5..8, B in bits 1..4
+        {B, A}                       -> Swap;
+        {4{A[4]}, A}                 -> Ext;       # sign-extend A to 8 bits
+        {4{S}}                       -> Fill;      # S copied to every bit
+        {A[1], A[2], A[3], A[4]}     -> Rev;       # reverse the bit order
+        A                            -> {Hi, Lo};  # split: A[3:4] to Hi, A[1:2] to Lo
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("busops.shdl") as c:
+    c["A"], c["B"], c["S"] = 0b1100, 0b0011, 1
+    for name, width in [("Cat", 8), ("Swap", 8), ("Ext", 8), ("Fill", 4),
+                        ("Rev", 4), ("Hi", 2), ("Lo", 2)]:
+        print(f"{name:4} = {c[name]:0{width}b}")
+```
+
+```text title="Output"
+Cat  = 11000011
+Swap = 00111100
+Ext  = 11111100
+Fill = 1111
+Rev  = 0011
+Hi   = 11
+Lo   = 00
+```
+
+A slice inside a concatenation keeps its own bit order: `{A[1:2], A[3:4]}` puts `A[2]` in the top bit and `A[3]` in the bottom one.
+
+A concatenation cannot contain another concatenation: an item may not start with `{`, so `{{S, V[1]}, V[2]}` is `E0201 expected identifier, found '{'`. Write the items flat, `{S, V[1], V[2]}`, which means the same thing. A single-item concatenation such as `{A}` is allowed and equals `A`.
+
+## Replication {/* #replication */}
+
+`N{items}` repeats its items `N` times, and may appear only as an item of a concatenation: write `{4{S}}`, not `4{S}` (a connection that starts with a number is `E0604 expected a connection, found '4'`). The group can hold several items, `{2{A, B}}` is `{A, B, A, B}`, and replications may nest, as in `{2{3{S}}, V}`.
+
+The count is a compile-time expression:
+
+| Count | Result |
+|---|---|
+| At least 1 and at most 1,000,000 | The items, repeated |
+| 0 | `E0601 replication count must be >= 1, got 0` |
+| Over 1,000,000 | `E0601 replication would iterate 2000000 times, exceeding the 1000000 instance-count cap; narrow the range` (for a count of 2,000,000) |
+
+Replication is only a source. `S -> {2{Y[1]}}` is `E0505 replication cannot appear in a connection destination`, because it would drive the same bit twice.
+
+### Parameter counts {/* #parameter-counts */}
+
+A count that starts with a number, such as `4{S}` or `2 * N{S}`, is always a replication. A count that is a bare name, such as `N{...}`, is ambiguous with a [name template](./generators.mdx#name-templates) like `fa{i}`. The parser reads it as a replication only when the braces contain something an arithmetic expression cannot: a comma, a `.`, or a `[`. Otherwise it reads a template, so `{W{S}}` means "the signal named `W` followed by the value of `S`", and fails because `S` is not a parameter:
+
+```shdl error=E0603 title="fill.shdl"
+component Fill<W = 4>(S) -> (Y[W]) {
+    connect { {W{S}} -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten fill.shdl
+fill.shdl:2:18: error[E0603]: 'S' is not a parameter or generator variable in scope
+```
+
+Make the count start with a number instead:
+
+```shdl title="fill2.shdl"
+component Fill<W = 4>(S) -> (Y[W]) {
+    connect { {1 * W{S}} -> Y; }
+}
+```
+
+`{N{S, T}}` (a comma) and `{N{p.O}}` (a dot) are unambiguous and need no workaround. A count that starts with a name must be that name alone: `{N * 2{S, T}}` is a syntax error (`E0201 expected '}', found '*'`); write `{2 * N{S, T}}`.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0201` | A nested concatenation, parentheses in an index, or a count expression that starts with a name followed by an operator |
+| `E0307` | An unknown signal, instance or port, or an instance used without a port |
+| `E0402` | A bit index or slice outside the signal's width |
+| `E0404` | A slice with its bounds reversed |
+| `E0505` | A replication used as a destination |
+| `E0601` | A replication count below 1 or above 1,000,000 |
+| `E0603` | An unknown name in an index or count expression, including the `{W{S}}` case |
+| `E0604` | A connection that starts with a number |
+| `E0605` | Division by zero in an index or count expression |
+
+Width mismatches between the two sides of a connection (`E0401`) are covered in [Connections](./connections.mdx#widths).

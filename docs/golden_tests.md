@@ -583,7 +583,7 @@ Direct answer to: *does the new suite cover the old catalog, and does it cover m
 | Legacy's own admitted gaps: sequential elements, >16-bit, error recovery | SR latch/D latch/MSFFE/ring oscillator/power-on metastability; 64-bit ports, 16-bit CPU, >1024-gate chunking | **New suite closes the legacy gaps**; parser error recovery is now a pinned non-goal (fail-fast, DIA-4) |
 | (no legacy equivalent) | Differential oracle lockstep, netlist fuzzing, frozen conformance corpus, determinism across hash seeds/opt levels, strict-CFLAGS proofs, ABI dirty-flag state machine, CPU golden-model lockstep | **Net-new, strictly more** |
 
-**Bottom line:** the new suite (1774 collected tests — 1644 toolchain + 130 PySHDL driver-level —
+**Bottom line:** the new suite (1905 collected tests at PySHDL 1.1.0 — 1644 toolchain + 130 PySHDL driver-level + 131 `shdl` CLI (`tests/shdl_cli/`) —
 ~15k test lines — ~16k including the conformance runner — plus 38 conformance cases / 40 frozen
 traces) covers essentially everything
 the legacy suite covered for components that exist, and is categorically stronger on simulation

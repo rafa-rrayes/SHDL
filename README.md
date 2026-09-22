@@ -26,8 +26,9 @@ groups, hierarchy, source maps, timing, constants, init seeds). Specified in
  .shdl source
       │
       ▼
-  Flattener        six phases: strip, monomorphize, expand generators,
-      │            expand slices, materialize constants, flatten hierarchy
+  Flattener        parse + imports, validate, monomorphize parameters,
+      │            expand generators/`when`, expand slices, materialize
+      │            constants, flatten hierarchy, compute timing + metadata
       ▼
   Base SHDL        single-bit primitive netlist + JSON metadata
       │
@@ -70,7 +71,7 @@ poke/peek/step plus dict access and a context manager:
 from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
-    c["A"] = 100            # dict-style poke; bit 0 is the LSB
+    c["A"] = 100            # dict-style poke; the value's LSB lands on A[1]
     c["B"] = 55
     c.settle()             # advance every gate level (combinational depth)
     print(c["Sum"])         # 155
@@ -106,13 +107,15 @@ See [docs/shdl_cli.md](docs/shdl_cli.md).
 
 | Path | What it is |
 |---|---|
-| `flattener/` | SHDL → Base SHDL (lexer, parser, six lowering phases, metadata, `HighEval` reference interpreter) |
+| `flattener/` | SHDL → Base SHDL (lexer, parser, import loader, lowering phases, timing, metadata, `HighEval` reference interpreter) |
 | `shdlc/` | Base SHDL → C → shared library (model, codegen, cc driver, `BaseEval` reference interpreter, ctypes harness) |
 | `SHDL/` | The user-facing Python driver: `Circuit` runs the pipeline in-process and exposes poke/peek/step (`from SHDL import Circuit`) |
+| `shdl_cli/` | The `shdl` command: projects, test runner, REPL, Circuit Circus client, dependency resolver |
 | `conformance/` | Frozen corpus of cases with golden Base SHDL + cycle-by-cycle traces, and its runner |
-| `tests/` | `flattener/`, `compiler/`, and `cpu/` suites (~1640 tests) |
+| `tests/` | `flattener/`, `compiler/`, and `cpu/` suites (~1900 tests) |
 | `examples/` | Small circuits (adders, latches, mux, ALU) and a complete, verified 16-bit CPU (`examples/CPU/`) |
 | `docs/` | The normative specs and the verification map |
+| `website/` | The documentation site (Docusaurus), published to <https://rafa-rrayes.github.io/SHDL/> |
 | `scripts/` | Maintenance tooling (conformance corpus builder) |
 
 The flattener and shdlc are deliberately decoupled: Base SHDL text is the
@@ -133,10 +136,17 @@ level lockstep of the example CPU against a golden model.
 
 ## Documentation
 
+The documentation site — tutorials, language reference, tool references,
+worked examples and the specs below — is at
+**<https://rafa-rrayes.github.io/SHDL/>** (source in [website/](website/)).
+
 - [docs/SHDL_Project.md](docs/SHDL_Project.md) — project charter: architecture, ecosystem, build sequence.
 - [docs/shdl.md](docs/shdl.md) — the SHDL language specification.
 - [docs/base_shdl.md](docs/base_shdl.md) — the Base SHDL IR specification.
 - [docs/shdlc_goals.md](docs/shdlc_goals.md) — the compiler's obligations and ABI contract.
+- [docs/pyshdl.md](docs/pyshdl.md) — the PySHDL Python API (`from SHDL import Circuit`).
+- [docs/shdl_cli.md](docs/shdl_cli.md) — the `shdl` CLI: projects, testing, Circuit Circus packages.
+- [conformance/conformance.md](conformance/conformance.md) — the conformance suite and its case format.
 - [docs/golden_tests.md](docs/golden_tests.md) — the verification map tying every spec obligation to tests.
 
 ## Status
@@ -144,5 +154,6 @@ level lockstep of the example CPU against a golden model.
 The flattener, the SHDLC compiler (release ABI), the conformance suite,
 **PySHDL** — the user-facing Python driver (`from SHDL import Circuit`) — and
 the **`shdl` CLI** (projects + the Circuit Circus package registry) are
-complete and green. Next up are the debug build and the SHDB debugger — see the
-build sequence in the charter.
+complete and green. The debug build (debug ABI + State Region) and the SHDB
+interactive debugger are planned but not yet implemented — see the build
+sequence in the charter.

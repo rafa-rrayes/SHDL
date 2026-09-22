@@ -1,0 +1,249 @@
+---
+title: Standard gates
+description: The six built-in primitives (AND, OR, XOR, NOT and the power pins), their ports and timing, and the NAND, NOR and XNOR components of the stdgates library.
+---
+
+Every SHDL circuit is ultimately built from six **primitives**: four logic gates and two constant sources. They are the only built-in component types, and after flattening they are the only types left. `NAND`, `NOR` and `XNOR` are not primitives. They are ordinary components from the `stdgates` library. This page covers both. Normative text: [shdl.md §10](/specs/shdl#10-primitive-and-derived-gates).
+
+## The primitives
+
+| Type | Inputs | Output | Computes |
+|---|---|---|---|
+| `AND` | `A`, `B` | `O` | 1 if both inputs are 1 |
+| `OR` | `A`, `B` | `O` | 1 if at least one input is 1 |
+| `XOR` | `A`, `B` | `O` | 1 if exactly one input is 1 |
+| `NOT` | `A` | `O` | The inverse of `A` |
+| `__VCC__` | none | `O` | Always 1 ([power primitives](#power-primitives)) |
+| `__GND__` | none | `O` | Always 0 |
+
+All primitives use the same port names: inputs `A` and `B`, output `O` (the letter O, not zero). Every port is one bit wide. The primitives are visible in every module without an import, and none of them takes parameters.
+
+Here is one of each:
+
+```shdl title="gates.shdl"
+# One of each primitive.
+component Gates(A, B) -> (And, Or, Xor, NotA, High, Low) {
+    a: AND;  o: OR;  x: XOR;  n: NOT;  v: __VCC__;  g: __GND__;
+
+    connect {
+        A -> a.A;  B -> a.B;  a.O -> And;
+        A -> o.A;  B -> o.B;  o.O -> Or;
+        A -> x.A;  B -> x.B;  x.O -> Xor;
+        A -> n.A;             n.O -> NotA;
+        v.O -> High;
+        g.O -> Low;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("gates.shdl") as c:
+    print("A B | AND OR XOR NOT(A)")
+    for a in (0, 1):
+        for b in (0, 1):
+            c["A"], c["B"] = a, b
+            c.settle()
+            print(f"{a} {b} |  {c['And']}   {c['Or']}   {c['Xor']}    {c['NotA']}")
+    print("High =", c["High"], " Low =", c["Low"])
+    print("max_depth:", c.info.timing.max_depth)
+    print(dict(c.info.stats["by_type"]))
+```
+
+```text title="Output"
+A B | AND OR XOR NOT(A)
+0 0 |  0   0   0    1
+0 1 |  0   1   1    1
+1 0 |  0   1   1    0
+1 1 |  1   1   0    0
+High = 1  Low = 0
+max_depth: 1
+{'AND': 1, 'OR': 1, 'XOR': 1, 'NOT': 1, '__VCC__': 1, '__GND__': 1}
+```
+
+`AND`, `OR` and `NOT` are functionally complete on their own. `XOR` is a primitive as well because adders and comparators use it constantly.
+
+### Using a primitive
+
+A primitive is instantiated like any component (`x: XOR;`) and connected through its ports (`A -> x.A;`, `x.O -> Y;`). The general rules of [Connections](./connections.mdx) apply. For primitives they come down to this:
+
+- **Every input must be driven, exactly once.** An input left unconnected is `E0502 input 'B' of instance 'g' (AND) is never connected`; one driven twice is `E0501`. To tie an input to a fixed level, drive it from a [constant](./constants.mdx) or a power primitive.
+- **The output may fan out, or be left unread.** `x.O` can drive any number of destinations. A gate whose output nobody reads is legal and stays in the flattened netlist.
+- **Ports are one bit.** A multi-bit source is `E0401 connection width mismatch: source has 2 bit(s), destination has 1`. `x.A[1]` is accepted and means `x.A`.
+- **Direction is fixed.** `x.A` cannot be read (`E0505 'x.A' is an instance input and cannot be a connection source`), and `x.O` cannot be driven (`E0505 'x.O' is an instance output and cannot be a connection destination`).
+
+| Mistake | Code | Message |
+|---|---|---|
+| A port the primitive does not have | `E0307` | `primitive 'NOT' has no port 'Q'` |
+| Parameters on a primitive, as in `XOR<1>` | `E0901` | `primitive type 'XOR' takes no parameters` |
+| Wrong case, as in `x: and;` | `E0306` | `unknown component type 'and'` |
+| A derived gate without an import, as in `n: NAND;` | `E0306` | `unknown component type 'NAND'` |
+| A component named after a primitive, as in `component AND(...)` | `E0305` | `component 'AND' redefines a primitive type` |
+
+Primitive names are not keywords. They name types, so they cannot be redefined as components, but they are otherwise ordinary identifiers: an instance or a port called `AND` is legal, if confusing.
+
+### Timing {/* #timing */}
+
+Every primitive is one gate with a delay of exactly one cycle: its output at cycle *t* + 1 is computed from its inputs at cycle *t*. A connection is a wire, not a gate, and adds no delay. `max_depth` counts gate levels, so a component that only wires inputs to outputs has a depth of 0, and `Gates` above has a depth of 1.
+
+Before the first cycle every gate output is 0, including `NOT` (whose input is also 0) and `__VCC__`. See [Cycle 0: everything starts at 0](../concepts/simulation-model.mdx#cycle-0-everything-starts-at-0).
+
+There is no buffer primitive. When you need a one-cycle delay on purpose, use an `AND` or `OR` with both inputs driven by the same signal, as in the [lazy-peek example](../concepts/simulation-model.mdx#peeking-is-lazy).
+
+### Wider gates
+
+Every logic primitive has two inputs (or one, for `NOT`). A wider gate is a chain or tree of them, and a [generator](./generators.mdx) can build one for any width:
+
+```shdl title="andN.shdl"
+# An N-input AND: a chain of N - 1 two-input gates.
+component AndN<N = 4>(A[N]) -> (Y) {
+    >i[2:N]{ g{i}: AND; }
+
+    connect {
+        A[1] -> g2.A;
+        >i[2:N]{ A[i] -> g{i}.B; }
+        >i[3:N]{ g{i - 1}.O -> g{i}.A; }
+        g{N}.O -> Y;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("andN.shdl") as c:
+    for a in (0b1111, 0b1011, 0b0111):
+        c["A"] = a
+        c.settle()
+        print(f"{a:04b} -> {c['Y']}")
+    print("max_depth:", c.info.timing.max_depth)
+```
+
+```text title="Output"
+1111 -> 1
+1011 -> 0
+0111 -> 0
+max_depth: 3
+```
+
+A chain of *N* − 1 gates has a depth of *N* − 1 cycles. A balanced tree uses the same number of gates, but its depth grows only with log₂ *N*.
+
+## Power primitives {/* #power-primitives */}
+
+`__VCC__` and `__GND__` have no inputs and one output, `O`, which is always 1 (`__VCC__`) or always 0 (`__GND__`). They are the only source of a fixed level in Base SHDL.
+
+You normally do not write them. A [named constant](./constants.mdx) is the idiomatic way to use a fixed value, and the flattener [lowers each referenced bit](./constants.mdx#lowering) of a constant to one of these gates. You may also instantiate them directly:
+
+```shdl title="tieOff.shdl"
+component TieOff(A) -> (Y, Hi, Lo) {
+    x: AND;  v: __VCC__;  g: __GND__;
+
+    connect {
+        A -> x.A;  v.O -> x.B;  x.O -> Y;   # AND with 1 passes A through
+        v.O -> Hi;
+        g.O -> Lo;
+    }
+}
+```
+
+A few points:
+
+- **The `__` prefix is reserved for declaring names**, not for using these types. `v: __VCC__;` is legal, but `__v: NOT;` is `E0303`, and `component __VCC__` is `E0305` ([Reserved names](./lexical-elements.mdx#reserved-names)).
+- **They have no inputs.** `A -> v.A;` is `E0307 primitive '__VCC__' has no port 'A'`.
+- **They are gates, so they have a delay.** A power pin produces its level on each cycle, so its output is 0 before the first cycle, like every other gate. The flattener counts power pins as one gate level in `max_depth`, so `settle()` already allows for this ([Constants in simulation](./constants.mdx#timing)).
+- **Each one is a separate gate.** Two `__VCC__` instances are two gates. The flattener's constant lowering shares one gate per constant bit, which is another reason to prefer constants.
+
+## Derived gates {/* #derived-gates */}
+
+`NAND`, `NOR` and `XNOR` are **not** primitives. They are ordinary components that invert the output of `AND`, `OR` and `XOR`, and they are provided by the `stdgates` module, [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl):
+
+```shdl fragment
+component NAND(A, B) -> (O) {
+    a1: AND;  n1: NOT;
+    connect { A -> a1.A;  B -> a1.B;  a1.O -> n1.A;  n1.O -> O; }
+}
+
+component NOR(A, B) -> (O) {
+    o1: OR;  n1: NOT;
+    connect { A -> o1.A;  B -> o1.B;  o1.O -> n1.A;  n1.O -> O; }
+}
+
+component XNOR(A, B) -> (O) {
+    x1: XOR;  n1: NOT;
+    connect { A -> x1.A;  B -> x1.B;  x1.O -> n1.A;  n1.O -> O; }
+}
+```
+
+They follow the primitives' port convention (`A`, `B` in, `O` out), so they are drop-in replacements. To use them, import them. `stdgates` is not on any default search path, so either copy the file next to your design or pass its directory as an include directory ([Imports](./imports.mdx#stdgates)):
+
+```shdl title="derived.shdl"
+use stdgates::{NAND, NOR, XNOR};
+
+component Derived(A, B) -> (Nand, Nor, Xnor) {
+    na: NAND;  no: NOR;  xn: XNOR;
+
+    connect {
+        A -> na.A;  B -> na.B;  na.O -> Nand;
+        A -> no.A;  B -> no.B;  no.O -> Nor;
+        A -> xn.A;  B -> xn.B;  xn.O -> Xnor;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("derived.shdl", include_dirs=["examples"]) as c:
+    print("A B | NAND NOR XNOR")
+    for a in (0, 1):
+        for b in (0, 1):
+            c["A"], c["B"] = a, b
+            c.settle()
+            print(f"{a} {b} |  {c['Nand']}    {c['Nor']}    {c['Xnor']}")
+    print("max_depth:", c.info.timing.max_depth)
+    print(dict(c.info.stats["by_type"]))
+```
+
+```text title="Output"
+A B | NAND NOR XNOR
+0 0 |  1    1    1
+0 1 |  1    0    0
+1 0 |  1    0    0
+1 1 |  0    0    1
+max_depth: 2
+{'AND': 1, 'NOT': 3, 'OR': 1, 'XOR': 1}
+```
+
+Because they are components, they are inlined like any other: each derived gate costs **two** primitives and **two** cycles of delay. The gate count above is six primitives, and the depth is 2. After flattening, the instance `na` becomes the gates `na_a1` and `na_n1`. Keep this in mind when you count delays in a circuit with feedback: an `SRLatch` built from `NOR` is four gates in a loop, not two ([Sequential logic](./sequential-logic.mdx#fixed-point)).
+
+Because `NAND` and friends are not reserved, you may define your own component with one of these names, for example a different `NAND` in your own module. You then cannot also import `stdgates`' `NAND` into that module (`E0301`, [Imports](./imports.mdx#visibility)).
+
+## In Base SHDL and C
+
+The six primitives are the only instance types that exist in [Base SHDL](../architecture/base-shdl.mdx), and the gate counts in the metadata (`stats.by_type`) are counts of primitives. [`shdlc`](../tools/shdlc.mdx) compiles each gate to one C expression over the previous cycle's values:
+
+| Primitive | C expression |
+|---|---|
+| `AND` | `a & b` |
+| `OR` | `a \| b` |
+| `XOR` | `a ^ b` |
+| `NOT` | `a ^ 1u` |
+| `__VCC__` | `1u` |
+| `__GND__` | `0u` |
+
+Each value is a `uint8_t` holding 0 or 1, which is why `NOT` is written as `^ 1u`: a bitwise `~` would turn 0 into 255. See [The generated C](../tools/shdlc.mdx#the-generated-c).
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0303` | A declared name with the reserved `__` prefix |
+| `E0305` | A component named after a primitive |
+| `E0306` | An unknown type, including a lowercase primitive name or a derived gate that was not imported |
+| `E0307` | A port that the primitive does not have |
+| `E0401` | A multi-bit signal connected to a one-bit primitive port |
+| `E0501` | A primitive input driven more than once |
+| `E0502` | A primitive input that is never driven |
+| `E0505` | A primitive input used as a source, or its output used as a destination |
+| `E0901` | Parameters on a primitive |

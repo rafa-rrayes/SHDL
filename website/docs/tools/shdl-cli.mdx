@@ -1,0 +1,691 @@
+---
+title: The shdl command
+sidebar_label: shdl CLI
+description: Complete reference for the shdl project manager, covering every subcommand, flag, default, file it touches, network access, exit status and message, plus the shdl run REPL.
+---
+
+`shdl` is the project manager and build driver that ships with PySHDL. It scaffolds projects, adds and vendors [Circuit Circus](./packages.mdx) packages under a committed lockfile, builds a project into a shared library, runs its test vectors, and opens a poke/peek REPL over the compiled circuit. This page covers every subcommand and flag, what each one reads, writes and downloads, and what it prints. The formats of `shdl.toml` and `shdl.lock` are on [Project manifest and lockfile](./project-manifest.mdx). The test file format is on [Testing](./testing.mdx), and packaging is on [Packages and Circuit Circus](./packages.mdx). The normative spec is [shdl_cli.md](/specs/shdl_cli).
+
+`shdl` is installed with PySHDL (`pip install PySHDL`, or `uv add PySHDL`), which needs Python 3.14 or newer and a C compiler on `PATH`. See [Installation](../getting-started/installation.mdx). The source is [`shdl_cli/`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py).
+
+## Synopsis
+
+```console check
+$ shdl --help
+usage: shdl [-h]
+            {new,init,add,remove,install,build,test,run,search,info,verify-package,publish} ...
+
+SHDL project manager and build/test/run driver.
+
+positional arguments:
+  {new,init,add,remove,install,build,test,run,search,info,verify-package,publish}
+    new                 scaffold a new project directory
+    init                scaffold a project into the current directory
+    add                 add dependencies, vendor them, update shdl.toml +
+                        shdl.lock
+    remove              remove direct dependencies
+    install             sync shdl_modules/ to shdl.lock
+    build               flatten + compile to a shared library in build/
+    test                run tests/*.tests.json
+    run                 a poke/peek/step REPL over the compiled circuit
+    search              search the package index
+    info                show one package's metadata and exports
+    verify-package      verify a package directory (manifest, builds, vectors)
+    publish             verify a package and print the CCircus PR playbook
+
+options:
+  -h, --help            show this help message and exit
+```
+
+| Command | Purpose | Needs a project | Network |
+|---|---|---|---|
+| [`shdl new NAME`](#shdl-new) | Scaffold a project in a new directory | no | never |
+| [`shdl init [NAME]`](#shdl-init) | Scaffold a project into the current directory | no | never |
+| [`shdl add PKG[@RANGE]...`](#shdl-add) | Add dependencies and vendor them | yes | yes, for registry packages |
+| [`shdl remove PKG...`](#shdl-remove) | Remove direct dependencies | yes | yes, while registry packages remain |
+| [`shdl install`](#shdl-install) | Make `shdl_modules/` match `shdl.lock` | yes | only for missing packages or a stale lock |
+| [`shdl build`](#shdl-build) | Flatten and compile to a shared library | yes | never |
+| [`shdl test [COMPONENT...]`](#shdl-test) | Run `tests/*.tests.json` | yes | never |
+| [`shdl run`](#shdl-run) | The poke/peek/step REPL | yes | never |
+| [`shdl search TERM`](#shdl-search) | Search the package index | no | always |
+| [`shdl info PKG`](#shdl-info) | One package's metadata and exports | no | always |
+| [`shdl verify-package DIR`](#shdl-verify-package) | Verify a package directory | no | never |
+| [`shdl publish DIR`](#shdl-publish) | Verify a package and print the publishing steps | no | always |
+
+## Global behavior
+
+### Options
+
+The only global option is `-h`/`--help`. Every subcommand also accepts `-h` (for example `shdl build -h`). There is no `--version` flag. To see the installed version, ask the package manager: `uv pip show PySHDL` or `pip show PySHDL`.
+
+### Exit status
+
+| Status | Meaning |
+|---|---|
+| `0` | Success. For `shdl test`, every case passed. For `shdl verify-package`, the package verified. |
+| `1` | A diagnosed failure. The message goes to stderr as `shdl: error: <message>`. |
+| `1` | Ctrl-C. `shdl` prints `shdl: interrupted` to stderr. |
+| `1` | An unexpected internal error. Python prints a traceback, for example when a tests file's top level is a JSON array instead of an object. |
+| `2` | A usage error, reported by argparse (unknown command, missing or invalid argument). |
+
+`shdl run` exits `0` when the session ends normally. Errors inside the REPL are printed and do not end the session. `shdl test` and `shdl verify-package` print their full report and then exit `1` if anything failed.
+
+```console check
+$ shdl frob 2>&1; echo "exit status: $?"
+usage: shdl [-h]
+            {new,init,add,remove,install,build,test,run,search,info,verify-package,publish} ...
+shdl: error: argument command: invalid choice: 'frob' (choose from 'new', 'init', 'add', 'remove', 'install', 'build', 'test', 'run', 'search', 'info', 'verify-package', 'publish')
+exit status: 2
+$ shdl --version 2>&1; echo "exit status: $?"
+usage: shdl [-h]
+            {new,init,add,remove,install,build,test,run,search,info,verify-package,publish} ...
+shdl: error: the following arguments are required: command
+exit status: 2
+```
+
+The examples on this page append `2>&1` so that messages written to stderr appear in order with the rest of the output.
+
+### Finding the project
+
+Every command that works on a project (`add`, `remove`, `install`, `build`, `test` and `run`) looks for `shdl.toml` in the current directory and then in each parent, the way `git` finds its repository. You can run them from any subdirectory of a project. Paths inside `shdl.toml` resolve against the directory that holds it, not the current directory.
+
+```console check
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: no shdl.toml found in <scratch> or any parent — run inside a project, or create one with 'shdl new'
+exit status: 1
+```
+
+`search`, `info` and `publish` use a project only if there is one, and only to read its `[registry] url`. `new`, `init` and `verify-package` never read one.
+
+### Choosing the index
+
+Commands that talk to Circuit Circus pick the index URL in this order:
+
+1. the `--index URL` flag (`add`, `remove`, `install`, `search`, `info`, `publish`)
+2. the `SHDL_INDEX_URL` environment variable
+3. `url` in the project's `[registry]` table
+4. the default, `https://rafa-rrayes.github.io/CCircus`
+
+Trailing slashes are stripped. The URL must start with `http://`, `https://` or `file://`. A `file://` URL points at a local checkout of an index, which is how you work offline or test a package before publishing it.
+
+```console check
+$ shdl search adder --index ftp://example.org 2>&1; echo "exit status: $?"
+shdl: error: index URL 'ftp://example.org' must start with http://, https:// or file://
+exit status: 1
+```
+
+`shdl.lock` records the index URL, and the lock counts as stale when the URL changes (see [Freshness](./project-manifest.mdx)). `build`, `test` and `run` have no `--index` flag: they check freshness against `SHDL_INDEX_URL`, then `[registry] url`, then the default. If you run `shdl add --index URL` in a project that does not also name that URL through `SHDL_INDEX_URL` or `[registry] url`, the next `shdl build` reports the lock as stale. For a project that always uses another index, set `[registry] url` instead of passing `--index`.
+
+### Environment variables
+
+| Variable | Used by | Effect |
+|---|---|---|
+| `SHDL_INDEX_URL` | every command that resolves an index URL, including the lock freshness check in `build`, `test` and `run` | The index URL, when `--index` is not given. |
+| `CC` | `build`, `test`, `run`, `verify-package`, `publish` | The C compiler, when `--cc` is not given. It is split on whitespace, so `CC="ccache clang"` works. |
+
+### Windows
+
+Windows is untested for this release. On Windows, every command prints this warning to stderr after its arguments parse (so `shdl --help` does not show it):
+
+```text
+shdl: warning: Windows is untested for this release; paths and C toolchain discovery may misbehave
+```
+
+## Project commands
+
+### `shdl new` {/* #shdl-new */}
+
+```text
+shdl new NAME [--top TOP]
+```
+
+Creates the directory `NAME` and scaffolds a project that builds and tests out of the box.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `NAME` | required | The project directory. Its basename is the project name, so `shdl new chips/alu` creates `chips/alu/` with project name `alu`. The name must match `[a-z][a-z0-9_]*`. |
+| `--top TOP` | `Main` | The name of the scaffolded top component. It must be an identifier (`[A-Za-z_][A-Za-z0-9_]*`). |
+
+`NAME` may already exist if it is empty. Missing parent directories are created.
+
+```console check
+$ shdl new counter
+created project counter in counter/
+  shdl.toml
+  src/counter.shdl
+  tests/counter.tests.json
+  .gitignore
+  README.md
+  shdl.lock
+next: cd counter && shdl build && shdl test
+```
+
+The files are:
+
+| File | Contents |
+|---|---|
+| `shdl.toml` | `[project]` with `name`, `version = "0.1.0"`, `main = "src/NAME.shdl"`, `top`, `shdl = ">=1.0.0"`, and an empty `[dependencies]` table. See [Project manifest](./project-manifest.mdx). |
+| `src/NAME.shdl` | A one-gate inverter, `top component Main(A) -> (Y)`. |
+| `tests/NAME.tests.json` | Two vectors for the inverter. See [Testing](./testing.mdx). |
+| `.gitignore` | `shdl_modules/` and `build/`. |
+| `README.md` | The project name and the common commands. |
+| `shdl.lock` | An empty lock for the default index. |
+
+```console check continue
+$ cat counter/src/counter.shdl
+"""counter — an SHDL project."""
+
+top component Main(A) -> (Y) {
+    inv: NOT;
+    connect {
+        A -> inv.A;
+        inv.O -> Y;
+    }
+}
+$ shdl new counter 2>&1; echo "exit status: $?"
+shdl: error: counter/shdl.toml already exists
+exit status: 1
+$ mkdir stuff && touch stuff/notes.txt && shdl new stuff 2>&1
+shdl: error: stuff exists and is not empty (use 'shdl init' inside it)
+$ shdl new Counter 2>&1
+shdl: error: project name 'Counter' must match [a-z][a-z0-9_]*
+$ shdl new ok --top 9x 2>&1
+shdl: error: top component name '9x' must be an identifier
+```
+
+### `shdl init` {/* #shdl-init */}
+
+```text
+shdl init [NAME] [--top TOP]
+```
+
+Scaffolds the same files into the current directory, which may already hold other files.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `NAME` | the current directory's name | The project name. It must match `[a-z][a-z0-9_]*`, so a directory called `My-Chip` needs an explicit `NAME`. |
+| `--top TOP` | `Main` | The top component name. |
+
+`init` refuses to run if `shdl.toml` already exists, and refuses to overwrite any of the six files it would write. It checks all of them before writing anything.
+
+```console check continue
+$ cd stuff
+$ shdl init mychip --top Chip
+initialized project mychip in <scratch>/stuff
+  shdl.toml
+  src/mychip.shdl
+  tests/mychip.tests.json
+  .gitignore
+  README.md
+  shdl.lock
+$ head -5 shdl.toml
+[project]
+name = "mychip"
+version = "0.1.0"
+main = "src/mychip.shdl"
+top = "Chip"
+$ shdl init 2>&1
+shdl: error: <scratch>/stuff/shdl.toml already exists
+$ cd .. && mkdir other && touch other/README.md && cd other && shdl init 2>&1
+shdl: error: refusing to overwrite: README.md
+```
+
+### `shdl add` {/* #shdl-add */}
+
+```text
+shdl add PKG[@RANGE]... [--path DIR] [--index URL]
+```
+
+Adds dependencies to `shdl.toml`, resolves the full dependency graph, downloads and unpacks every package that is not vendored yet, and rewrites `shdl.lock`.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `PKG[@RANGE]` | none | A registry package, optionally with a version range. Without a range (or with an empty one, `arith@`), `shdl` looks up the latest version and records its caret range, for example `^0.1.0`. Ranges are described in [Version ranges](./project-manifest.mdx). You can name several packages at once. |
+| `--path DIR` | none | Add a local package directory as a path dependency. `DIR` must contain a `package.json`, and its `name` becomes the dependency key. The path is stored relative to the project root. |
+| `--index URL` | see [Choosing the index](#choosing-the-index) | The package index. |
+
+What it does, in order:
+
+1. Parses every argument. Names must match `[a-z][a-z0-9_]*`, and range syntax is checked before anything is fetched.
+2. Resolves the whole graph against the index. This checks version constraints, module and component name collisions, and whether your installed PySHDL satisfies every package's `shdl` range. See [How resolution works](./project-manifest.mdx).
+3. Downloads and unpacks every package that is missing or outdated in `shdl_modules/`, printing `  fetched NAME VERSION (SIZE kB)` for each one.
+4. Only after steps 2 and 3 succeed: adds the entries to `[dependencies]` in `shdl.toml` and rewrites `shdl.lock`.
+5. Prints `added NAME RANGE` (or `added NAME path DIR`) for each addition.
+
+If a package is already a dependency, `shdl add` replaces its range. Running `shdl add arith` again resets a hand-written range to the caret of the latest version.
+
+```console check continue
+$ cd ../counter
+$ shdl add arith
+  fetched arith 0.1.0 (8.8 kB)
+  fetched gates 0.1.0 (2.3 kB)
+added arith ^0.1.0
+$ tail -2 shdl.toml
+[dependencies]
+arith = "^0.1.0"
+$ ls shdl_modules shdl_modules/arith
+shdl_modules:
+arith
+gates
+
+shdl_modules/arith:
+README.md
+arith.shdl
+package.json
+tests
+```
+
+`gates` is vendored and locked because `arith` depends on it, but it is not added to `shdl.toml`. Errors from `shdl add`:
+
+```console check continue
+$ shdl add 2>&1
+shdl: error: nothing to add — name packages or pass --path DIR
+$ shdl add Arith 2>&1
+shdl: error: 'Arith': package name 'Arith' must match [a-z][a-z0-9_]*
+$ shdl add arith@~0.1.0 2>&1
+shdl: error: invalid version range '~0.1.0' (tilde ranges are not supported)
+$ shdl add nosuch 2>&1
+shdl: error: package 'nosuch' not found in the index (https://rafa-rrayes.github.io/CCircus/registry.json)
+$ shdl add gates@0.0.1 2>&1
+shdl: error: no version of gates satisfies every requirement:
+  0.0.1 (required by shdl.toml)
+  available: 0.1.0
+$ shdl add --path ../nope 2>&1
+shdl: error: --path ../nope: no package.json there
+```
+
+Nothing changes on disk when `shdl add` fails.
+
+### `shdl remove` {/* #shdl-remove */}
+
+```text
+shdl remove PKG... [--index URL]
+```
+
+Removes direct dependencies from `shdl.toml`, re-resolves what remains, rewrites `shdl.lock`, and then deletes every directory in `shdl_modules/` that the new lock no longer lists. It prints `  removed NAME` for each deleted directory, and then `removed PKG` for each argument.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `PKG` | required, one or more | Names of direct dependencies (keys in `[dependencies]`). |
+| `--index URL` | see [Choosing the index](#choosing-the-index) | The index used to re-resolve the remaining dependencies. |
+
+Re-resolution needs the index as long as any registry dependency remains. `shdl remove` writes `shdl.toml` and `shdl.lock` before it deletes anything, so a failed edit never leaves the vendored tree incomplete.
+
+```console check continue
+$ shdl remove gates 2>&1
+shdl: error: gates is not a direct dependency — it is required by arith
+$ shdl remove nope 2>&1
+shdl: error: nope is not a dependency
+```
+
+A full `shdl remove arith` is shown under [`shdl install`](#shdl-install).
+
+### `shdl install` {/* #shdl-install */}
+
+```text
+shdl install [--frozen] [--force] [--index URL]
+```
+
+Makes `shdl_modules/` match `shdl.lock`. Run it after cloning a project, since `shdl_modules/` is not committed, or after pulling a change to `shdl.lock`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--frozen` | off | Fail instead of re-resolving when `shdl.lock` is missing or stale. Use it in CI, so a build never silently uses a different graph than the one you committed. |
+| `--force` | off | Download and unpack every locked registry package again, even ones that look current. |
+| `--index URL` | see [Choosing the index](#choosing-the-index) | The index. It is part of the lock's freshness check. |
+
+What it does:
+
+1. If `shdl.lock` is missing, or its fingerprint does not match `shdl.toml`'s dependencies and the index URL, it re-resolves and rewrites the lock. With `--frozen`, it fails instead.
+2. Deletes everything in `shdl_modules/` that is not a locked registry package: unknown directories (printed as `  removed NAME`), stray files, and leftover temporary directories.
+3. Downloads every locked registry package whose `shdl_modules/NAME/package.json` is missing or names a different name or version. With `--force`, it downloads all of them. Each archive's sha256 is checked against the lock before it is unpacked.
+4. If nothing was fetched or removed, prints `up to date (N packages)`, where N counts locked registry packages.
+
+A package counts as current when its vendored `package.json` has the locked name and version. `shdl install` does not compare file contents, so if you edit a file under `shdl_modules/`, only `--force` restores it.
+
+With a fresh lock and a complete `shdl_modules/`, `shdl install` does not touch the network.
+
+```console check continue
+$ shdl install
+up to date (2 packages)
+$ shdl install --frozen
+up to date (2 packages)
+$ rm -rf shdl_modules/gates && mkdir shdl_modules/junk
+$ shdl install
+  removed junk
+  fetched gates 0.1.0 (2.3 kB)
+$ shdl remove arith
+  removed arith
+  removed gates
+removed arith
+$ ls shdl_modules
+$ tail -1 shdl.toml
+[dependencies]
+```
+
+### `shdl build` {/* #shdl-build */}
+
+```text
+shdl build [--top NAME] [-o LIB] [--emit-base] [--dev] [--cc CC]
+```
+
+Flattens the project and compiles it to a shared library. `build` never touches the network. It first checks that `shdl.lock` is fresh and that `shdl_modules/` matches it (see [Before build, test and run](#preflight)).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--top NAME` | `[project] top`, or the module's own `top component` if that is unset too | The component to build. |
+| `-o`, `--output LIB` | `build/PROJECT` plus the platform suffix | Where to write the library. The path is relative to the current directory and is used exactly as given: no suffix is added. Its parent directory must already exist. |
+| `--emit-base` | off | Also write the flattened Base SHDL to `build/PROJECT.base.shdl`. |
+| `--dev` | off | Compile the C with `-O0` instead of `-O2`. The C compiler runs much faster on large circuits, and the simulation runs slower. |
+| `--cc CC` | `$CC`, then the first of `cc`, `clang`, `gcc` on `PATH` | The C compiler. A name on `PATH` or an absolute path. |
+
+`PROJECT` is always the project name, even when `--top` selects another component. The suffix is `.dylib` on macOS, `.dll` on Windows and Cygwin, and `.so` everywhere else. The C compiler runs with `-std=c11 -O2 -shared -fPIC -fvisibility=hidden`, or `-O0` in place of `-O2` with `--dev`. See [Choosing the C compiler](./shdlc.mdx#choosing-the-c-compiler) and [Optimization](./shdlc.mdx#optimization).
+
+The entry module is `[project] main`. When `--top` (or `[project] top`) names a component that `main` does not define, `shdl` searches every `.shdl` file under main's directory and under `src/` (skipping `shdl_modules/` and `build/`) for exactly one module that defines it. A component that exists only in a vendored package cannot be a build target: it must be defined in one of your project's modules.
+
+```console check continue
+$ shdl build --dev
+...
+$ cp ../examples/adder8.shdl ../examples/fullAdder.shdl ../examples/srLatch.shdl src/
+$ shdl build --dev --top Adder8 -o build/adder8
+built build/adder8
+$ shdl build --dev --emit-base > /dev/null && head -8 build/counter.base.shdl
+component Main(A) -> (Y) {
+    inv: NOT;
+
+    connect {
+        A -> inv.A;
+        inv.O -> Y;
+    }
+}
+```
+
+The first command prints `built` followed by the absolute library path, for example `built /home/you/counter/build/counter.so` on Linux. Build errors:
+
+```console check continue
+$ shdl build --top Nope 2>&1
+shdl: error: counter.shdl:1:1: error[E0001]: --top component 'Nope' not found in module 'counter' (has: Main)
+$ shdl build --cc nocc 2>&1
+shdl: error: C compiler not found: 'nocc' (from explicit cc argument: 'nocc') is not on PATH and is not an existing absolute path
+$ CC=nocc shdl build 2>&1
+shdl: error: C compiler not found: 'nocc' (from $CC: 'nocc') is not on PATH and is not an existing absolute path
+```
+
+Flattener diagnostics are passed through verbatim (see [Errors](../language-reference/errors.mdx)). If no compiler is found at all, the message is `C compiler not found: no explicit compiler given, $CC is unset, and none of 'cc', 'clang', 'gcc' is on PATH`.
+
+:::warning[Create the output directory first]
+
+`shdl build -o out/x.so` fails with an operating-system error that names a temporary `.c` file in `out/` if `out/` does not exist, for example `shdl: error: [Errno 2] No such file or directory: '/home/you/counter/out/x-gblsi4nx.c'`. With `--emit-base`, the Base SHDL file has already been written by the time this happens.
+
+:::
+
+### `shdl test` {/* #shdl-test */}
+
+```text
+shdl test [COMPONENT...] [--dev] [--cc CC]
+```
+
+Runs every case in `tests/*.tests.json` and prints one line per case and a summary. It never touches the network. Each case gets its own freshly compiled circuit. Nothing is written to `build/`.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `COMPONENT` | all | Only run cases whose `component` is one of these. A name with no matching case is an error, reported after the matching cases run. |
+| `--dev` | off | Compile with `-O0`. |
+| `--cc CC` | `$CC`, then `cc`/`clang`/`gcc` | The C compiler. |
+
+```console check continue
+$ shdl test
+[counter.tests.json]
+  ok    Main
+
+1/1 cases green
+```
+
+The exit status is `0` only if every case passed. The file format, how each case runs, the failure messages and every file-level error are on [Testing](./testing.mdx).
+
+### `shdl run` {/* #shdl-run */}
+
+```text
+shdl run [--top NAME] [--dev] [--cc CC]
+```
+
+Compiles the project in memory and starts the [REPL](#the-shdl-run-repl). It never touches the network, and nothing is written to `build/`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--top NAME` | `[project] top` | The component to simulate. It is found the same way as for [`shdl build`](#shdl-build). |
+| `--dev` | off | Compile with `-O0`. |
+| `--cc CC` | `$CC`, then `cc`/`clang`/`gcc` | The C compiler. |
+
+## Package index commands
+
+These commands read the [Circuit Circus](./packages.mdx) index and always need network access (or a `file://` index). The outputs below are from the live index.
+
+### `shdl search` {/* #shdl-search */}
+
+```text
+shdl search TERM [--index URL]
+```
+
+Lists every package whose name, summary or one of its keywords contains `TERM`, ignoring case. Export names are not searched. Each hit prints its name, latest version and summary.
+
+```console check continue
+$ shdl search adder
+arith 0.1.0  Adders, subtractors, comparators, multiply/divide, and an ALU.
+$ shdl search COUNTER
+seq 0.1.0  Latches, flip-flops, registers, and counters.
+$ shdl search zzz
+no packages match 'zzz' (index: https://rafa-rrayes.github.io/CCircus)
+```
+
+No match is not an error: the exit status is `0`.
+
+### `shdl info` {/* #shdl-info */}
+
+```text
+shdl info PKG [--versions] [--index URL]
+```
+
+Prints the latest version's metadata and its exports with their summaries. `--versions` also lists every published version, newest first.
+
+```console check continue
+$ shdl info gates
+gates 0.1.0 — Universal & wide gates above the six SHDL primitives.
+
+The derived and reduction gates everything else is written in terms of: NAND/NOR/XNOR, a fan-out buffer, N-input AND/OR/XOR reduction trees, bitwise bus operators, and a 3-input majority voter. Built straight on AND/OR/NOT/XOR.
+
+license:      GPL-3.0-or-later
+authors:      rafa-rrayes <rafa@rayes.com.br>
+homepage:     https://github.com/rafa-rrayes/SHDL
+keywords:     gates, nand, nor, xnor, reduction, bitwise, majority
+shdl:         >=1.0.0
+dependencies: (none)
+
+exports (12):
+  Nand       NAND — universal gate.
+  Nor        NOR — universal gate.
+  Xnor       XNOR — 1-bit equality.
+  Buffer     Identity / fan-out buffer.
+  AndN       N-input AND reduction (N>=2).
+  OrN        N-input OR reduction (N>=2).
+  XorN       N-input XOR / parity reduction (N>=2).
+  BitAnd     Bitwise AND of two N-bit buses.
+  BitOr      Bitwise OR of two N-bit buses.
+  BitXor     Bitwise XOR of two N-bit buses.
+  BitNot     Bus inverter / one's complement.
+  Majority3  3-input majority voter (the adder carry kernel).
+$ shdl info shift --versions | tail -4
+  BitReverse     Reverse bit order (pure wiring).
+
+versions:
+  0.1.0 (latest)
+$ shdl info nope 2>&1; echo "exit status: $?"
+shdl: error: package 'nope' not found in the index (https://rafa-rrayes.github.io/CCircus/registry.json)
+exit status: 1
+```
+
+The `homepage` and `keywords` lines are omitted when a package has none, and the description paragraph is omitted when it is empty.
+
+## Package author commands
+
+### `shdl verify-package` {/* #shdl-verify-package */}
+
+```text
+shdl verify-package DIR [--packages-root ROOT]
+```
+
+Checks a package directory the way Circuit Circus CI does: the `package.json` manifest, a build of every export at its default parameters, and the package's test vectors. It prints a report and `OK` or `FAIL`, and exits `0` or `1`. It never touches the network.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `DIR` | required | The package directory. Its name must equal the package name. |
+| `--packages-root ROOT` | the parent of `DIR` | The directory that holds the package's dependencies, each in a directory named after it. |
+
+See [Verifying a package](./packages.mdx#verifying-a-package) for the full list of checks and a worked example.
+
+### `shdl publish` {/* #shdl-publish */}
+
+```text
+shdl publish DIR [--packages-root ROOT] [--index URL]
+```
+
+`shdl publish` does not upload anything. It reads the manifest, checks against the index that this name and version are not already published, runs the same checks as `verify-package`, and prints the steps for opening a pull request against the Circuit Circus repository. If verification fails, it prints `FAIL — fix the package before publishing` and exits `1`. See [Publishing](./packages.mdx#publishing-to-circuit-circus).
+
+## The `shdl run` REPL
+
+`shdl run` builds the circuit and reads commands, one per line, from standard input. When standard input is a terminal, it prints a banner and a `shdl> ` prompt:
+
+```text
+counter: top=Main — 'help' for commands
+shdl>
+```
+
+The banner shows the project name and the component. If neither `--top` nor `[project] top` is set, it shows `(module top)`. When standard input is not a terminal (a pipe or a file), there is no banner and no prompt, so you can script a session.
+
+### Commands
+
+| Command | Effect |
+|---|---|
+| `poke SIGNAL VALUE` | Drive input port `SIGNAL` with `VALUE`. Prints nothing. |
+| `peek SIGNAL` | Print the value of input or output port `SIGNAL` as an unsigned decimal. |
+| `step [N]` | Advance `N` unit-delay cycles (default `1`). `N` may be `0`. |
+| `settle` | Advance exactly `max_depth` cycles and print `settled after N cycle(s)`. See [Settle](#settle). |
+| `reset` | Return to the power-on state. |
+| `info` | Print the input and output port names. |
+| `help` | Print the command list. |
+| `quit`, `exit` | End the session. |
+| Ctrl-D (end of input) | End the session. |
+
+Commands are case-sensitive and whitespace-separated. Blank lines are ignored. Extra words after `help`, `quit` and `exit` are ignored. Any other command, or a known command with the wrong number of arguments, prints `error: unknown command '<line>' — 'help' lists them`. Errors are printed to standard output with an `error: ` prefix, and the session continues. The exit status is `0` however the session ends, except that Ctrl-C ends it with `shdl: interrupted` and status `1`.
+
+### Values
+
+`VALUE` (and the `N` of `step`) is parsed as a Python integer literal: decimal (`100`), hexadecimal (`0x37`), binary (`0b11111111`) or octal (`0o17`), with an optional sign and `_` separators (`1_000`). A decimal with a leading zero, such as `007`, is rejected.
+
+The value must fit the port's width, either as an unsigned number or as a two's-complement negative: an 8-bit port accepts `-128` through `255`. `peek` always prints the unsigned value, so after `poke A -1`, `peek A` on an 8-bit port prints `255`. The REPL uses PySHDL's strict value checking; see [Value checking](./python-api.mdx#value-checking).
+
+```console check continue
+$ printf 'poke A -1\npeek A\npoke B 0o17\npeek B\npoke B 1_00\npeek B\npoke B 007\n' | shdl run --top Adder8
+255
+15
+100
+error: invalid literal for int() with base 0: '007'
+```
+
+`peek` reads ports only. Internal signals and gate outputs are not visible (a planned debugger will expose them; see the [roadmap](../roadmap.mdx)). Reading an output right after a `poke` evaluates the one pending cycle first, as [`Circuit.peek`](./python-api.mdx#peek) does.
+
+### A scripted session
+
+This session uses the 8-bit ripple-carry adder from the repository's `examples/` (copied into `src/` in the [`shdl build`](#shdl-build) section above):
+
+```console check continue
+$ printf 'info\npoke A 100\npoke B 0x37\nsettle\npeek Sum\npeek Cout\npoke A 0b11111111\npoke B 1\nstep\npeek Sum\nstep 16\npeek Sum\npeek Cout\nreset\npeek Sum\n' | shdl run --top Adder8
+inputs:  A, B, Cin
+outputs: Sum, Cout
+settled after 17 cycle(s)
+155
+0
+155
+0
+1
+0
+```
+
+Line by line: `100 + 0x37` is `155`, and `settle` advances the adder's `max_depth` of 17 cycles. After `255 + 1`, one `step` is not enough for the change to reach `Sum`, which still reads `155`. After 16 more cycles the carry has rippled through all eight bits: `Sum` is `0` and `Cout` is `1`. `reset` returns every signal to `0`.
+
+You can also keep a session in a file and run it with `shdl run < session.txt`.
+
+### Settle {/* #settle */}
+
+:::warning[settle does not wait for the circuit to stabilize]
+
+The REPL's help text describes `settle` as "step until stable, print how many cycles it took". That is not what it does. `settle` calls [`Circuit.settle()`](./python-api.mdx#settle), which advances exactly `max_depth` cycles (the circuit's longest combinational path) and returns that number. It prints the same count every time, whether or not anything changed. For a circuit with feedback (latches, flip-flops, oscillators), `max_depth` does not bound settling, so `settle` is refused. Use `step N` for those.
+
+:::
+
+```console check continue
+$ printf 'settle\nsettle\n' | shdl run --top Adder8
+settled after 17 cycle(s)
+settled after 17 cycle(s)
+$ printf 'settle\npoke S 1\nstep 4\npeek Q\npeek Qn\n' | shdl run --top SRLatch
+error: settle() is refused: circuit 'SRLatch' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+1
+0
+```
+
+See [Simulation model](../concepts/simulation-model.mdx) for why a unit-delay circuit needs `max_depth` cycles to settle.
+
+### Errors in the REPL
+
+```console check continue
+$ printf 'help\nfrob\npoke A\npoke Nope 1\npoke A 256\npoke A abc\npeek\npeek x1\nstep -1\nstep 1 2\nsettle now\nexit\npeek Sum\n' | shdl run --top Adder8; echo "exit status: $?"
+commands:
+  poke SIGNAL VALUE     drive an input (VALUE may be 0x…/0b… too)
+  peek SIGNAL           read a signal
+  step [N]              advance N unit-delay cycles (default 1)
+  settle                step until stable, print how many cycles it took
+  reset                 back to the power-on state
+  info                  ports of the compiled circuit
+  quit                  exit (Ctrl-D works too)
+error: unknown command 'frob' — 'help' lists them
+error: unknown command 'poke A' — 'help' lists them
+error: unknown input port 'Nope'; inputs: A, B, Cin
+error: value 256 does not fit 8-bit port 'A' (allowed -128..255); use strict=False for the ABI's masking semantics
+error: invalid literal for int() with base 0: 'abc'
+error: unknown command 'peek' — 'help' lists them
+error: unknown signal 'x1'; inputs: A, B, Cin; outputs: Sum, Cout
+error: cycles must be in 0..2147483647, got -1
+error: unknown command 'step 1 2' — 'help' lists them
+error: unknown command 'settle now' — 'help' lists them
+exit status: 0
+```
+
+Nothing after `exit` runs. The `use strict=False` hint refers to the Python API; the REPL has no non-strict mode.
+
+A build error ends `shdl run` before the REPL starts, with `shdl: error: ...` and status `1`.
+
+## Before build, test and run {/* #preflight */}
+
+`build`, `test` and `run` work offline and never change `shdl.lock` or `shdl_modules/`. Before compiling, they check:
+
+1. `shdl.lock` exists and is fresh: its fingerprint matches the current `[dependencies]` and index URL. Otherwise they fail with `no shdl.lock — run 'shdl install'` or `shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'`. A project with no dependencies skips this check, so deleting its lock is harmless.
+2. Every locked registry package is vendored at the locked version, and every path dependency's module file exists. Otherwise: `vendored package NAME is missing or does not match the lock (NAME VERSION) — run 'shdl install'`, or `path dependency NAME: module FILE not found in DIR`.
+
+The flattener then searches for imported modules in the importing file's directory first, then each `shdl_modules/PACKAGE/` directory, then each path dependency's directory. See [Where modules are found](./project-manifest.mdx) for the full order.
+
+```console check continue
+$ shdl add gates > /dev/null && rm -rf shdl_modules/gates
+$ shdl build 2>&1
+shdl: error: vendored package gates is missing or does not match the lock (gates 0.1.0) — run 'shdl install'
+$ SHDL_INDEX_URL=file:///elsewhere shdl test 2>&1
+shdl: error: shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'
+```
+
+## See also
+
+- [Project manifest and lockfile](./project-manifest.mdx): `shdl.toml`, `shdl.lock`, version ranges and resolution.
+- [Testing](./testing.mdx): the tests file format and `shdl test` output.
+- [Packages and Circuit Circus](./packages.mdx): the index, package manifests, `verify-package` and `publish`.
+- [Projects](../getting-started/projects.mdx): a guided walkthrough.
+- [Python API](./python-api.mdx): the `Circuit` class that `shdl test` and `shdl run` use.
+- [shdl_cli.md](/specs/shdl_cli), the CLI spec.

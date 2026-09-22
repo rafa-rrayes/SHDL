@@ -1,0 +1,264 @@
+---
+title: Ring oscillator
+sidebar_label: Ring oscillator
+description: A ring of N buffers that circulates a pulse with period N, traced cycle by cycle, with the effect of the seed pulse width, how to clear it, and other ring lengths.
+---
+
+Under SHDL's unit-delay model every gate takes exactly one cycle to pass a
+value on. Close a chain of `N` buffers into a ring, and a pulse injected into it
+comes back around every `N` cycles. `RingClock<N>` in `examples/` is that ring.
+It is the simplest circuit with feedback in the examples, and it has no state
+to seed: a ring that holds nothing stays empty.
+
+## What it does
+
+`RingClock<N>` has one input, `seed`, and one output per stage, `out[1]` to
+`out[N]`:
+
+- While the ring is empty, every `out` bit is 0.
+- Drive `seed` high for one cycle, and a single 1 appears on `out[1]`, moves to
+  `out[2]` on the next cycle, and so on. After `out[N]` it wraps back to
+  `out[1]`. Each `out` bit is high for 1 cycle in every `N`.
+- Drive `seed` high for `k` cycles, with `k < N`, and each `out` bit is high
+  for `k` cycles in every `N`. `k = N / 2` gives a square wave.
+
+## Source
+
+[`examples/ringClock.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/ringClock.shdl):
+
+```shdl title="ringClock.shdl"
+"""
+14 -- RingClock: a ring oscillator / delay line (requires N >= 2).
+
+The unit-delay model gives every gate one cycle of propagation
+delay, so a closed ring of N buffers circulates a pulse with period
+N (§11.2).  An OR gate with both inputs tied together is the idiom
+for a buffer.  Drive `seed` high for one cycle to inject the pulse;
+each `out` bit then taps one stage of the ring.
+"""
+
+top component RingClock<N = 8>(seed) -> (out[N]) {
+    >i[N]{ buf{i}: OR; }
+
+    connect {
+        seed -> buf1.A;                # pulse injection point
+
+        >i[2:N]{                       # forward chain: stage i-1 feeds stage i
+            buf{i-1}.O -> buf{i}.A;
+            buf{i-1}.O -> buf{i}.B;
+        }
+        buf{N}.O -> buf1.B;            # close the ring
+
+        >i[N]{ buf{i}.O -> out[{i}]; }
+    }
+}
+```
+
+Line by line:
+
+- **`>i[N]{ buf{i}: OR; }`** declares the stages. SHDL has no buffer
+  primitive; an `OR` whose two inputs are tied to the same signal passes that
+  signal on with one cycle of delay. See
+  [Standard gates](../language-reference/standard-gates.mdx).
+- **`seed -> buf1.A;`** makes the first stage the injection point. It is the
+  only stage whose inputs differ: `buf1` computes `seed OR buf{N}.O`, so it
+  merges new pulses into whatever is already circulating.
+- **`>i[2:N]{ buf{i-1}.O -> buf{i}.A; buf{i-1}.O -> buf{i}.B; }`** chains each
+  stage to the one before it. `buf{i-1}` evaluates `i - 1` in the name. See
+  [Generators](../language-reference/generators.mdx).
+- **`buf{N}.O -> buf1.B;`** closes the ring. This one connection is what makes
+  the circuit sequential: every stage now depends on its own earlier output.
+  See [Sequential logic](../language-reference/sequential-logic.mdx) and
+  [shdl.md §11.2](/specs/shdl#112-feedback-and-sequential-circuits).
+- **`>i[N]{ buf{i}.O -> out[{i}]; }`** is a second generator in the same
+  `connect` block that taps every stage.
+- There is no `init` block. At power-on every net is 0, and an empty ring is
+  already a stable state, so nothing needs seeding. See
+  [shdl.md §11.4](/specs/shdl#114-initial-state).
+
+## Size and timing
+
+| Property | Value |
+|---|---|
+| Gates | 8 OR |
+| Connections | 24 |
+| `init` entries | none |
+| `has_feedback` | true, so `settle()` is refused |
+| `max_depth` | 1 |
+| Critical path | `seed`, `buf1`, `out[1]` |
+
+All eight gates form one loop. The flattener measures depth with the edges
+inside a loop removed, so `max_depth` covers only the path from `seed` into
+the ring, 1 gate. For a circuit with feedback that number is not a settle
+count: the outputs of this ring never stop changing while a pulse circulates.
+See [Simulation model](../concepts/simulation-model.mdx).
+
+## Simulate it
+
+The sessions on this page run from the root of a checkout of the repository.
+Inject a one-cycle pulse and draw each output as a waveform, one character per
+cycle, `#` for 1 and `.` for 0:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/ringClock.shdl") as c:
+    print(c)
+    print(c.timing)
+    rows = [""] * 8
+    for cycle in range(1, 25):
+        c["seed"] = 1 if cycle == 1 else 0
+        c.step(1)
+        out = c["out"]
+        for i in range(8):
+            rows[i] += "#" if out >> i & 1 else "."
+    for i, row in enumerate(rows, start=1):
+        print(f"out[{i}] {row}")
+    try:
+        c.settle()
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'RingClock' (seed) -> (out[8])>
+TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+out[1] #.......#.......#.......
+out[2] .#.......#.......#......
+out[3] ..#.......#.......#.....
+out[4] ...#.......#.......#....
+out[5] ....#.......#.......#...
+out[6] .....#.......#.......#..
+out[7] ......#.......#.......#.
+out[8] .......#.......#.......#
+SettleRefusedError: settle() is refused: circuit 'RingClock' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+```
+
+The pulse reaches `out[1]` on cycle 1, `out[8]` on cycle 8, and `out[1]` again
+on cycle 9: the period is 8, the length of the ring.
+
+### Measuring the period
+
+Rather than read it from the waveform, record the cycles on which `out[8]`
+rises and take the differences:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/ringClock.shdl") as c:
+    c["seed"] = 1
+    c.step(1)
+    c["seed"] = 0
+    rises, last = [], 0
+    for cycle in range(2, 66):
+        c.step(1)
+        bit = c["out"] >> 7 & 1
+        if bit and not last:
+            rises.append(cycle)
+        last = bit
+    print("out[8] rises on cycles", rises)
+    print("periods", [b - a for a, b in zip(rises, rises[1:])])
+```
+
+```text title="Output"
+out[8] rises on cycles [8, 16, 24, 32, 40, 48, 56, 64]
+periods [8, 8, 8, 8, 8, 8, 8]
+```
+
+### Shaping the waveform with the seed
+
+`buf1` ORs the seed into the ring, so whatever pattern you drive on `seed`
+during the first `N` cycles is stored in the ring and repeats every `N` cycles.
+Here each pattern is driven one bit per cycle, then `seed` is held at 0, and
+`out[1]` is drawn over 24 cycles:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/ringClock.shdl") as c:
+    for pattern in ["1", "11", "1111", "1111111", "11111111", "1001"]:
+        c.reset()
+        wave = ""
+        for cycle in range(24):
+            c["seed"] = int(pattern[cycle]) if cycle < len(pattern) else 0
+            c.step(1)
+            wave += "#" if c["out"] & 1 else "."
+        print(f"seed {pattern:<8}  out[1] {wave}")
+```
+
+```text title="Output"
+seed 1         out[1] #.......#.......#.......
+seed 11        out[1] ##......##......##......
+seed 1111      out[1] ####....####....####....
+seed 1111111   out[1] #######.#######.#######.
+seed 11111111  out[1] ########################
+seed 1001      out[1] #..#....#..#....#..#....
+```
+
+- A pulse of `k` cycles, with `k` below 8, gives an output that is high for `k`
+  cycles in every 8. Four cycles gives a square wave.
+- Seven cycles leaves a single gap, which keeps circulating.
+- Eight cycles or more fills the ring with 1s. An OR can only add 1s, so from
+  then on `seed` has no effect and every output stays 1.
+- `1001` puts two pulses in the ring, 3 cycles apart, so `out[1]` shows two
+  pulses per period.
+
+A ring of buffers is a circular shift register whose only input can set bits
+but never clear them. [`reset()`](../tools/python-api.mdx) returns the whole
+circuit to its power-on state, which empties the ring; each pattern above
+starts from it.
+
+## Other lengths
+
+The period is the ring length, so pick `N` for the clock period you need. A
+3-stage ring:
+
+```shdl title="ring3.shdl"
+use ringClock::{RingClock};
+
+top component Ring3(seed) -> (out[3]) {
+    r: RingClock<3>;
+
+    connect {
+        seed -> r.seed;
+        r.out -> out;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("ring3.shdl", include_dirs=["examples"]) as c:
+    print(c, c.info.stats["by_type"])
+    wave = ""
+    for cycle in range(1, 13):
+        c["seed"] = 1 if cycle == 1 else 0
+        c.step(1)
+        wave += "#" if c["out"] & 1 else "."
+    print("out[1]", wave)
+```
+
+```text title="Output"
+<SHDL.Circuit 'Ring3' (seed) -> (out[3])> {'OR': 3}
+out[1] #..#..#..#..
+```
+
+The spec's example in
+[shdl.md §11.2](/specs/shdl#112-feedback-and-sequential-circuits) is the same
+circuit with 20 stages, written without a parameter. The docstring asks for
+`N >= 2`: with `N = 1` the chain's range `[2:1]` is empty, and flattening fails
+with E0601, as on the [comparator](./comparator.mdx) page.
+
+## Clocks in the examples
+
+`RingClock` shows how feedback turns into periodic timing, but none of the
+larger examples uses it as a clock. The [SR16 CPU](./sr16-cpu.mdx) takes its
+two clock phases, `Phi1` and `Phi2`, as input ports that the Python driver
+pulses, so that the phase widths and the gaps between them can be chosen to
+match the latches' write delay. See the [register](./register.mdx) page.
+
+## Next
+
+The [SR16 CPU](./sr16-cpu.mdx) combines registers, an ALU and control logic
+into a working computer.

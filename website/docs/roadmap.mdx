@@ -1,0 +1,292 @@
+---
+title: Roadmap
+sidebar_label: Roadmap
+description: What ships in PySHDL 1.1.0 and what is only planned, including the SHDB debugger, the debug build ABI, the State Region and faster code generation.
+---
+
+This page separates what PySHDL 1.1.0 actually ships from what the project plans to build. It covers the planned debug build and its C functions, the `.shdb` file, the State Region, the SHDB debugger, the faster code generators, the rest of the planned ecosystem, the order everything is built in, and the tests each planned component must pass before it ships. It closes with what you can do today instead. Everything under [planned](#planned) is a design, not a feature: no flag, function, file format or package in 1.1.0 provides any of it.
+
+:::note[Looking for the SHDB debugger docs?]
+
+Links to the old `/docs/debugger/...` pages now lead here. Those pages documented the SHDB debugger that shipped with the pre-1.0 PySHDL releases (the 0.x line, up to 0.3.1). PySHDL 1.0 replaced that toolchain with a rewrite: a new flattener, a new C compiler, a new `Circuit` class and a conformance suite. The rewrite has not rebuilt the debugger yet. Neither 1.0 nor 1.1.0 includes a debugger, a debug build or `.shdb` files. The planned SHDB is described [below](#shdb), and [what you can use today](#today) lists the ways to inspect a circuit in 1.1.0.
+
+:::
+
+## Shipped in PySHDL 1.1.0 {/* #shipped */}
+
+| Component | What you get | Documentation |
+|---|---|---|
+| Flattener | SHDL source to Base SHDL, as the `shdl-flatten` command and the `flatten_program` function | [shdl-flatten](./tools/shdl-flatten.mdx), [the flattening pipeline](./architecture/flattening-pipeline.mdx) |
+| `shdlc`, release build | Base SHDL (or `.shdl` source) to C, then to a shared library that exports six functions: `reset`, `poke`, `peek`, `step`, `step_settle`, `run_batch` | [shdlc](./tools/shdlc.mdx), [C ABI](./tools/c-abi.mdx) |
+| PySHDL | The `Circuit` class: four constructors, poke, peek, step, `settle()`, `step_settle()`, `run_batch()`, reset, introspection and structured errors | [Python API](./tools/python-api.mdx), [PySHDL internals](./architecture/pyshdl-internals.mdx) |
+| `shdl` CLI | Projects (`shdl.toml`, `shdl.lock`, `shdl_modules/`), `build`, `test`, `run`, and packages from the Circuit Circus index | [shdl CLI](./tools/shdl-cli.mdx), [packages](./tools/packages.mdx) |
+| Test runner | `shdl test`, which runs JSON test files of vectors or poke, step and expect sequences | [testing](./tools/testing.mdx) |
+| Conformance suite | Suite version 1.1.0: 38 cases and 40 frozen cycle-by-cycle traces | [conformance](./tools/conformance.mdx) |
+
+The repository's test suite collects 1905 tests at 1.1.0: 1644 for the toolchain, 130 for PySHDL (`tests/pyshdl/`) and 131 for the `shdl` CLI (`tests/shdl_cli/`).
+
+The project's own status table is in [SHDL_Project.md §7](/specs/SHDL_Project#7-status-summary). It marks the flattener, `shdlc` V1 and the conformance suite as complete, and PySHDL and the `shdl` CLI with its package registry as built. The standard library and the testbench runner are partial, and everything else is planned.
+
+## Planned {/* #planned */}
+
+:::warning[None of this is usable today]
+
+Everything in this section is a design target from the specifications. PySHDL 1.1.0 has no debug flag, no debug functions, no `.shdb` output, no State Region and no alternative code generators. The sections below say, for each item, what 1.1.0 does instead.
+
+:::
+
+### The debug build {/* #debug-build */}
+
+A debug build would be a second compilation mode of `shdlc`. It would export the six release functions plus five more for gate-level introspection. The planned signatures, from [shdlc_goals.md §3.3](/specs/shdlc_goals#33-debug-build-abi-planned):
+
+```c
+uint64_t peek_gate      (const char *gate_name);
+uint64_t peek_gate_prev (const char *gate_name);
+uint64_t get_cycle      (void);
+size_t   get_num_gates  (void);
+int      get_gate_info  (size_t index,
+                         const char **name,
+                         uint8_t *type,
+                         uint8_t *chunk,
+                         uint8_t *lane);
+```
+
+The planned semantics:
+
+- **`peek_gate(name)`** would read any gate's current output by its flattened name, such as `"fa1_x1"`.
+- **`peek_gate_prev(name)`** would read the same gate's output from the previous cycle. The two-buffer simulation already keeps the previous cycle, so this is expected to be nearly free. It would let a watchpoint ask "did this gate change?" without a shadow copy.
+- **`get_cycle()`** would count evaluation cycles since the last `reset()`. `step(0)` would not advance it. A lazy tick, caused by peeking an output after a poke, would advance it by exactly 1, because it is a real evaluation cycle.
+- **`get_num_gates()`** and **`get_gate_info(index, ...)`** would enumerate the gate table in state-layout order: name, type code and position (`chunk`, `lane`). The order would stay the same across `reset()` calls, so an index stays valid for the life of the loaded library. The type codes: 0 = XOR, 1 = AND, 2 = OR, 3 = NOT, 4 = `__VCC__`, 5 = `__GND__`.
+- **Separate namespaces.** `poke` and `peek` would keep addressing ports only, and `peek_gate` and `peek_gate_prev` would address gates only. A port and a gate may share a name.
+
+A debug build must give functionally identical results to a release build: the same outputs, cycle for cycle. Gate lookup should be O(1), through a hash table, for circuits beyond about 1000 gates, and `step` must stay fast. See [shdlc_goals.md §3.4](/specs/shdlc_goals#34-debug-build-requirements-planned) and [§6.2](/specs/shdlc_goals#62-debug-mode-planned).
+
+**In 1.1.0,** release is the only mode ([§6.1](/specs/shdlc_goals#61-release-mode)). `shdlc` has no debug option, and the generated library exports only the six release functions:
+
+```python
+import ctypes
+
+from SHDL import Circuit
+
+RELEASE = ("reset", "poke", "peek", "step", "step_settle", "run_batch")
+DEBUG = ("peek_gate", "peek_gate_prev", "get_cycle", "get_num_gates", "get_gate_info")
+
+with Circuit("examples/adder8.shdl") as c:
+    (loaded,) = c.build_dir.glob("*.copy*")
+    lib = ctypes.CDLL(str(loaded))
+    print("release:", all(hasattr(lib, name) for name in RELEASE))
+    print("debug:  ", [name for name in DEBUG if hasattr(lib, name)])
+```
+
+```text title="Output"
+release: True
+debug:   []
+```
+
+### The `.shdb` file {/* #shdb-file */}
+
+Alongside a debug library, `shdlc` would write a `.shdb` file: JSON with the circuit's full metadata and the State Region layout ([shdlc_goals.md §6.2](/specs/shdlc_goals#62-debug-mode-planned)).
+
+**In 1.1.0,** no tool writes or reads `.shdb` files. The metadata a debugger needs is already there, though. The flattener writes all ten metadata blocks into every Base SHDL file, including `hierarchy`, `source_map`, `constants` and `monitors`, which no 1.1.0 tool consumes:
+
+```python
+from flattener.pipeline import flatten_program
+from shdlc.baseshdl import parse_base
+
+meta = parse_base(flatten_program("examples/srLatch.shdl").text).meta
+print(list(meta))
+print(meta["source_map"]["gates"]["i1"])
+print(meta["hierarchy"]["SRLatch"]["instances"]["i1"])
+print(meta["timing"]["critical_path"])
+```
+
+```text title="Output"
+['version', 'ports', 'hierarchy', 'source_map', 'constants', 'timing', 'monitors', 'stats', 'doc', 'init']
+{'file': 'srLatch.shdl', 'line': 22, 'column': 14}
+{'type': 'NOT', 'gate': 'i1'}
+['i1', 'Q']
+```
+
+`shdlc` 1.1.0 reads only `ports` and `init`. PySHDL reads `ports`, `timing`, `init`, `stats` and `doc.description`. The blocks are described in [Base SHDL](./architecture/base-shdl.mdx) and in [base_shdl.md §5](/specs/base_shdl#5-how-each-consumer-uses-the-metadata).
+
+### The State Region {/* #state-region */}
+
+The State Region would hold all simulation state in one contiguous, self-describing block of memory: inputs, outputs, every gate's current and previous output, a cycle counter and status flags. It would start with a versioned header (a magic number, the layout version, the component's identity and section offsets). The layout would be fixed at compile time, the same however the region is allocated, and documented in the `.shdb` file. That one requirement would enable four things without changing the simulation code:
+
+1. **Direct access in the same process.** A driver resolves a signal's offset once and skips string lookups in hot loops.
+2. **Shared-memory observation.** Other processes, such as a waveform viewer, map the region read-only and watch the live simulation at no cost to it.
+3. **Driving from another process.** Atomic status flags in the region let another process request steps without sockets.
+4. **Parallel evaluation later.** Multi-threaded and SIMD evaluation become internal changes to `tick()`.
+
+The function-call ABI stays the primary interface. See [shdlc_goals.md §4](/specs/shdlc_goals#4-the-state-region--interoperability-foundation-planned).
+
+**In 1.1.0,** the generated C keeps its state in separate `static` arrays (`inputs[]`, the two gate buffers `buf_a[]` and `buf_b[]`, `out_vals[]`) plus a `dirty` flag. There is no header, no cycle counter and no published layout. Everything is private to the library and reachable only through the six functions. See [compiler internals](./architecture/compiler-internals.mdx).
+
+### SHDB, the debugger {/* #shdb */}
+
+SHDB is the planned gate-level debugger, built on PySHDL and the debug build ([SHDL_Project.md §4.2](/specs/SHDL_Project#42-shdb--the-debugger)). The planned features:
+
+- breakpoints and watchpoints;
+- waveform capture;
+- hierarchy navigation and scope-aware signal inspection;
+- source-level mapping, from a gate back to its line in the `.shdl` source;
+- display of constants and initial state.
+
+They would draw on the `hierarchy`, `source_map`, `constants`, `monitors` and `init` metadata and on `peek_gate`, `peek_gate_prev` and `get_cycle`.
+
+Its acceptance tests are already specified: obligation V.3 of the [test plan](#domain-v) ports the pre-1.0 debugger's test catalog. That catalog covers:
+
+- loading debug info, with JSON fidelity;
+- symbol resolution and completion;
+- poke, peek and step through the controller;
+- inspecting internal gates mid-propagation;
+- breakpoints: value-change, conditional and temporary, with hit counts, enable, disable and clear;
+- watchpoints, and running until a breakpoint with a cycle limit;
+- bulk inspection and robustness;
+- tolerating missing source locations.
+
+**In 1.1.0,** there is no debugger. See [what you can use today](#today) for the alternatives.
+
+### Faster code generation {/* #performance */}
+
+The project deliberately leaves compiler optimization for last ([SHDL_Project.md Layer 7](/specs/SHDL_Project#layer-7--optimization-intentionally-last)). The planned tiers, in order:
+
+1. type-based bit-packing, many independent gates of one type per machine word;
+2. PDEP/PEXT-accelerated gathering on hardware that has those instructions;
+3. SIMD;
+4. multi-threading.
+
+Every tier has to be bit-exact with the current generator, cycle by cycle, on the full conformance, differential and fuzz suites before it ships. That is obligation V.7 of the [test plan](#domain-v). A bit-packed code generator is in development; it is not part of any release.
+
+**In 1.1.0,** the code generator stores one byte (`uint8_t`) per gate and evaluates one C statement per gate. Circuits with more than 1024 gates are split into `noinline` chunk functions of 1024 gates each, which keeps C compile times reasonable. `shdlc --dev` and `shdl build --dev` compile with `-O0` instead of `-O2`, trading simulation speed for faster C compiles. See [shdlc_goals.md §5.2](/specs/shdlc_goals#52-where-performance-comes-from) and [compiler internals](./architecture/compiler-internals.mdx).
+
+### The rest of the ecosystem {/* #ecosystem */}
+
+| Item | Plan | In 1.1.0 |
+|---|---|---|
+| [Standard library](/specs/SHDL_Project#43-the-standard-library-stdlib) | Reusable components: derived gates, multiplexers, adders, registers, shifters, ALUs | Partial. No library ships inside PySHDL. `examples/stdgates.shdl` is the conventional `stdgates` module, and reusable libraries are published as packages on Circuit Circus. |
+| [Testbench runner](/specs/SHDL_Project#44-the-testbench-runner) | A `.shtb` format for input vectors and expected outputs, run in batch | Partial. `shdl test` runs JSON test files. The `.shtb` format does not exist. |
+| [Performance profiler](/specs/SHDL_Project#45-the-performance-profiler) | Measures throughput and finds bottlenecks | Planned |
+| [Alternative backends](/specs/SHDL_Project#46-alternative-backends) | Base SHDL to structural Verilog, BLIF and Yosys JSON | Planned |
+| [Verification tools](/specs/SHDL_Project#47-verification-tools) | Formal equivalence checking, a combinational-loop lint, coverage, a fuzzer | Planned |
+| [Visualization](/specs/SHDL_Project#48-visualization) | VCD waveform export, schematic viewer, hierarchy explorer, animated propagation view | Planned |
+| [Web playground](/specs/SHDL_Project#49-the-web-playground) | SHDL compiled to WebAssembly, with an in-browser editor, shareable by URL | Planned |
+| [Hardware bridge](/specs/SHDL_Project#410-hardware-bridge) | Deploy a circuit to a microcontroller's pins (Arduino, ESP, Raspberry Pi), logic-analyzer capture, hardware-in-the-loop tests, an FPGA bitstream target | Planned |
+| [Authoring tools](/specs/SHDL_Project#411-authoring-tools) | A language server, a formatter (`shdlfmt`), a documentation generator, a Verilog/BLIF importer, an interactive tutorial | Planned |
+| [Distribution and glue](/specs/SHDL_Project#412-distribution-and-glue) | The `shdl` CLI and package manager, `shdl deploy`, a CI action | The CLI and the Circuit Circus registry are built. `shdl deploy` and the CI action are planned. |
+| [SHDL Station](/specs/SHDL_Project#414-shdl-station) | One application combining the editor, simulation, debugging, visualization and testing | Planned; last by design |
+
+## Build order {/* #build-order */}
+
+The project builds in dependency layers ([SHDL_Project.md §5](/specs/SHDL_Project#5-build-sequence)):
+
+| Layer | Contents | Status |
+|---|---|---|
+| 0: Core | Flattener, `shdlc` V1, conformance suite | Complete |
+| 1: Consumers of a compiled circuit | PySHDL; standard library; `shdlc` debug build; SHDB | PySHDL built; standard library partial; debug build and SHDB planned |
+| 2: Verification and analysis | Testbench runner; profiler; Verilog, BLIF and Yosys backends; equivalence checker and other verification tools | Testbench runner partial (`shdl test`); the rest planned |
+| 3: Visualization | VCD export, schematic viewer, WebAssembly build and playground | Planned |
+| 4: Hardware bridge | Microcontroller pin targets, FPGA bitstream target | Planned |
+| 5: Glue and distribution | `shdl` CLI and package registry; language server, formatter, documentation generator, importer, CI action | CLI and registry built; the rest planned |
+| 6: Integration | SHDL Station | Planned |
+| 7: Optimization | `shdlc` performance tiers | Planned, intentionally last |
+
+The critical path is **`shdlc` V1, then the conformance suite, then PySHDL, then the `shdlc` debug build, then SHDB** ([critical path](/specs/SHDL_Project#critical-path)). The first three are done, so the debug build is the next step toward a debugger. The standard library and the testbench runner are built alongside, as early as possible, because every other tool tests against them. The backends are a separate track off the flattener that leads to verification (BLIF to equivalence checking) and hardware (Yosys to FPGA).
+
+## Test obligations for planned components {/* #domain-v */}
+
+The test plan defines each future component's acceptance tests before the component exists, so nothing ships without them. These are Domain V of [golden_tests.md](/specs/golden_tests#domain-v--future-components-obligations-defined-now-fut-):
+
+| ID | Component | What must pass | Status |
+|---|---|---|---|
+| V.1 | `shdlc` debug build | Release and debug builds agree on the full fixture and fuzz corpus; `peek_gate_prev` really returns the previous cycle; `get_cycle` semantics; gate enumeration (count, names, type codes 0 to 5, chunk and lane) and lookup scaling beyond 1000 gates; `.shdb` holds the embedded metadata plus a `state_region` section, with byte-equal JSON in both places; the differential harness compares full gate state in lockstep; the port and gate namespaces stay separate | Not started |
+| V.2 | PySHDL | Multi-bit poke and peek; `settle()` equals `step(max_depth)` and is refused under feedback; power-on reset honoring `init`; context manager and dict-style access; boundary cases from the pre-1.0 catalog | Done: 130 tests in 10 modules under `tests/pyshdl/` |
+| V.3 | SHDB | The pre-1.0 debugger's test catalog, ported wholesale (see [SHDB](#shdb)) | Not started |
+| V.4 | Testbench runner (`.shtb`) | Format round-trip; the conformance traces written as `.shtb` files replay bit-exactly | Not started |
+| V.5 | Backends | Verilog output cross-validated against Verilator on the conformance corpus; BLIF output checked for formal equivalence with ABC | Not started |
+| V.6 | State Region | Header magic and version; the layout documented in `.shdb` matches reality (poking at an offset equals poking through the ABI); the layout does not depend on allocation; a shared-memory observer sees live values | Not started |
+| V.7 | Optimization tiers | Every tier passes the full conformance, differential and fuzz suites bit-exactly, at parity with V1 | Not started |
+
+The V.2 tests also replay the whole conformance corpus through the public `Circuit` API. The same corpus is the acceptance gate for every later component.
+
+## What you can use today {/* #today */}
+
+Without a debugger, you can still see a lot of a running circuit with 1.1.0.
+
+**Trace outputs cycle by cycle.** Step one cycle at a time and record the outputs. This is what a waveform shows. Here is the carry rippling through an 8-bit adder as it computes 255 + 1:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"] = 255
+    c["B"] = 1
+    trace = []
+    for _ in range(17):
+        c.step(1)
+        trace.append((c["Sum"], c["Cout"]))
+    print(trace)
+```
+
+```text title="Output"
+[(0, 0), (254, 0), (252, 0), (252, 0), (248, 0), (248, 0), (240, 0), (240, 0), (224, 0), (224, 0), (192, 0), (192, 0), (128, 0), (128, 0), (0, 0), (0, 1), (0, 1)]
+```
+
+**Probe an internal net.** Only ports are visible through the ABI, but connecting a gate's output to an extra output port costs no gate and no cycle: an output port is just another name for the net that drives it. Here is the SR latch from `examples/srLatch.shdl` with the two OR gates inside its NOR pairs exposed, as `S` goes high:
+
+```python
+from SHDL import Circuit
+
+PROBED = """
+top component SRProbe(S, R) -> (Q, Qn, NorQ, NorQn) {
+    o1: OR;  i1: NOT;
+    o2: OR;  i2: NOT;
+
+    init {
+        o1.O = 1;  i1.O = 0;
+        o2.O = 0;  i2.O = 1;
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+        o1.O -> NorQ;    # probe: the OR inside NOR #1
+        o2.O -> NorQn;   # probe: the OR inside NOR #2
+    }
+}
+"""
+
+with Circuit.from_source(PROBED, name="srprobe") as c:
+    print(c.info.stats["total_gates"])
+    c["S"] = 1
+    print("cycle o1 Q o2 Qn")
+    for cycle in range(1, 5):
+        c.step(1)
+        print(f"{cycle:>5} {c['NorQ']:>2} {c['Q']} {c['NorQn']:>2} {c['Qn']:>2}")
+```
+
+```text title="Output"
+4
+cycle o1 Q o2 Qn
+    1  1 0  1  1
+    2  1 0  1  0
+    3  0 0  1  0
+    4  0 1  1  0
+```
+
+The change travels one gate per cycle: `o2` rises, then `Qn` falls, then `o1` falls, and `Q` rises on cycle 4. See [latches](./examples/latches.mdx) for the full example.
+
+**Other tools that work today:**
+
+- **Read the generated code.** `Circuit(..., keep_artifacts=True)` keeps the Base SHDL and C it compiled (see [artifact directories](./architecture/pyshdl-internals.mdx#artifacts)). `shdlc --emit-c` and `shdl build --emit-base` write them from the command line.
+- **Read the metadata directly.** Parse the Base SHDL with `shdlc.baseshdl.parse_base(text).meta`, as [shown above](#shdb-file), to map gate names to source lines and instances.
+- **Drive a circuit by hand.** `shdl run` opens a poke, peek, step and reset REPL over your project's circuit. See [shdl CLI](./tools/shdl-cli.mdx).
+- **Pin down behavior with tests.** `shdl test` runs vector and sequence tests ([testing](./tools/testing.mdx)), and `Circuit.run_batch` checks many input frames in one call ([Python API](./tools/python-api.mdx#run-batch)).
+- **Check timing.** `c.timing.max_depth` is the longest input-to-output path in cycles, and the retained Base SHDL's `timing` block also lists the per-output depths and the critical path.
+
+## See also
+
+- [SHDL_Project.md §4](/specs/SHDL_Project#4-the-ecosystem): the whole planned ecosystem, component by component.
+- [shdlc_goals.md](/specs/shdlc_goals#33-debug-build-abi-planned): the debug build ABI and the State Region in full.
+- [golden_tests.md, Domain V](/specs/golden_tests#domain-v--future-components-obligations-defined-now-fut-): the test obligations for every planned component.
+- [Simulation model](./concepts/simulation-model.mdx): the cycle model any future tool has to preserve.

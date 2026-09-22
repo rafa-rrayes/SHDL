@@ -22,7 +22,7 @@ This separation yields two benefits: the structural core becomes trivially simpl
        │
        ▼
   ┌──────────────┐
-  │  Flattener   │   6 sequential phases
+  │  Flattener   │   fixed sequence of lowering stages
   └──────────────┘
        │
        ▼
@@ -33,7 +33,7 @@ This separation yields two benefits: the structural core becomes trivially simpl
   └──────────────────────────────────┘
        │
        ├──▶  SHDLC Compiler  ──▶  C  ──▶  Shared Library
-       ├──▶  Debugger (SHDB)
+       ├──▶  Debugger (SHDB)          (planned)
        ├──▶  Python Driver (Circuit)
        └──▶  Future backends (Verilog, WASM, ...)
 ```
@@ -46,7 +46,7 @@ In v2:
 
 - The structural core contains **only single-bit port names**. A 16-bit port `A[16]` becomes 16 individual ports: `A_1_`, `A_2_`, ..., `A_16_`.
 - A **metadata section** (`meta { … }`) follows the structural component and carries everything that isn't gate-level logic. The metadata is a single **JSON object** (Section 4) — there is one serialization, not two.
-- The `.shdb` file *is* that metadata section verbatim (plus the compiler-added State Region layout); the metadata *is* the debug info.
+- The metadata *is* the debug info. The `.shdb` file planned for the compiler's debug build is to be that metadata section verbatim, plus the compiler-added State Region layout. Neither the debug build nor `.shdb` exists in 1.1.0 (`shdlc_goals.md` §3.3–§4).
 
 ---
 
@@ -119,7 +119,7 @@ Base SHDL has exactly **six primitive types**.
 |-------|----------|--------|------------|-------------|
 | `AND` | `A`, `B` | `O`    | `&`        | O = A ∧ B   |
 | `OR`  | `A`, `B` | `O`    | `\|`       | O = A ∨ B   |
-| `NOT` | `A`      | `O`    | `~`        | O = ¬A      |
+| `NOT` | `A`      | `O`    | `^ 1`      | O = ¬A      |
 | `XOR` | `A`, `B` | `O`    | `^`        | O = A ⊕ B   |
 
 #### Power Pins
@@ -130,6 +130,8 @@ Base SHDL has exactly **six primitive types**.
 | `__GND__` | *(none)* | `O`    | Always LOW (0)  |
 
 All primitives use a consistent port convention: inputs are `A` (and `B` for two-input gates); the output is always `O`.
+
+The C operator column is what `shdlc` emits for each gate. Every wire is held as a 0/1 byte, so NOT is compiled as XOR with 1 rather than `~`, which would set the upper bits.
 
 AND, OR, and NOT form a functionally complete set; XOR is included because it dominates arithmetic circuits and maps directly to a single C operator. Derived gates (NAND, NOR, XNOR) are compositions in Expanded SHDL and arrive in Base SHDL already decomposed.
 
@@ -246,7 +248,7 @@ meta {
 }
 ```
 
-There is exactly **one** serialization. The bytes between the `meta` braces are the same JSON that the `.shdb` file contains (Section 7) — the `.shdb` is produced by copying the embedded object out, not by translating a second text format. This makes it impossible for the structure and its metadata to fall out of sync, and gives every consumer one grammar (JSON) to parse instead of two.
+There is exactly **one** serialization. The bytes between the `meta` braces are the same JSON that the planned `.shdb` file is to contain (Section 7) — the `.shdb` is to be produced by copying the embedded object out, not by translating a second text format. This makes it impossible for the structure and its metadata to fall out of sync, and gives every consumer one grammar (JSON) to parse instead of two.
 
 A minimal consumer can stop reading at the component's closing brace. The full toolchain reads both.
 
@@ -271,7 +273,9 @@ MetaSection  = "meta" JsonObject ;   (* JsonObject is standard RFC 8259 JSON *)
 | `doc`        | documentation/provenance (§4.10)| optional                                |
 | `init`       | initial-state seeds (§4.11)    | optional                                 |
 
-Every block is optional for *parsing the circuit structure* (a minimal consumer reads only the structural core), and the keys may appear in any order. **Unknown keys are ignored**, giving forward compatibility: a future block can be added without breaking existing tools. The `version` string lets a consumer detect the format revision it is reading. All examples below show the JSON exactly as it appears, both embedded in `meta { … }` and in the `.shdb` file.
+Every block is optional for *parsing the circuit structure* (a minimal consumer reads only the structural core), and the keys may appear in any order. **Unknown keys are ignored**, giving forward compatibility: a future block can be added without breaking existing tools. The `version` string lets a consumer detect the format revision it is reading. All examples below show the JSON exactly as it appears embedded in `meta { … }`.
+
+**What the SHDL flattener emits.** The reference flattener always emits all ten keys, in the order of the table above, pretty-printed with two-space indentation; `constants`, `monitors` and `init` are empty objects when there is nothing to record, and `doc.description` is omitted when the module has no doc comment. The golden output of the conformance case `conformance/cases/add2/expected.base.shdl` is a complete, byte-exact example.
 
 ### 4.3 `ports` — Port Grouping
 
@@ -298,18 +302,18 @@ Every block is optional for *parsing the circuit structure* (a minimal consumer 
 
 ### 4.4 `hierarchy` — Component Hierarchy Map
 
-Records the original hierarchy before flattening. Enables the debugger's tree view, `scope` navigation, hierarchical paths (`fa1.x1.O`), and instance inspection.
+Records the original hierarchy before flattening, for tools that need to map a flat gate back to the instance tree (the planned debugger's tree view, `scope` navigation, hierarchical paths such as `fa1.x1.O`, and instance inspection). This is the block the flattener emits for the conformance case `conformance/cases/add2` (`circuit.shdl` instantiates `FullAdder` from `fullAdder.shdl` twice; `fa2` is elided here and has the same shape):
 
 ```json
 "hierarchy": {
   "Add2": {
-    "source_file": "add2.shdl",
-    "source_line": 3,
+    "source_file": "circuit.shdl",
+    "source_line": 4,
     "instances": {
       "fa1": {
         "type": "FullAdder",
-        "source_file": "fullAdder.shdl",
-        "source_line": 8,
+        "source_file": "circuit.shdl",
+        "source_line": 5,
         "prefix": "fa1_",
         "ports": {
           "A": "A_1_", "B": "B_1_", "Cin": "Cin",
@@ -317,44 +321,54 @@ Records the original hierarchy before flattening. Enables the debugger's tree vi
         },
         "instances": {
           "x1": { "type": "XOR", "gate": "fa1_x1" },
-          "x2": { "type": "XOR", "gate": "fa1_x2" },
           "a1": { "type": "AND", "gate": "fa1_a1" },
+          "x2": { "type": "XOR", "gate": "fa1_x2" },
           "a2": { "type": "AND", "gate": "fa1_a2" },
           "o1": { "type": "OR",  "gate": "fa1_o1" }
         }
       },
-      "fa2": { }
+      "fa2": { … }
     }
   }
 }
 ```
 
-The `ports` sub-object within each instance maps the instance's interface ports to the actual structural wires — essential for `print fa1.A` and connection inspection. For an instance of a parameterized component (`shdl.md` §4.4), record the bound parameter values alongside `type` (e.g. `"params": { "N": 8 }`) so the debugger can show the specialization.
+- The single top-level key is the top component's name. Its `source_file`/`source_line` give where that component is **defined**.
+- For a user-component instance, `source_file`/`source_line` give where the **instance is declared** in its parent (here `fa1: FullAdder;` on line 5 of `circuit.shdl`), not where `FullAdder` is defined. `prefix` is the name prefix its gates receive, and `instances` recurses into its body.
+- A primitive instance (including a power pin materialized from a constant) is a leaf: `{ "type": …, "gate": <flat gate name> }`.
+- `ports` maps each of the instance's interface ports to the structural signal that carries it: a top-level wire (`A_1_`), or a gate output (`fa1_o1.O`) when the net reaches no top-level port. A multi-bit port maps to a list of such signals, LSB first.
+- An instance of a parameterized component (`shdl.md` §4.4) also carries `"params"` with its bound values, placed after `type` — for example `"type": "AdderN", "params": { "N": 8 }` in `examples/add100.shdl`.
 
 ### 4.5 `source_map` — Source Location Mapping
 
-Maps gates back to their origin in the Expanded SHDL sources, in both directions (gate → location, and location → gates), since the debugger uses both frequently.
+Maps gates back to their origin in the Expanded SHDL sources, in both directions (gate → location, and location → gates). The add2 case again, with `gates` cut to three entries:
 
 ```json
 "source_map": {
   "gates": {
-    "fa1_x1": { "file": "fullAdder.shdl", "line": 3, "column": 5 },
-    "fa1_x2": { "file": "fullAdder.shdl", "line": 3, "column": 16 }
+    "fa1_x1": { "file": "fullAdder.shdl", "line": 2, "column": 5 },
+    "fa1_a1": { "file": "fullAdder.shdl", "line": 2, "column": 15 },
+    "fa2_x1": { "file": "fullAdder.shdl", "line": 2, "column": 5 }
   },
   "lines": {
-    "fullAdder.shdl": {
-      "3": ["fa1_x1", "fa1_x2", "fa2_x1", "fa2_x2"],
-      "4": ["fa1_a1", "fa1_a2", "fa2_a1", "fa2_a2"]
+    "circuit.shdl": {
+      "5": ["fa1_x1", "fa1_a1", "fa1_x2", "fa1_a2", "fa1_o1"],
+      "6": ["fa2_x1", "fa2_a1", "fa2_x2", "fa2_a2", "fa2_o1"]
     },
-    "add2.shdl": {
-      "8": ["fa1_x1", "fa1_x2", "fa1_a1", "fa1_a2", "fa1_o1"],
-      "9": ["fa2_x1", "fa2_x2", "fa2_a1", "fa2_a2", "fa2_o1"]
+    "fullAdder.shdl": {
+      "2": ["fa1_x1", "fa1_a1", "fa2_x1", "fa2_a1"],
+      "3": ["fa1_x2", "fa1_a2", "fa2_x2", "fa2_a2"],
+      "4": ["fa1_o1", "fa2_o1"]
     }
   }
 }
 ```
 
-The two directions (`gates` and `lines`) are redundant by construction — `lines` is the inverse of `gates`. The flattener emits both because the debugger queries each frequently; a consumer that edits one must regenerate the other rather than hand-maintain it.
+- `gates` has one entry per gate: the position (1-based line and column) of the primitive-instance declaration that produced it, in the file that defines the enclosing component. Both copies of `x1` point at `fullAdder.shdl` line 2.
+- `lines` is keyed by file name, then by line number (as a string). A gate is listed under its own declaration line **and** under the declaration line of every user-component instance that encloses it. So `circuit.shdl` line 5, `fa1: FullAdder;`, lists all five `fa1_` gates, although no gate's `gates` entry points there.
+- Files are sorted by name, lines are in ascending numeric order, and gates keep their netlist order.
+
+`lines` is therefore a superset of the inverse of `gates`, not its exact inverse. Both are derived from the same instantiation records during flattening; a consumer that edits one must regenerate the other rather than hand-maintain it.
 
 ### 4.6 `constants` — Constant Origin Tracking
 
@@ -374,7 +388,7 @@ Records which `__VCC__`/`__GND__` instances came from named constants, so the de
 }
 ```
 
-`bits` lists only the bits that were actually referenced and therefore materialized (`shdl.md` §8): an unreferenced high bit of a constant has no power-pin instance, since a constant is conceptually an unbounded unsigned value whose leading bits are all 0.
+Keys are the constant names prefixed like gate names: a constant declared inside a sub-instance appears as `<prefix><NAME>` (for example `add_ZERO`). `bits` lists only the bits that were actually referenced and therefore materialized (`shdl.md` §8): an unreferenced high bit of a constant has no power-pin instance, since a constant is conceptually an unbounded unsigned value whose leading bits are all 0.
 
 ### 4.7 `timing` — Circuit Depth and Propagation
 
@@ -383,16 +397,22 @@ The combinational depth information computed during flattening/analysis. This is
 ```json
 "timing": {
   "max_depth": 5,
-  "output_depths": { "Sum_1_": 3, "Sum_2_": 5, "Cout": 5 },
+  "output_depths": { "Sum_1_": 2, "Sum_2_": 4, "Cout": 5 },
   "is_combinational": true,
   "has_feedback": false,
-  "critical_path": ["A_1_", "fa1_x1", "fa1_o1", "fa2_x2", "fa2_o1", "Cout"]
+  "critical_path": ["A_1_", "fa1_x1", "fa1_a2", "fa1_o1", "fa2_a2", "fa2_o1", "Cout"]
 }
 ```
 
+(These are the real values for the §3.7 netlist: `Sum_1_` is driven by `fa1_x2` at depth 2; the carry `fa1_o1` arrives at depth 3, so `fa2_x2`/`fa2_a2` sit at depth 4 and `Cout` at 5.)
+
+- `output_depths` has exactly one entry per single-bit output wire: the number of gate levels between the inputs and that output. A top-level input has depth 0 and every gate adds 1. Power pins (`__VCC__`/`__GND__`) count as gates of depth 1: their output holds the power-on 0 at cycle 0 and only reflects the pin from cycle 1. An output wired straight from an input has depth 0.
+- `critical_path` is one longest path, and each adjacent pair in it is a real connection. It usually starts at an input wire, then lists gate names, and ends at the deepest output wire. It can instead start at a gate: at a power pin, or, under feedback, at a gate whose only inputs come from inside its own loop. For `examples/srLatch.shdl` it is `["i1", "Q"]`.
+- `is_combinational` is the negation of `has_feedback`.
+
 - `max_depth` is the minimum number of simulation cycles for all outputs to reflect current inputs under SHDL's one-gate-level-per-cycle semantics.
 - `has_feedback` tells the driver whether `settle()` can safely converge.
-- Depths are computed on the feedback-free subgraph (feedback edges excluded from longest-path analysis).
+- Depths are computed on the feedback-free subgraph. Gates are grouped into strongly connected components, and an edge between two gates of the same feedback component (a loop of two or more gates, or a self-loop) is excluded from the longest-path analysis.
 - **Under feedback (`has_feedback = true`)** `max_depth` is the depth of the feedback-free shell *only*; it is **not** a settle count, since a circuit with feedback has no guaranteed fixed point. In that case `settle()` is disabled and the circuit must be advanced explicitly with `step(n)` (`shdl.md` §11.3).
 
 ### 4.8 `monitors` — Debugger Watch Configuration
@@ -405,44 +425,56 @@ Named groups of signals worth observing together. The schema is an object mappin
 }
 ```
 
-It enables `watch :carry_chain`, `record signals :carry_chain`, and grouped display panels in SHDB.
+It is intended to enable `watch :carry_chain`, `record signals :carry_chain`, and grouped display panels in the planned SHDB debugger.
 
-**V1 status.** In V1 the flattener always emits `monitors` as an **empty object** `{}`. There is no annotation syntax in Expanded SHDL and no automatic population path, so no group is ever produced; the block is emitted (always present, always empty) purely so that consumers and the `.shdb` have a stable, well-typed key. The `{group: [gate_or_wire, …]}` schema above is **reserved** for a future revision that adds population (flattener heuristics or source annotations); consumers should tolerate a populated `monitors` but must not depend on one in V1.
+**V1 status.** In V1 the flattener always emits `monitors` as an **empty object** `{}`. There is no annotation syntax in Expanded SHDL and no automatic population path, so no group is ever produced; the block is emitted (always present, always empty) purely so that consumers have a stable, well-typed key. The `{group: [gate_or_wire, …]}` schema above is **reserved** for a future revision that adds population (flattener heuristics or source annotations); consumers should tolerate a populated `monitors` but must not depend on one in V1.
 
 ### 4.9 `stats` — Circuit Statistics
 
 ```json
 "stats": {
   "total_gates": 10,
-  "total_connections": 22,
+  "total_connections": 23,
   "total_ports": 8,
   "by_type": { "XOR": 4, "AND": 4, "OR": 2 }
 }
 ```
+
+- `total_gates` counts primitive instances, including materialized power pins.
+- `total_connections` counts lines in the `connect` block (the §3.7 example has 23).
+- `total_ports` counts single-bit input wires plus single-bit output wires in the header.
+- `by_type` counts gates per primitive type, only for types that occur.
 
 ### 4.10 `doc` — Documentation and Provenance
 
 ```json
 "doc": {
   "description": "2-bit ripple-carry adder",
-  "author": "rafa-rrayes",
   "source": "add2.shdl",
   "flattened_at": "2026-06-10T14:30:00Z"
 }
 ```
 
+- `description` is the main module's doc comment (the first `"""…"""` comment before any token) with surrounding whitespace stripped; the key is omitted when the module has none.
+- `source` is the main source file's name (no directory).
+- `flattened_at` is the `--timestamp` value when one is given (used verbatim), else the `SOURCE_DATE_EPOCH` environment variable rendered as UTC `YYYY-MM-DDTHH:MM:SSZ`, else the current UTC time. Pinning either makes the output byte-reproducible.
+
 ### 4.11 `init` — Initial State
 
-Records the power-on value of any net seeded by an Expanded SHDL `init` block (`shdl.md` §11.4). Every wire defaults to 0 at cycle 0; this block lists only the nets given a different seed, so the compiler can initialize the State Region and the debugger can display the power-on state.
+Records the power-on value of any net seeded by an Expanded SHDL `init` block (`shdl.md` §11.4). Every wire defaults to 0 at cycle 0; this block lists only the nets given a different seed, so the compiler can seed the power-on state (and a debugger could display it).
+
+This is the block for `examples/srLatch.shdl`, whose `init` seeds the cross-coupled latch at a fixed point (Q = 0):
 
 ```json
 "init": {
-  "n1.O": 0,
-  "n2.O": 1
+  "o1.O": 1,
+  "Q": 0,
+  "o2.O": 0,
+  "Qn": 1
 }
 ```
 
-- Keys are structural signals (an instance output `inst.O`, or a component output port). Multi-bit ports seeded in the source are recorded here already expanded to their single-bit wires (`Out_1_`, `Out_2_`, …).
+- Keys are structural signals, named the same way as the connection sources in the structural core. A seeded net that reaches a top-level output port is keyed by that output wire: `Q` above is the output of gate `i1`, which drives `Q`. Any other net is keyed by its driving gate's output, `gate.O`. Multi-bit targets are recorded already expanded to single-bit wires (`Q_1_`, `Q_2_`, …), and a seed written inside a sub-component appears once per instance under the prefixed name (`bit1_latch_o1.O`, `bit2_latch_o1.O`, … in `examples/registerN.shdl`).
 - Values are `0` or `1`. A net absent from this block holds the default of `0`.
 - `init` carries no logic — it is purely the value present before the first `step`; subsequent cycles evolve from the gate netlist alone.
 
@@ -453,10 +485,10 @@ Records the power-on value of any net seeded by an Expanded SHDL `init` block (`
 | Consumer            | Blocks Used                                  | Purpose                                            |
 |---------------------|----------------------------------------------|----------------------------------------------------|
 | SHDLC (release)     | `ports`, `init`                              | Generate `poke()`/`peek()` with user-facing names; seed power-on state |
-| SHDLC (debug)       | all                                          | Code generation + write `.shdb`                     |
-| Python Driver       | `ports`, `timing`, `init`                    | Multi-bit poke/peek; `settle()`; reset to power-on state |
-| SHDB Debugger       | all                                          | Hierarchy, source display, watch groups, constants, power-on state |
-| External observers  | `ports`, `stats` + State Region layout (.shdb) | Shared-memory interpretation                      |
+| Python Driver       | `ports`, `timing`, `init`, `stats`, `doc.description` | Multi-bit poke/peek; `settle()`; read-only introspection via `Circuit.info` |
+| SHDLC (debug) — *planned* | all                                    | Code generation + write `.shdb`                     |
+| SHDB Debugger — *planned* | all                                    | Hierarchy, source display, watch groups, constants, power-on state |
+| External observers — *planned* | `ports`, `stats` + State Region layout (.shdb) | Shared-memory interpretation              |
 | Future backends     | `ports`                                      | Reconstruct multi-bit declarations                  |
 
 ---
@@ -473,7 +505,7 @@ Records the power-on value of any net seeded by an Expanded SHDL `init` block (`
 | No generators, conditionals, slices, or concatenation | All repetition, selection, slicing, and grouping is expanded |
 | No named constants              | Replaced by `__VCC__`/`__GND__` instances    |
 | No `init` blocks                | Power-on seeds live in metadata (`init`, §4.11) |
-| No imports / comments           | Pure structural description                  |
+| No imports; no comments emitted | Pure structural description (`shdlc` skips `#` line comments, but the flattener never writes one) |
 | Exactly one component           | The flattened top-level                      |
 | Only six primitive types        | AND, OR, NOT, XOR, `__VCC__`, `__GND__`      |
 | No `…_<digits>_` user names     | Reserved for bus expansion (§3.4)            |
@@ -501,7 +533,9 @@ No maximum **gate count** is defined: the total number of gates is bounded only 
 
 ## 7. Serialization
 
-There is a **single** serialization for metadata: JSON. The object between the `meta` braces embedded in the Base SHDL file and the contents of the standalone `.shdb` file are the same bytes — the `.shdb` is produced by lifting the embedded object out and appending the compiler-added **State Region layout** (`state_region`), which is the only field the flattener does not itself emit. There is no second, text-only encoding to keep in sync.
+There is a **single** serialization for metadata: JSON, embedded between the `meta` braces of the Base SHDL file. There is no second, text-only encoding to keep in sync.
+
+*Planned — not implemented in 1.1.0:* the compiler's debug build is to write a standalone `.shdb` file holding the same bytes, produced by lifting the embedded object out and appending the compiler-added **State Region layout** (`state_region`), which is the only field the flattener does not itself emit. The example below shows the top-level shape of the metadata object, with that planned key last.
 
 ```json
 {
@@ -522,7 +556,7 @@ There is a **single** serialization for metadata: JSON. The object between the `
 }
 ```
 
-The debugger, driver, and any external tool load one format. Because the embedded metadata and the `.shdb` are the same object, the structure and its metadata cannot fall out of sync.
+The driver, the planned debugger, and any external tool load one format. Because the embedded metadata and the `.shdb` are to be the same object, the structure and its metadata cannot fall out of sync.
 
 ---
 
@@ -530,7 +564,7 @@ The debugger, driver, and any external tool load one format. Because the embedde
 
 **Why remove multi-bit ports from the structural core?** The core's job is to describe logic, and logic operates on single bits. A multi-bit port is a convenience grouping, not a structural primitive. Moving it to metadata makes the structural grammar simpler (no indexing rules, no bounds checking) and more honest about what it is: a flat netlist of Boolean gates.
 
-**Why embed the metadata rather than a separate file?** Embedding makes it impossible for the structure and metadata to fall out of sync. The JSON `.shdb` is the embedded object lifted out verbatim (plus the State Region layout), never generated independently.
+**Why embed the metadata rather than a separate file?** Embedding makes it impossible for the structure and metadata to fall out of sync. The planned JSON `.shdb` is to be the embedded object lifted out verbatim (plus the State Region layout), never generated independently.
 
 **Why a single JSON serialization rather than a human-readable text form *and* JSON?** Two encodings of the same information mean two grammars, two parsers, and a translation step that can drift — and the text form's grammar was never fully specified, only shown by example. Collapsing to one canonical format (JSON, which every consumer already reads) removes the drift risk entirely and leaves nothing to translate. JSON is readable enough embedded in the file; the structural core above it remains the human-facing part.
 
@@ -538,4 +572,4 @@ The debugger, driver, and any external tool load one format. Because the embedde
 
 **Why include timing?** The single most common usability problem in SHDL v1 was users guessing how many `step()` calls a circuit needs. With `max_depth` in the metadata, the driver implements `settle()` definitively — without compromising SHDL's gate-level, one-level-per-cycle simulation model.
 
-**Why keep `init` in metadata rather than the structural core?** Initial state is a power-on *value*, not a gate. Putting it in the core would mean either inventing a stateful primitive or letting wires carry annotations — both of which would compromise the core's one job: describing single-bit Boolean logic. As metadata, the seed reaches exactly the consumers that need it (the compiler seeds the State Region, the driver resets to it, the debugger displays it) while the netlist stays a pure netlist. Every wire still defaults to 0, so a circuit with no `init` block needs no `init` metadata at all.
+**Why keep `init` in metadata rather than the structural core?** Initial state is a power-on *value*, not a gate. Putting it in the core would mean either inventing a stateful primitive or letting wires carry annotations — both of which would compromise the core's one job: describing single-bit Boolean logic. As metadata, the seed reaches exactly the consumers that need it (the compiled library applies it in `reset()`, which also runs at load; the driver's `reset()` returns to it; the planned debugger is to display it) while the netlist stays a pure netlist. Every wire still defaults to 0, so a circuit with no `init` block needs no `init` metadata at all.

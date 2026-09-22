@@ -1,0 +1,284 @@
+---
+title: Half adder
+sidebar_label: Half adder
+description: A two-gate half adder in SHDL, its flattened Base SHDL netlist, and an exhaustive simulation from Python.
+---
+
+A half adder adds two single bits and produces a two-bit result: a sum bit and
+a carry bit. It is the smallest useful arithmetic circuit and the building
+block of every adder on the following pages. This page walks through its SHDL
+source, the Base SHDL the flattener turns it into, and a Python session that
+checks every input combination.
+
+![Half adder](/img/half-adder.png)
+
+## What it computes
+
+| A | B | Sum | Carry | A + B |
+|---|---|-----|-------|-------|
+| 0 | 0 | 0   | 0     | 0     |
+| 0 | 1 | 1   | 0     | 1     |
+| 1 | 0 | 1   | 0     | 1     |
+| 1 | 1 | 0   | 1     | 2     |
+
+`Sum` is 1 when exactly one input is 1, which is XOR. `Carry` is 1 only when
+both inputs are 1, which is AND. Read `Carry Sum` as a two-bit binary number and
+you get `A + B`.
+
+## Source
+
+The half adder is defined in
+[`examples/fullAdder.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/fullAdder.shdl),
+next to the [full adder](./full-adder.mdx) that is built from it. Here it is on
+its own, exactly as written there:
+
+```shdl title="halfAdder.shdl"
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;  a1: AND;
+
+    connect {
+        A -> x1.A;  B -> x1.B;  x1.O -> Sum;
+        A -> a1.A;  B -> a1.B;  a1.O -> Carry;
+    }
+}
+```
+
+Line by line:
+
+- `component HalfAdder(A, B) -> (Sum, Carry)` declares a component with two
+  single-bit inputs and two single-bit outputs. Inputs go in the first
+  parenthesised list and outputs after `->`. See
+  [Components](../language-reference/components.mdx).
+- `x1: XOR;  a1: AND;` declares two instances of primitive gates. Every
+  primitive has inputs `A` and `B` (only `A` for `NOT`) and output `O`. Several
+  declarations can share a line. See
+  [Standard gates](../language-reference/standard-gates.mdx).
+- `connect { ... }` holds the wiring. Each `source -> destination;` statement
+  drives one signal from another. A component input (`A`) can fan out to as
+  many gate inputs as you like, and a gate output (`x1.O`) can drive a component
+  output (`Sum`). See [Connections](../language-reference/connections.mdx).
+
+The file has only one component, so the flattener picks it as the top
+automatically. No `top` marker is needed.
+
+## Flattened netlist
+
+`shdl-flatten` turns SHDL into Base SHDL: a flat list of primitive gates, one
+connection per line, followed by a `meta` block of JSON metadata. The
+`--timestamp` flag pins the `flattened_at` field so the output is reproducible.
+
+```console check
+$ shdl-flatten halfAdder.shdl --timestamp 2026-01-01T00:00:00Z
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;
+    a1: AND;
+
+    connect {
+        A -> x1.A;
+        B -> x1.B;
+        x1.O -> Sum;
+        A -> a1.A;
+        B -> a1.B;
+        a1.O -> Carry;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ]
+    },
+    "outputs": {
+      "Sum": [
+        "Sum"
+      ],
+      "Carry": [
+        "Carry"
+      ]
+    }
+  },
+  "hierarchy": {
+    "HalfAdder": {
+      "source_file": "halfAdder.shdl",
+      "source_line": 1,
+      "instances": {
+        "x1": {
+          "type": "XOR",
+          "gate": "x1"
+        },
+        "a1": {
+          "type": "AND",
+          "gate": "a1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "x1": {
+        "file": "halfAdder.shdl",
+        "line": 2,
+        "column": 5
+      },
+      "a1": {
+        "file": "halfAdder.shdl",
+        "line": 2,
+        "column": 15
+      }
+    },
+    "lines": {
+      "halfAdder.shdl": {
+        "2": [
+          "x1",
+          "a1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Sum": 1,
+      "Carry": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "x1",
+      "Sum"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 2,
+    "total_connections": 6,
+    "total_ports": 4,
+    "by_type": {
+      "XOR": 1,
+      "AND": 1
+    }
+  },
+  "doc": {
+    "source": "halfAdder.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}
+```
+
+A half adder is already flat, so the netlist is the source with one statement
+per line. The metadata matters more on bigger circuits, but even here it
+records the numbers that drive simulation:
+
+| Property | Value | Meaning |
+|---|---|---|
+| Gates | 2 (1 XOR, 1 AND) | `stats.total_gates` and `stats.by_type` |
+| `max_depth` | 1 | the longest input-to-output path passes through one gate |
+| Critical path | `A`, `x1`, `Sum` | one path of that length (`a1` to `Carry` has the same depth) |
+| `is_combinational` | true | no feedback, so `settle()` is allowed |
+
+The [Base SHDL](../architecture/base-shdl.mdx) page describes every metadata
+field. The [shdl-flatten](../tools/shdl-flatten.mdx) page covers the command's
+options.
+
+Flattening the real file gives the same netlist:
+`shdl-flatten examples/fullAdder.shdl --top HalfAdder`. Only the source
+locations and the `doc` block change, because they then point into
+`fullAdder.shdl`.
+
+## Simulate it
+
+[`Circuit`](../tools/python-api.mdx) flattens, compiles and loads the module in
+one call. The loop below drives all four input combinations. `settle()` advances
+the circuit `max_depth` cycles (here, one), which is enough for every output to
+reflect the new inputs.
+
+```python
+from SHDL import Circuit
+
+with Circuit("halfAdder.shdl") as c:
+    print(c)
+    print("max_depth:", c.timing.max_depth)
+    print("A B | Sum Carry")
+    for a in (0, 1):
+        for b in (0, 1):
+            c["A"] = a
+            c["B"] = b
+            c.settle()
+            print(f"{a} {b} |  {c['Sum']}    {c['Carry']}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'HalfAdder' (A, B) -> (Sum, Carry)>
+max_depth: 1
+A B | Sum Carry
+0 0 |  0    0
+0 1 |  1    0
+1 0 |  1    0
+1 1 |  0    1
+```
+
+The simulator uses the [unit-delay model](../concepts/simulation-model.mdx):
+every gate takes exactly one cycle to respond to its inputs, and the whole
+circuit powers on with every gate output at 0. `poke` only records the new
+input values; `step(1)` then evaluates every gate once:
+
+```python
+from SHDL import Circuit
+
+with Circuit("halfAdder.shdl") as c:
+    c.poke("A", 1)
+    c.poke("B", 1)
+    print("inputs:", c.peek("A"), c.peek("B"))
+    c.step(1)
+    print("after 1 cycle: Sum =", c.peek("Sum"), " Carry =", c.peek("Carry"))
+```
+
+```text title="Output"
+inputs: 1 1
+after 1 cycle: Sum = 0  Carry = 1
+```
+
+:::note[Lazy peek]
+
+Reading an output right after a `poke`, without stepping, runs the one pending
+cycle for you. That is enough for a depth-1 circuit like this one, but it is
+only ever one cycle: deeper circuits need `settle()` or `step(n)`, as the
+[full adder](./full-adder.mdx) shows.
+
+:::
+
+For many input vectors, `run_batch` drives them all in one call into the
+compiled library. Each frame is applied, the circuit advances `cycles` cycles,
+and every output is recorded:
+
+```python
+from SHDL import Circuit
+
+with Circuit("halfAdder.shdl") as c:
+    frames = [{"A": a, "B": b} for a in (0, 1) for b in (0, 1)]
+    rows = c.run_batch(frames, cycles=c.timing.max_depth)
+    for frame, row in zip(frames, rows):
+        print(frame, "->", row)
+        assert row["Sum"] + 2 * row["Carry"] == frame["A"] + frame["B"]
+```
+
+```text title="Output"
+{'A': 0, 'B': 0} -> {'Sum': 0, 'Carry': 0}
+{'A': 0, 'B': 1} -> {'Sum': 1, 'Carry': 0}
+{'A': 1, 'B': 0} -> {'Sum': 1, 'Carry': 0}
+{'A': 1, 'B': 1} -> {'Sum': 0, 'Carry': 1}
+```
+
+## Next
+
+The [full adder](./full-adder.mdx) chains two half adders with an OR gate to
+add a third bit, the carry in.
