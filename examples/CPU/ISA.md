@@ -19,7 +19,7 @@ Bit numbering in this document is **conventional**: bit 15 = MSB, bit 0 = LSB.
 | `R7` = SP | Stack pointer by convention: PUSH/POP/CALL/RET use it implicitly; it remains a normal GPR otherwise |
 | `PC` | 16-bit program counter (wraps mod 2^16) |
 | `FLAGS` | Z (zero), N (negative), C (carry), V (signed overflow) |
-| Memory | Word-addressed (16-bit words), unified code+data. Physical size 2^A words (parameter `A`, default 8 → 256 words); the low A bits of every address select the word (addresses alias mod 2^A) |
+| Memory | Word-addressed (16-bit words), unified code+data. Physical size 256 words (`RAM256` in `ram.shdl`, 8 address bits); the low 8 bits of every address select the word (addresses alias mod 256) |
 
 Power-on / reset state: every latch is 0 → `PC = 0`, all registers 0, flags 0,
 FSM in FETCH, not halted. Execution starts at address 0. With `R7 = 0`, the
@@ -199,7 +199,7 @@ poke phi2=0; step(T_SETTLE)  # combinational logic settles for the next cycle
 `T_CAP`/`T_GAP`/`T_SETTLE` are pinned in `sr16tools/driver.py` and guarded by a
 test that doubles them and asserts the architectural trace is unchanged.
 
-## 6. Top-level pins (`sr16.shdl`, component `SR16<A = 8>`)
+## 6. Top-level pins (`sr16.shdl`, component `SR16`)
 
 Inputs:
 

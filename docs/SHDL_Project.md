@@ -38,7 +38,7 @@ SHDL is organized around a clean separation between the language people write an
        │
        ▼
   ┌──────────────┐
-  │  Flattener   │   6 sequential phases
+  │  Flattener   │   fixed sequence of lowering stages
   └──────────────┘
        │
        ▼
@@ -50,9 +50,9 @@ SHDL is organized around a clean separation between the language people write an
   └──────────────────────────────────┘
        │
        ├──▶  SHDLC Compiler  ──▶  C  ──▶  Shared Library
-       ├──▶  Debugger (SHDB)
+       ├──▶  Debugger (SHDB)            (planned)
        ├──▶  Python Driver (PySHDL)
-       └──▶  Alternative backends (Verilog, BLIF, Yosys, hardware, ...)
+       └──▶  Alternative backends (Verilog, BLIF, Yosys, hardware, ...)   (planned)
 ```
 
 ### 2.1 The Two Languages
@@ -69,7 +69,7 @@ Base SHDL has exactly six primitive types, and they are the only types that surv
 
 ### 2.3 The Flattener (Complete)
 
-The flattener lowers SHDL to Base SHDL in six sequential phases, each fully completing before the next: lexical stripping (comments and imports), monomorphization (binding parameters and specializing parameterized components), generator and conditional expansion, expander expansion (slices and concatenation into single-bit connections), constant materialization (referenced constant bits into power pins), and hierarchy flattening (inlining components, prefixing names, extracting metadata). The flattening guarantees functional equivalence, name uniqueness, full resolution to the six primitives, and determinism.
+The flattener lowers SHDL to Base SHDL in a fixed sequence of stages, each fully completing before the next: parsing and import resolution (the lexer discards comments; `use` statements are resolved against the search path), whole-program validation, top-component selection, monomorphization (binding parameters and specializing parameterized components), generator and conditional expansion, expander expansion (slices and concatenation into single-bit connections), constant materialization (referenced constant bits into power pins), and hierarchy flattening (inlining components, prefixing names), followed by timing analysis and metadata construction. The flattening guarantees functional equivalence, name uniqueness, full resolution to the six primitives, and determinism.
 
 ---
 
@@ -83,15 +83,17 @@ The generated code implements the unit-delay, one-level-per-cycle model via a **
 
 ### 3.2 The ABI
 
-The release build exposes `reset()`, `poke(signal, value)`, `peek(signal)`, and `step(cycles)`, using user-facing multi-bit signal names from the `ports` metadata. The debug build adds gate-level introspection: `peek_gate`, `peek_gate_prev`, `get_cycle`, and gate enumeration, alongside a `.shdb` metadata file. Both builds produce functionally identical simulation results.
+The release build exposes `reset()`, `poke(signal, value)`, `peek(signal)`, and `step(cycles)`, using user-facing multi-bit signal names from the `ports` metadata, plus two throughput paths, `step_settle(cycles)` and `run_batch(...)` (see `shdlc_goals.md` §3). *(Planned — not implemented in 1.1.0:)* a debug build adding gate-level introspection — `peek_gate`, `peek_gate_prev`, `get_cycle`, and gate enumeration — alongside a `.shdb` metadata file. Both builds are to produce functionally identical simulation results.
 
 ### 3.3 The State Region
+
+*Planned — not implemented in 1.1.0. Today's generated code keeps its state in private static arrays reachable only through the function ABI.*
 
 All simulation state lives in a single, contiguous, self-describing memory region with a compile-time-fixed, versioned layout. This is the substrate that makes same-process direct access, shared-memory observation, cross-process driving, and future parallel evaluation all additive rather than rewrites. The function-call ABI is always the primary interface; the State Region is what lets everything else attach without disturbing the simulation.
 
 ### 3.4 Build Strategy: Correct First, Fast Last
 
-SHDLC is built in versions. **V1 is deliberately simple and unoptimized**: parse Base SHDL, evaluate each gate one at a time using the two-buffer cycle, generate readable C, expose the release ABI. It exists to be provably correct. Subsequent versions add the debug build, then performance tiers — type-based bit-packing, then PDEP/PEXT-accelerated gather on capable hardware, then SIMD, then multi-threading — each validated bit-exactly against V1 and the conformance suite. **Compiler optimization is intentionally the last major work in the project**, because it is the part most able to introduce subtle correctness regressions and the part that benefits most from a mature test corpus.
+SHDLC is built in versions. **V1 (shipped) is deliberately simple and unoptimized**: parse Base SHDL, evaluate each gate one at a time using the two-buffer cycle, generate readable C, expose the release ABI. It exists to be provably correct. Subsequent versions add the debug build, then performance tiers — type-based bit-packing, then PDEP/PEXT-accelerated gather on capable hardware, then SIMD, then multi-threading — each validated bit-exactly against V1 and the conformance suite. **Compiler optimization is intentionally the last major work in the project**, because it is the part most able to introduce subtle correctness regressions and the part that benefits most from a mature test corpus.
 
 ---
 
@@ -101,19 +103,21 @@ Around the core pipeline sits a full ecosystem of tools. They are described here
 
 ### 4.1 PySHDL — the Python Driver
 
-The keystone of the ecosystem. PySHDL is the python library for SHDL, it is where 99% of users will interact with SHDL. The library comes with the compiler and runtime tools necessary to use SHDL in an easy and intuitive way. PySHDL loads a compiled shared library and wraps the ABI in an ergonomic Python interface (`poke`, `peek`, `step`, context managers, dict-style access). It reads the `ports`, `timing`, and `init` metadata to provide multi-bit access, power-on reset, and a `settle()` convenience that advances exactly `max_depth` cycles for combinational circuits (and is disabled, by design, for circuits with feedback).
+The keystone of the ecosystem. PySHDL is the python library for SHDL, it is where 99% of users will interact with SHDL. The library comes with the compiler and runtime tools necessary to use SHDL in an easy and intuitive way. PySHDL loads a compiled shared library and wraps the ABI in an ergonomic Python interface (`poke`, `peek`, `step`, context managers, dict-style access). It reads the `ports` and `timing` metadata to provide multi-bit access and a `settle()` convenience that advances exactly `max_depth` cycles for combinational circuits (and is disabled, by design, for circuits with feedback). Power-on seeds from `init` are applied by the compiled library itself, at load and on every `reset()`; PySHDL reports them read-only as `Circuit.info.init`.
 
 ### 4.2 SHDB — the Debugger
+
+*Planned — not implemented in 1.1.0.*
 
 A gate-level debugger built on PySHDL and the compiler's debug build. It offers breakpoints, watchpoints, waveform capture, hierarchy navigation, scope-aware signal inspection, source-level mapping, and constant/initial-state display — all powered by the metadata (`hierarchy`, `source_map`, `constants`, `monitors`, `init`) and the debug ABI (`peek_gate`, `peek_gate_prev`, `get_cycle`).
 
 ### 4.3 The Standard Library (stdlib)
 
-A growing collection of reusable SHDL components — derived gates (`NAND`, `NOR`, `XNOR`), multiplexers, adders, registers, shifters, ALUs, and more — shipped as `.shdl` source. It is mostly independent of the binary toolchain but is the source of fixtures that every other tool tests against.
+A growing collection of reusable SHDL components — derived gates (`NAND`, `NOR`, `XNOR`), multiplexers, adders, registers, shifters, ALUs, and more — shipped as `.shdl` source. It is mostly independent of the binary toolchain but is the source of fixtures that every other tool tests against. *Today:* no library ships inside PySHDL itself; `examples/stdgates.shdl` is the conventional `stdgates` module, and reusable libraries are published as packages on Circuit Circus (§4.12) and vendored with `shdl add`.
 
 ### 4.4 The Testbench Runner
 
-A format (`.shtb`) for declaring input vectors and expected outputs, executed in batch against a compiled circuit. It makes circuits self-verifying and is the backbone of automated testing and CI.
+A format (`.shtb`) for declaring input vectors and expected outputs, executed in batch against a compiled circuit. It makes circuits self-verifying and is the backbone of automated testing and CI. *Today:* `shdl test` runs JSON test files (vector tables and poke/step/expect sequences) against a project's circuits — see `shdl_cli.md`; the `.shtb` format itself is not implemented.
 
 ### 4.5 The Performance Profiler
 
@@ -145,7 +149,7 @@ A **language server (LSP)** for editor support everywhere (autocomplete on compo
 
 ### 4.12 Distribution and Glue
 
-*The CLI and the package manager are built.* The **unified CLI** (`shdl`) ships with PySHDL: `shdl new`/`init` scaffold a project (`shdl.toml`, `shdl.lock`, `shdl_modules/`), `shdl build`/`test`/`run` drive the in-process pipeline, and the **package manager** (`shdl add arith`) resolves against **Circuit Circus** — the hosted static package index (github.com/rafa-rrayes/CCircus, published on GitHub Pages) with versioned immutable archives and PR-based publishing (`shdl publish` prints the playbook). See `docs/shdl_cli.md`. Still ahead: `shdl deploy` (hardware targets) and a **CI action** that compiles, runs testbenches, and checks equivalence on every push.
+*The CLI and the package manager are built.* The **unified CLI** (`shdl`) ships with PySHDL: `shdl new`/`init` scaffold a project (`shdl.toml`, `shdl.lock`, a starter module and tests; `shdl_modules/` appears on the first download), `shdl build`/`test`/`run` drive the in-process pipeline, and the **package manager** (`shdl add arith`) resolves against **Circuit Circus** — the hosted static package index (github.com/rafa-rrayes/CCircus, published on GitHub Pages) with versioned immutable archives and PR-based publishing (`shdl publish` prints the playbook). See `docs/shdl_cli.md`. Still ahead: `shdl deploy` (hardware targets) and a **CI action** that compiles, runs testbenches, and checks equivalence on every push.
 
 ### 4.13 The Conformance Suite
 
@@ -164,19 +168,19 @@ The ecosystem has a clear dependency structure. The layers below indicate what m
 ### Layer 0 — Core (done / in progress)
 
 1. **Flattener** — *complete.*
-2. **SHDLC V1** — *in progress.* Simple, scalar, unoptimized; release ABI.
-3. **Conformance Suite** — build immediately after V1. Depends only on the flattener and V1. The validation foundation for everything that follows.
+2. **SHDLC V1** — *complete.* Simple, scalar, unoptimized; release ABI.
+3. **Conformance Suite** — *complete.* Built immediately after V1. Depends only on the flattener and V1. The validation foundation for everything that follows.
 
 ### Layer 1 — Consumers of a compiled circuit
 
 4. **PySHDL** — *built.* The driver; the keystone. Depends on SHDLC V1's library and ABI.
 5. **stdlib** *(parallel)* — `.shdl` source; depends on the flattener and conformance suite. Build early; it supplies fixtures to everyone.
-6. **SHDLC debug build** — adds the debug ABI and `.shdb`. Prerequisite for SHDB.
-7. **SHDB** — the debugger. Depends on PySHDL + the debug build.
+6. **SHDLC debug build** — *planned.* Adds the debug ABI and `.shdb`. Prerequisite for SHDB.
+7. **SHDB** — *planned.* The debugger. Depends on PySHDL + the debug build.
 
 ### Layer 2 — Verification & analysis (depend on PySHDL + stdlib)
 
-8. **Testbench runner** *(build early)* — backbone of automated testing and CI.
+8. **Testbench runner** *(build early; `shdl test` covers JSON vectors today)* — backbone of automated testing and CI.
 9. **Performance profiler** — needs PySHDL and real circuits.
 10. **Alternative backends** *(parallel track off the flattener)* — Verilog, BLIF, Yosys JSON. Independent of SHDLC.
 11. **Equivalence checker** — depends on the BLIF backend (ABC). Plus combinational-loop lint, coverage, fuzzer.
@@ -233,13 +237,13 @@ These principles govern every part of the project.
 | Component                     | Layer | Status        |
 |-------------------------------|-------|---------------|
 | Flattener (SHDL → Base SHDL)  | 0     | Complete      |
-| SHDLC V1 (Base SHDL → C)      | 0     | In progress   |
+| SHDLC V1 (Base SHDL → C)      | 0     | Complete      |
 | Conformance suite             | 0     | Complete      |
 | PySHDL driver                 | 1     | Built         |
-| stdlib                        | 1     | Planned       |
+| stdlib                        | 1     | Partial (Circuit Circus packages) |
 | SHDLC debug build             | 1     | Planned       |
 | SHDB debugger                 | 1     | Planned       |
-| Testbench runner              | 2     | Planned       |
+| Testbench runner              | 2     | Partial (`shdl test`, JSON) |
 | Performance profiler          | 2     | Planned       |
 | Backends (Verilog/BLIF/Yosys) | 2     | Planned       |
 | Verification tools            | 2     | Planned       |
@@ -259,7 +263,11 @@ These principles govern every part of the project.
 |-------------------------------|------------------------------------------------------|
 | `shdl.md`                     | The SHDL (Expanded SHDL) language — full specification |
 | `base_shdl.md`                | The Base SHDL IR — structural core + metadata        |
-| `SHDL_Compiler_Goals.md`      | SHDLC goals, ABI, State Region, correctness          |
+| `shdlc_goals.md`              | SHDLC goals, ABI, State Region, correctness          |
+| `pyshdl.md`                   | PySHDL — the Python driver API                       |
+| `shdl_cli.md`                 | The `shdl` CLI, projects and the Circuit Circus index |
+| `golden_tests.md`             | The verification map: spec obligations → tests       |
+| `../conformance/conformance.md` | The conformance suite and its case format          |
 | `SHDL_Project.md`             | This document — the official project definition      |
 
 This document is the authoritative overview of the SHDL project. Where it summarizes a component, the component's own specification (where one exists) governs the details.

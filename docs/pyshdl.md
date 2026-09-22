@@ -62,7 +62,7 @@ with Circuit("examples/adder8.shdl") as c:
 
 The `with` block is the recommended form: on exit it releases the simulation
 and removes the temporary build artifacts. (`close()` does the same and is
-idempotent; see [§9](#9-lifecycle-and-build-artifacts).)
+idempotent; see [§11](#11-lifecycle-and-build-artifacts).)
 
 ---
 
@@ -92,8 +92,8 @@ Keyword options (also available on `from_source` and `from_base`):
 | `strict=` | Range-validate pokes in Python (default `True`; see [§5](#5-value-policy-strict-and-non-strict)). |
 | `build_dir=` | Keep artifacts in this directory instead of a managed temp dir. |
 | `keep_artifacts=` | Retain the managed temp dir instead of deleting it on close. |
-| `cc=` | C compiler to invoke (default: auto-detected). |
-| `cflags=` | Extra flags passed to the C compiler. |
+| `cc=` | C compiler to invoke (default: `$CC`, then the first of `cc`/`clang`/`gcc` on `PATH`). |
+| `cflags=` | C compiler flags. **Replaces** the defaults (`-std=c11 -O2 -shared -fPIC -fvisibility=hidden`), so a custom list must keep `-shared -fPIC`. |
 
 `top` selects a non-marked component from a multi-component file:
 
@@ -190,7 +190,7 @@ with Circuit.from_library(lib, base=Path(base)) as c:
 ```
 
 Without `base=`, the circuit degrades explicitly — see
-[§7](#7-bare-libraries-without-metadata).
+[§8](#8-bare-libraries-without-metadata).
 
 **Which constructor?** Use `Circuit(path)` for the everyday case (a `.shdl`
 file). Use `from_source` for SHDL you hold in a string. Use `from_base` to skip

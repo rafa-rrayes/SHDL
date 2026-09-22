@@ -313,7 +313,7 @@ that changes a golden byte and forgets the version bump would pass every
 live check (Tier A would still match a re-flatten, the oracle would still
 re-derive the new value). To close that loophole, `MANIFEST.json` carries a
 `golden_hashes` map of every golden's SHA-256 (§4), and the integrity check
-(§11, and `tests/test_conformance.py::test_corpus_integrity`) verifies it:
+(§11, and `tests/flattener/test_conformance.py::test_corpus_integrity`) verifies it:
 
 - a golden byte that changed without its hash being refreshed fails loudly,
   naming the artifact and its expected/actual hash;
@@ -364,7 +364,7 @@ two consecutive runs emit byte-identical text. Any integrity problem —
 missing/corrupt/de-listed artifact, coverage gap — aborts before checking,
 listing every problem by repo-relative path, with nonzero exit.
 
-Pytest integration: `tests/test_conformance.py` exposes the same checks as
+Pytest integration: `tests/flattener/test_conformance.py` exposes the same checks as
 one integrity test plus one test per Tier A golden and per trace, so
 `uv run pytest` covers the suite.
 
@@ -412,8 +412,14 @@ failure naming it — never skip silently.
    the reference oracle. Review the values for plausibility either way.
 4. Add the case name to `MANIFEST.json` → `cases` (sorted). If it covers a
    new feature, add the feature key + description to `required_features`.
-5. Bump `suite_version` (minor) and append a changelog entry.
-6. `uv run shdl-conformance run --filter <name>` and
+5. Add a `golden_hashes` entry (§4) for the new `expected.base.shdl` and
+   every new `traces/*.json` — the SHA-256 hex of the file's bytes (e.g.
+   `shasum -a 256 <file>`), keyed by repo-relative path, map kept sorted.
+   This step is manual: `regen` loads (and so integrity-checks) the whole
+   suite before it touches any case, so it refuses a suite whose new goldens
+   are not yet hashed.
+6. Bump `suite_version` (minor) and append a changelog entry.
+7. `uv run shdl-conformance run --filter <name>` and
    `uv run shdl-conformance verify-oracle --filter <name>` must pass; the
    full `uv run shdl-conformance run` must still pass (coverage map
    included).

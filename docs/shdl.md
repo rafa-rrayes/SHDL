@@ -35,8 +35,8 @@ SHDL is the **front-end** of the toolchain. Everything downstream consumes Base 
   Base SHDL    (intermediate representation)
        │
        ├──▶  SHDLC Compiler  ──▶  C  ──▶  Shared Library
-       ├──▶  Debugger (SHDB)
        ├──▶  Python Driver (Circuit)
+       ├──▶  Debugger (SHDB)             — planned
        └──▶  Future backends (Verilog, WASM, ...)
 ```
 
@@ -85,7 +85,9 @@ useful for documentation blocks.
 """
 ```
 
-String-literal comments (`"..."` and `"""..."""`) are a deliberate convenience: SHDL has no string *values*, so any quoted text is unambiguously a comment.
+String-literal comments (`"..."` and `"""..."""`) are a deliberate convenience: SHDL has no string *values*, so any quoted text is unambiguously a comment. A `"..."` comment must close on the line it opens on, and a `"""` comment must be closed before the end of the file; otherwise the lexer reports E0101.
+
+**Doc comment.** If a triple-quoted comment appears before the first token of a file (only whitespace and other comments may precede it), its text, with leading and trailing whitespace stripped, is the module's *doc comment*. The flattener records the main module's doc comment as `meta.doc.description` in its Base SHDL output (`base_shdl.md` §4.10); it has no other effect.
 
 ### 2.2 Identifiers
 
@@ -98,8 +100,8 @@ DIGIT      = "0" … "9" ;               (* ASCII only *)
 - `LETTER` and `DIGIT` are **ASCII**: `[A-Za-z]` and `[0-9]`. Although source files are UTF-8, the *lexical alphabet* is ASCII — identifiers, numbers, and operators use only ASCII characters. Non-ASCII characters appear legally only inside comments (which are discarded). Any other non-whitespace character outside a comment — a Unicode letter, a Unicode or superscript digit, or any stray symbol — is a lexical error (E0101), never an identifier or a number.
 - Case-sensitive: `MyGate` ≠ `mygate`.
 - Name components, instances, ports, constants, and generator variables.
-- **Identifiers beginning with `__` (double underscore) are reserved** for system use — the power pins `__VCC__` and `__GND__` are the only such names. User code must not introduce them.
-- **Identifiers matching the pattern `…_<digits>_`** — any name ending in an underscore, one or more digits, and a closing underscore (e.g. `Sum_2_`) — are **reserved** for the flattener's bus expansion (§12; `base_shdl.md` §3.4). User code must not introduce them, because a single-bit port literally named `Sum_2_` would collide with the second bit of a bus `Sum[2]`. Violations are reported as naming errors (E03xx).
+- **Identifiers beginning with `__` (double underscore) are reserved** for system use — the power pins `__VCC__` and `__GND__` are the only such names. User code must not *declare* a name with this prefix (a component, parameter, port, instance, constant, or generator variable — E0303), but it may *instantiate* the two power pins as ordinary types (`v: __VCC__;`).
+- **Identifiers matching the pattern `…_<digits>_`** — any name ending in an underscore, one or more digits, and a closing underscore (e.g. `Sum_2_`) — are **reserved** for the flattener's bus expansion (§12; `base_shdl.md` §3.4). User code must not introduce them, because a single-bit port literally named `Sum_2_` would collide with the second bit of a bus `Sum[2]`. Violations are reported as naming errors (E0304). The check also applies to names *produced* by a generator template: `g_{i}_` expands to `g_1_` and is rejected.
 
 ### 2.3 Numeric Literals
 
@@ -127,18 +129,18 @@ All literals are non-negative integers. There are no floating-point, signed, or 
 | `,`    | comma       | list separator                                     |
 | `{ }`  | braces      | blocks, generator bodies, `{expr}` substitutions, concatenation |
 | `[ ]`  | brackets    | widths, indices, slices, generator ranges          |
-| `( )`  | parens      | port lists                                         |
-| `< >`  | angle brackets | component parameter list (`Adder<N>`)           |
-| `+ - * /` | arithmetic | expressions inside `{ }` and indices             |
+| `( )`  | parens      | port lists; grouping inside a `when` condition     |
+| `< >`  | angle brackets | parameter list (`Adder<N>`) and argument list (`a: Adder<8>;`) |
+| `+ - * /` | arithmetic | compile-time integer expressions: `{ }` substitutions, indices, port and constant widths, range bounds, arguments, replication counts |
 
-The following operators are **compile-time only** — they appear solely inside `{ }` substitution and `when` conditions and never reach a gate:
+Arithmetic is integer-only; `/` truncates toward zero (as in C), and division by zero is E0605. The following operators are also **compile-time only** — they appear solely in `when` conditions and never reach a gate:
 
 | Symbol               | Name        | Purpose                                       |
 |----------------------|-------------|-----------------------------------------------|
 | `== != < <= > >=`    | relational  | compare integers in a `when` condition (§7.7) |
 | `&& \|\|`            | boolean     | combine comparisons in a `when` condition     |
 
-Note the contextual overloading of `<`/`>`: angle brackets delimit a parameter list (after a component name); `>` at statement start introduces a generator; and `<`/`>` inside a `when { … }` condition are relational operators. The three contexts never overlap, so one token of lookahead disambiguates them.
+Note the contextual overloading of `<`/`>`: angle brackets delimit a parameter list (after a component name in its header) or an argument list (after the type in an instance declaration); `>` at statement start introduces a generator; and `<`/`>` inside a `when { … }` condition are relational operators. The contexts never overlap, so one token of lookahead disambiguates them.
 
 ### 2.5 Reserved Keywords
 
@@ -151,7 +153,7 @@ Seven words are reserved: **`component`**, **`use`**, **`connect`**, **`init`**,
 A `.shdl` file is a **module**. A module contains, in order:
 
 1. Zero or more **import** statements (§9).
-2. One or more **component** definitions (§4).
+2. Zero or more **component** definitions (§4). An empty module parses, and may be imported; the *main* module, however, needs at least one component to select a top from (an empty main module is E0001).
 
 ```ebnf
 Module = { Import } { Component } ;
@@ -159,7 +161,16 @@ Module = { Import } { Component } ;
 
 The module name is the file name without the `.shdl` extension (`fullAdder.shdl` → module `fullAdder`). Unlike Base SHDL — which holds exactly one flattened component — an SHDL module may define any number of components, and they may freely instantiate one another.
 
-The **top-level component** (the one being compiled or simulated) is selected by the toolchain. A component may optionally be marked with the `top` modifier (`top component Foo(…) -> (…) { … }`) to declare the intended default; a module may contain at most one `top`-marked component. The marker is advisory — the toolchain may still override it — but it makes single-file examples self-describing. A parameterized component (§4.4) may only be marked `top` if all its parameters have defaults.
+The **top-level component** (the one being compiled or simulated) is selected by the toolchain. A component may optionally be marked with the `top` modifier (`top component Foo(…) -> (…) { … }`) to declare the intended default; a module may contain at most one `top`-marked component (E0310). The marker is advisory — the toolchain may still override it — but it makes single-file examples self-describing. A parameterized component (§4.4) may only be marked `top` if all its parameters have defaults (E0902).
+
+The reference toolchain selects the top **only among the components of the main module** (the file named on the command line or passed to `Circuit`), in this order:
+
+1. An explicit name (`--top NAME` on `shdl-flatten`/`shdlc`, or `Circuit(path, top=…)`). It overrides any marker; a name that is not a component of the main module — including one the main module imports — is E0001.
+2. The main module's `top`-marked component.
+3. The main module's only component, if it has exactly one.
+4. Otherwise E0001 ("no 'top' marker and N components …; use --top").
+
+`top` markers in *imported* modules are ignored for selection, but they are still validated (a second marker is E0310, a marked component without defaults is E0902). A parameterized top is always built with its **default** parameter values; the toolchain has no way to override a top's parameters from the command line or the Python API. The emitted Base SHDL component keeps the plain name (`Adder`, not `Adder<4>`).
 
 ---
 
@@ -182,7 +193,7 @@ Port      = IDENTIFIER [ "[" ArithExpr "]" ] ;
 
 - The first parenthesized list declares **inputs**; the list after `->` declares **outputs**.
 - Either list may be empty (e.g. a constant generator: `component ConstOne() -> (Out) { … }`).
-- A port is single-bit by default, or a vector of width *N* when written `Name[N]`. The width is an integer expression: a literal, or — in a parameterized component — an arithmetic expression over the parameters (`A[N]`, `Sum[N+1]`).
+- A port is single-bit by default, or a vector of width *N* when written `Name[N]`. The width is an integer expression: a literal, or — in a parameterized component — an arithmetic expression over the parameters (`A[N]`, `Sum[N+1]`). A width must be positive (E0403, or E0906 when it comes from parameter specialization; §14). A port declared `A[1]` is exactly a single-bit port and flattens to the plain wire `A`.
 - An optional `ParamList` after the name declares compile-time **parameters** (§4.4); an optional `InitBlock` before `connect` declares **initial state** (§11.4).
 - `PascalCase` is the convention for component and type names; port names are free-form (`A`, `Cin`, `DataIn`, `clk`).
 
@@ -197,7 +208,7 @@ A vector `A[8]` is a bus of 8 parallel single-bit wires. Bit indexing is **1-bas
 
 ### 4.2 Component Body
 
-The body contains **declarations** (instances, constants, generators — §5, §7, §8), an optional **`init` block** (§11.4), and exactly one **`connect` block** (§6). By convention declarations come first, then `init`, then `connect`; the parser also accepts declarations interleaved, but a component must contain exactly one `connect` block and at most one `init` block.
+The body contains **declarations** (instances, constants, generators — §5, §7, §8), an optional **`init` block** (§11.4), and exactly one **`connect` block** (§6). By convention declarations come first, then `init`, then `connect`; the parser accepts all three in any order and freely interleaved, but a component must contain exactly one `connect` block and at most one `init` block (E0309).
 
 ### 4.3 Complete Example
 
@@ -257,7 +268,7 @@ component Adder<N>(A[N], B[N], Cin) -> (Sum[N], Cout) {
 
 #### 4.4.1 Multiple and Dependent Parameters
 
-A component may declare several parameters; later parameters and port widths may depend on earlier ones.
+A component may declare several parameters. Port widths, ranges, indices, and arguments may use any of them. A parameter **default**, however, must be a number literal — it cannot refer to another parameter or use arithmetic (`<N, M = N>` and `<N = 2+1>` are syntax errors, E0201).
 
 ```
 component Mux<N, SEL = 1>(D[N], S[SEL]) -> (O) { … }     # SEL defaults to 1
@@ -310,7 +321,7 @@ This is a key difference from Base SHDL: there, every instance is a primitive wh
 
 ### 5.2 Instance Uniqueness
 
-Every instance name must be unique within its component. After hierarchical flattening, names are disambiguated by prefixing (`fa1` containing `x1` becomes `fa1_x1`); see §12 and `base_shdl.md` §3.5.
+Every instance name must be unique within its component — and, more strictly, parameters, ports, instances, and constants all share one namespace per component, so an instance may not reuse a port or constant name either (E0301). After hierarchical flattening, names are disambiguated by prefixing (`fa1` containing `x1` becomes `fa1_x1`); see §12 and `base_shdl.md` §3.5.
 
 ### 5.3 Parameter Arguments
 
@@ -333,7 +344,9 @@ Rules (checked per §14):
 - Positional arguments must precede named arguments, and no parameter may be bound twice.
 - Each argument expression must evaluate to a non-negative integer using only enclosing parameters, generator variables, and literals.
 
-The two instances `r8` and `r32` reference the **same** component definition but flatten to different gate counts: binding happens during hierarchy flattening (§12), and Base SHDL never sees the parameter.
+The two instances `r8` and `r32` reference the **same** component definition but flatten to different gate counts: binding happens during monomorphization (§12, phase 2), which specializes one copy of the component per distinct argument tuple (defaults included), and Base SHDL never sees the parameter. The bound values are recorded in the hierarchy metadata (`"params": {"N": 8}`).
+
+Argument errors: a named argument that matches no parameter, or any argument given to a primitive, is E0901; an unbound parameter without a default is E0902; a positional argument after a named one, or too many positional arguments, is E0903; binding a parameter twice is E0904; an argument that evaluates to a negative number is E0905.
 
 ---
 
@@ -376,11 +389,12 @@ gate.O -> Result[1]; # instance out → one bit of an output bus
 
 ### 6.2 Bit Indexing
 
-`Signal[k]` selects bit *k* (1-based, LSB = 1). The index may be a literal or, inside a generator, an arithmetic expression in `{ }`:
+`Signal[k]` selects bit *k* (1-based, LSB = 1). The index is an arithmetic expression (§7.2) over literals and whatever parameters (§4.4) and generator variables are in scope; the surrounding braces are optional, so `A[i+1]` and `A[{i+1}]` are the same index. An index outside `1 … width` is E0402.
 
 ```
 In[1] -> Low;          # extract LSB
 In[8] -> High;         # extract MSB of an 8-bit signal
+In[N] -> Top;          # a parameter, outside any generator
 A[{i}]      -> fa{i}.A; # bit i, in a generator
 O[{2*i-1}]  -> …;       # computed index (odd bits)
 ```
@@ -406,7 +420,7 @@ component SplitByte(In[8]) -> (Low[4], High[4]) {
 
 Source and destination of a slice connection must have **equal width**; they are wired lowest-to-lowest (`In[5] -> High[1]`, `In[6] -> High[2]`, …). Connecting two equal-width whole vectors (`A -> B` with both 8-bit) is likewise a bit-for-bit connection.
 
-Slices are intentionally limited: they appear only in connections, handle only contiguous ranges, and perform no arithmetic. For anything more — non-contiguous bits, computed indices, repeated instances — use a **generator** (§7).
+Slice bounds are arithmetic expressions like any index (§6.2), so a parameterized component can write `In[:N/2]` and `In[N/2+1:N]`. Slices are otherwise intentionally limited: they appear only in connections, handle only contiguous ranges in ascending order, and map bits one-for-one without any per-bit arithmetic. A reversed slice (`A[3:2]`) is E0404; a slice reaching past the signal's width is E0402. For anything more — non-contiguous bits, strided or reordered indices, repeated instances — use a **generator** (§7).
 
 ### 6.4 Connection Rules
 
@@ -417,7 +431,9 @@ These are checked semantically and carried unchanged into Base SHDL:
 3. **No floating inputs.** Every instance input must be connected.
 4. **No floating outputs.** Every component output must be driven.
 5. **Width agreement.** Both ends of a connection must reference the same number of bits.
-6. **No self-connection.** A signal may not drive itself.
+6. **No self-connection.** A signal may not drive itself. (In practice the role rules below already reject every self-connection — `A -> A` fails because an input port cannot be a destination, E0505 — so E0504 is never reported.)
+
+Every connection end must also play a legal **role**, checked before widths (E0505): a component's input ports, instance outputs (`g.O`), constants, and replications are sources only; a component's output ports and instance inputs (`g.A`) are destinations only. In particular a component cannot read back its own output port — fan out from the instance output that drives it instead. A feedback loop through at least one gate is legal (that is how latches are built, §11.2); a loop made only of port-to-port aliases, with no gate in it, is E0506. Unused component inputs and unused instance outputs are allowed silently.
 
 ### 6.5 Concatenation and Split
 
@@ -443,7 +459,9 @@ An item may be written as a replication `N{ … }` — a count *N* applied to a 
 {4{ZERO}, Nib}   -> Padded;     # zero-extend a nibble to a byte (ZERO = 0 constant)
 ```
 
-The count *N* must be **≥ 1**. A replication count of 0 or a negative count is a generator-range error (E0601, "count must be ≥ 1") — the same diagnostic that guards empty generator ranges, since a zero-or-negative repeat count is the replication analogue of an empty range.
+The count *N* must be **≥ 1**. A replication count of 0 or a negative count is a generator-range error (E0601, "count must be ≥ 1") — the same diagnostic that guards empty generator ranges, since a zero-or-negative repeat count is the replication analogue of an empty range. The count is also capped at 1,000,000 (E0601). A replication may appear only as an item of a concatenation, and only on the **source** side of a connection (as a destination it is E0505).
+
+The count is an arithmetic expression, so it may use parameters and generator variables (`{W{S, S}, V}`). One parsing trap: when the count is a **single identifier** and the group holds a **single signal name**, `W{S}` reads as the name template `W{S}` (§7.2), not as a replication, and fails with E0603 (`'S' is not a parameter or generator variable in scope`). Start the count with a literal to force replication — `{1*W{S}, V}` — or use a literal count. Likewise, a count that begins with an identifier and continues with arithmetic (`W*2{S, S}`) is not recognized as a replication at all (E0201); put the literal first (`2*W{S, S}`).
 
 #### 6.5.2 Lowering
 
@@ -485,13 +503,13 @@ SingleRange = ArithExpr                   (* [N]    => 1, 2, …, N        *)
 | `[5:]`         | 5, 6, … up to the governing signal's width |
 | `[1:4, 8, 12:16]` | 1, 2, 3, 4, 8, 12, 13, 14, 15, 16 |
 
-**Value domain.** Range bounds evaluate to integers that must be **≥ 0**. A bound of 0 is legal: the count form `[0]` is empty (it iterates over no values), and a lower bound of 0 (`[0:b]`) iterates from index 0. A **negative** bound — whether a literal, a parameter expression, or a computed value — is rejected (E0601). A range that is empty or ill-ordered after evaluation (`[2:1]`, a count `< 1`, a resolved open range with no values) is likewise an E0601; the diagnostic covers all of these — an empty, ill-ordered, or negative range.
+**Value domain.** Range bounds evaluate to integers that must be **≥ 0**. A value of 0 is legal in two places only: as a lower bound (`[0:b]` iterates from 0) and as a single value inside a multi-item list (`[0, 1]` iterates 0 then 1). A bare expression is a *count* only when it is the sole item of the range; the count form `[N]` needs `N ≥ 1`, so `[0]` is an error (E0601, "a count range needs N >= 1"), as is `[:0]`. A **negative** bound — whether a literal, a parameter expression, or a computed value — is rejected (E0601). A range that is empty or ill-ordered after evaluation (`[2:1]`, a count `< 1`, a resolved open range with no values) is likewise an E0601; the diagnostic covers all of these — an empty, ill-ordered, or negative range. Each range item may produce at most 1,000,000 values (E0601).
 
 **Compound ranges iterate verbatim.** A compound range (`[a:b, c, d:e]`) emits its sub-ranges in written order, left to right, with **no de-duplication**. Overlapping sub-ranges such as `[1:4, 2:6]` therefore iterate `1, 2, 3, 4, 2, 3, 4, 5, 6` and emit the body once per value — including the repeated indices. Any structural collision this produces (two instances generated with the same name, or two drivers reaching one sink) is caught by the ordinary uniqueness and single-driver rules — a duplicate generated instance name is E0301, a duplicated sink driver is E0501 — rather than by a special range check; the author is responsible for keeping compound sub-ranges disjoint where the body declares names.
 
 **Open-ended bounds may be expressions.** The bound expressions in any range — including the lower bound of an open-ended range — may be arithmetic over the enclosing parameters and loop variables (`>i[N/2:]`, `>i[a+1:]`). The bound is evaluated first; the governing-signal rule above then resolves the open upper bound from the width of the indexed signal. There is no restriction to literal bounds.
 
-**Open-ended ranges.** Open-ended ranges (`[a:]`) resolve their upper bound from the width of the **governing signal** — the signal whose bits the range indexes. The scan collects the widths of *every* signal indexed by the loop variable in the body and requires them to **agree on a single width**: several signals of the same width are fine (they fix the same bound), but two signals of *different* widths leave the bound ambiguous and the open-ended form is rejected (E0602); an explicit bound must then be given (`[a:N]`). The governing-signal scan is **conservative with respect to conditionals**: both the `when` and the `else` body are scanned for governing signals *before* any condition is evaluated, so a signal in a branch that will not be emitted can still force a width disagreement (E0602) — write an explicit bound to avoid relying on which branch survives. An open-ended range whose body indexes no multi-bit signal under the loop variable has no governing signal and is also rejected (E0602). Inside a parameterized component the explicit form `[a:N]` over a parameter `N` is the clearest choice and is preferred.
+**Open-ended ranges.** Open-ended ranges (`[a:]`) resolve their upper bound from the width of the **governing signal** — the signal whose bits the range indexes. The scan collects the widths of *every* signal indexed by the loop variable in the body and requires them to **agree on a single width**: several signals of the same width are fine (they fix the same bound), but two signals of *different* widths leave the bound ambiguous and the open-ended form is rejected (E0602); an explicit bound must then be given (`[a:N]`). The governing-signal scan is **conservative with respect to conditionals**: both the `when` and the `else` body are scanned for governing signals *before* any condition is evaluated, so a signal in a branch that will not be emitted can still force a width disagreement (E0602) — write an explicit bound to avoid relying on which branch survives. A single-bit signal indexed by the loop variable governs too, with width 1 (so it must agree with every other governing signal). An open-ended range whose body indexes no signal at all under the loop variable has no governing signal and is also rejected (E0602), as is an open-ended range in declaration context, where there are no signals to index. Offsets inside the index do not move the bound: in `>i[2:]{ A[{i-1}] -> Y[{i}]; }` with 8-bit `A` and `Y`, `i` runs 2 … 8. An open-ended item may appear anywhere in a compound list (`[1, 3:, 2]`). Inside a parameterized component the explicit form `[a:N]` over a parameter `N` is the clearest choice and is preferred.
 
 ### 7.2 Substitution and Arithmetic
 
@@ -501,7 +519,7 @@ SingleRange = ArithExpr                   (* [N]    => 1, 2, …, N        *)
 >i[4]{ gate{i}: AND; }     # gate1, gate2, gate3, gate4
 ```
 
-Expressions support `+`, `-`, `*`, and `/` (**integer** division), nested arbitrarily:
+Expressions support `+`, `-`, `*`, and `/` (**integer** division, truncating toward zero as in C: `{0-7}/2` is `-3`), with the usual precedence (`*` and `/` bind tighter than `+` and `-`, all left-associative). Sub-expressions are grouped with nested braces — `{ {i+1} * 2 }` — never with parentheses, and there is no unary minus (write `0 - k`). Division by zero is E0605; a name that is neither a parameter nor a generator variable in scope is E0603. For example:
 
 ```
 >i[2:8]{
@@ -574,7 +592,7 @@ component Adder8(A[8], B[8], Cin) -> (Sum[8], Cout) {
 |--------------------------|-------------------|--------------------------|
 | In connections           | ✓                 | ✓                        |
 | In declarations          | ✗                 | ✓ (create instances)     |
-| Arithmetic (`{i+1}`, `{i*2}`) | ✗            | ✓                        |
+| Per-bit arithmetic (`{i+1}`, `{i*2}`) | ✗    | ✓                        |
 | Nesting                  | ✗                 | ✓                        |
 | Non-contiguous ranges    | ✗                 | ✓ (`[1:4, 8, 12:]`)      |
 
@@ -676,11 +694,11 @@ A constant with **no declared width** has its width *inferred* from the value's 
 
 Constant **values** are exact unbounded integers: a literal larger than 64 bits (e.g. a 256-bit hex mask) is perfectly legal in the flattener, since a constant is a pattern of referenced bits, not an ABI value. The 64-bit ceiling (§14.2) applies only to a multi-bit **port** crossing the compiled ABI, never to a constant's internal value — only the bits a constant actually feeds into ports or gates are materialized.
 
-The optional declared width (`DATA[8] = 100`) therefore serves a single purpose: an **overflow assertion**. The value must fit in the declared width, or it is a constant error (E08xx):
+The optional declared width (`DATA[8] = 100`) therefore serves a single purpose: an **overflow assertion**. The value must fit in the declared width, or it is a constant error (E0801):
 
 ```
 DATA[8] = 100;     # OK: 100 fits in 8 bits
-DATA[8] = 300;     # E08xx: value 300 does not fit in 8 bits
+DATA[8] = 300;     # E0801: constant 'DATA' value 300 does not fit in 8 bits
 ```
 
 A declared width does **not** otherwise change behavior — referencing a bit above the declared width is still `0` — it only documents intent and catches a value that has grown too large.
@@ -726,13 +744,20 @@ use stdgates::{NAND, NOR, XNOR};
 - The module name is the target file's name without `.shdl` (`fullAdder` → `fullAdder.shdl`).
 - The toolchain searches the **importing file's own directory first**, then any directories supplied with the compiler's `-I`/`--include` flag, in the order they are given. Resolving relative to the importing file (rather than the process's current working directory) keeps a project relocatable and the resolution deterministic regardless of where the tool is invoked.
 - A module name must match the real file name **case-sensitively**, independent of the host filesystem's case sensitivity. If a `use Add2` resolves a file whose actual name is `add2.shdl` (as a case-insensitive filesystem would permit), it is rejected as not found (E0701); the same source therefore behaves identically on every platform, and two spellings can never load one file as two modules.
-- **Only names *defined* in the target module are importable.** A `use` brings in a name only if the target module itself declares that component; it does **not** re-export names the target merely imported. Importing a name that the target does not define is a missing-name error (E0703) — there is no transitive re-export. (Module identity is keyed by the bare module name and is program-global; a name resolves to whichever file first bound that module name for the whole compilation.)
+- **Only names *defined* in the target module are importable.** A `use` brings in a name only if the target module itself declares that component; it does **not** re-export names the target merely imported. Importing a name that the target does not define is a missing-name error (E0703) — there is no transitive re-export.
+- **Module identity is the bare module name, program-wide.** The same file imported from several places loads once. If one module name resolves to two *different* files in the same program (for example `common.shdl` next to the main file and another `common.shdl` next to a nested import), that is an error (E0701, "module 'common' resolves to two different files") — it is never silently resolved to whichever file was found first.
+- An imported name that collides with a component defined in the importing module, or with an earlier import, is a duplicate-name error (E0301).
+- A module that cannot be found is E0701 ("module 'x' not found (searched … and N include dir(s))"). The process's current working directory is never searched; relative `-I` paths are interpreted relative to it, though.
 - Imports must precede all component definitions in the file. A `use` appearing after a component definition is a syntax error (E0201).
 - **Circular imports are not allowed** (file A importing B importing A, including a module importing itself). Refactor shared definitions into a common base module.
 
 ### 9.2 The Standard Library
 
-`stdgates` is the conventional standard-library module providing common gates composed from the primitives — notably **NAND**, **NOR**, and **XNOR**. The six primitive types (§10) are **built in**: they are predefined in every file and cannot be defined in a module (defining one is a primitive-shadowing error, E0305) nor imported from one. A `use stdgates::{AND}` does not resolve a primitive — `stdgates` does not define `AND` — so it is a missing-name error (E0703); primitives need no import and importing them is not "harmless", it is rejected.
+`stdgates` is the conventional standard-library module providing common gates composed from the primitives — notably **NAND**, **NOR**, and **XNOR**.
+
+> **Today (PySHDL 1.1.0):** `stdgates` is an ordinary module shipped in the repository as [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl). It is not bundled in the PySHDL package and is not on any default search path, so `use stdgates::{…}` resolves only if `stdgates.shdl` sits next to the importing file or its directory is passed with `-I` (or `Circuit(include_dirs=…)`). Reusable libraries are distributed as Circuit Circus packages, which the `shdl` CLI vendors into `shdl_modules/` and adds to the include path automatically ([`shdl_cli.md`](shdl_cli.md)).
+
+The six primitive types (§10) are **built in**: they are predefined in every file and cannot be defined in a module (defining one is a primitive-shadowing error, E0305) nor imported from one. A `use stdgates::{AND}` does not resolve a primitive — `stdgates` does not define `AND` — so it is a missing-name error (E0703); primitives need no import and importing them is not "harmless", it is rejected.
 
 ---
 
@@ -740,18 +765,18 @@ use stdgates::{NAND, NOR, XNOR};
 
 ### 10.1 The Six Primitives
 
-These are the only built-in component types and the only types that survive into Base SHDL. They are predefined — available in every file without `use`. Their names may **not** be redefined: a user `component AND(…)` that shadows a primitive is a naming error (§2.5, E03xx).
+These are the only built-in component types and the only types that survive into Base SHDL. They are predefined — available in every file without `use`. Their names may **not** be redefined: a user `component AND(…)` that shadows a primitive is a naming error (§2.5, E0305).
 
 | Type      | Inputs   | Output | Operation        | C operator |
 |-----------|----------|--------|------------------|------------|
 | `AND`     | `A`, `B` | `O`    | O = A ∧ B        | `&`        |
 | `OR`      | `A`, `B` | `O`    | O = A ∨ B        | `\|`       |
-| `NOT`     | `A`      | `O`    | O = ¬A           | `~`        |
+| `NOT`     | `A`      | `O`    | O = ¬A           | `^ 1`      |
 | `XOR`     | `A`, `B` | `O`    | O = A ⊕ B        | `^`        |
 | `__VCC__` | *(none)* | `O`    | constant HIGH (1)|            |
 | `__GND__` | *(none)* | `O`    | constant LOW (0) |            |
 
-Every primitive uses the same port convention: inputs `A` (and `B`), output `O` (the letter O, not zero). `AND`, `OR`, `NOT` are functionally complete; `XOR` is included because it dominates arithmetic and maps to one C operator. The power pins exist to materialize constants after flattening.
+Every primitive uses the same port convention: inputs `A` (and `B`), output `O` (the letter O, not zero). The C operator column is what `shdlc` emits; wires are 0/1 bytes, so NOT is XOR with 1 rather than `~`. `AND`, `OR`, `NOT` are functionally complete; `XOR` is included because it dominates arithmetic and maps to one C operator. The power pins exist to materialize constants after flattening; user code may also instantiate them directly (`v: __VCC__;` then `v.O -> Y;`), although a named constant (§8) is the idiomatic way to write a fixed value.
 
 ### 10.2 Derived Gates
 
@@ -759,12 +784,12 @@ Every primitive uses the same port convention: inputs `A` (and `B`), output `O` 
 
 ```
 component NAND(A, B) -> (O) {
-    and1: AND;  not1: NOT;
-    connect { A -> and1.A;  B -> and1.B;  and1.O -> not1.A;  not1.O -> O; }
+    a1: AND;  n1: NOT;
+    connect { A -> a1.A;  B -> a1.B;  a1.O -> n1.A;  n1.O -> O; }
 }
 ```
 
-Because they are ordinary components, they are inlined like any other during hierarchy flattening.
+Because they are ordinary components, they are inlined like any other during hierarchy flattening. Using one without importing (or defining) it is an unknown-type error (E0306 `unknown component type 'NAND'`).
 
 ---
 
@@ -809,7 +834,7 @@ component Clock(clk) -> (out[20]) {
 
 ### 11.3 Combinational Depth and Settling
 
-For a feedback-free (purely combinational) circuit there is a finite **combinational depth** — the longest gate path from any input to any output. Running that many cycles guarantees the outputs are stable for the current inputs. The flattener records this depth in Base SHDL metadata (`timing.max_depth`, `is_combinational`, `has_feedback`), which lets the Python driver offer a `settle()` operation that advances exactly enough cycles, instead of the author guessing a `step(n)` count. Circuits with feedback have no such guaranteed fixed point and are advanced explicitly with `step(n)`.
+For a feedback-free (purely combinational) circuit there is a finite **combinational depth** — the longest gate path from any input to any output. Running that many cycles guarantees the outputs are stable for the current inputs. The flattener records this depth in Base SHDL metadata (`timing.max_depth`, `is_combinational`, `has_feedback`), which lets the Python driver offer a `settle()` operation that advances exactly `max_depth` cycles, instead of the author guessing a `step(n)` count. Circuits with feedback have no such guaranteed fixed point and are advanced explicitly with `step(n)`; `Circuit.settle()` refuses them with `SettleRefusedError` ([`pyshdl.md`](pyshdl.md)).
 
 ### 11.4 Initial State
 
@@ -822,7 +847,7 @@ InitBlock  = "init" "{" { InitAssign } "}" ;
 InitAssign = Primary "=" NUMBER ";" ;
 ```
 
-The `init` block appears in the component body, before `connect` (§4.2). Each assignment seeds the named signal — an instance output, a component output, or a multi-bit port (whose value is spread across its bits, LSB first) — with the value it holds at cycle 0:
+The `init` block appears in the component body — conventionally before `connect`, though the parser accepts the body's declarations, `init`, and `connect` in any order (§13); a component may have at most one `init` block (E0309). Each assignment seeds the named signal — an instance output, a component output, or a multi-bit port (whose value is spread across its bits, LSB first) — with the value it holds at cycle 0:
 
 ```
 use stdgates::{NOR};
@@ -854,13 +879,15 @@ component Datapath<N>(clk) -> (Out[N]) {
 
 The seed must land on a **state-holding** node — a wire whose value persists across cycles (a feedback node, or an instance output that resolves to one). Seeding a purely combinational wire is allowed but has no lasting effect: it is overwritten on the next cycle by whatever drives it. In the example, `acc.Q` is the register's stored value (it flattens to the register's internal feedback nodes), so seeding it sets the accumulator's power-on contents. A multi-bit target receives the value spread across its bits, LSB first (`acc.Q = 1` sets bit 1 high, the rest low).
 
-`init` produces **no gates**. It carries no behavioral meaning beyond the value present at cycle 0 — subsequent cycles evolve purely from the gate logic. During flattening it is lowered into Base SHDL metadata (an `init` block; see `base_shdl.md` §4.11), which the compiler uses to seed the State Region and the debugger uses to display power-on state. A net not mentioned in any `init` block keeps the default value of 0.
+This assumes `Register<N>` leaves its own storage unseeded. Each net may be seeded only once in the whole design, and an `init` in a subcomponent counts. With the repository's `examples/registerN.shdl` as `acc`, the flattener rejects the block, because its `SRLatch` already seeds every net of each bit's loop: `error[E0A02]: net 'Out_1_' is seeded more than once (first seed at srLatch.shdl:27:9)`. A component that seeds its own state fixes that state for every instance; there is no override.
+
+`init` produces **no gates**. It carries no behavioral meaning beyond the value present at cycle 0 — subsequent cycles evolve purely from the gate logic. During flattening it is lowered into Base SHDL metadata (an `init` block; see `base_shdl.md` §4.11): each entry is keyed by the top-level output wire the seeded net drives (`"Q": 0`) or, when it drives none, by the `gate.O` of its terminal driver (`"r_n.O": 1`). The compiler turns these entries into seed values that the generated library applies when it is loaded and on every `reset()`; the planned SHDB debugger would also display them as the power-on state. A net not mentioned in any `init` block keeps the default value of 0.
 
 Rules (checked per §14):
 
-- An `init` target must be a drivable signal (an instance output, or a component output port); it may not seed a component **input** (inputs are set by `poke`, not `init`).
-- Each net may be seeded at most once.
-- The seed value must fit the target's width (the same overflow rule as constants, §8.1).
+- An `init` target must be a drivable signal (an instance output, or a component output port, or an index or slice of one); it may not seed a component **input**, an instance input, or a constant — nor a signal that resolves, through pass-through components, to a top-level input (E0A01; inputs are set by `poke`, not `init`).
+- Each net may be seeded at most once, even under two different names such as `r.Q` and the output `Q` it drives (E0A02).
+- The seed value is a number literal and must fit the target's width (the same overflow rule as constants, §8.1; E0A03).
 
 ---
 
@@ -877,7 +904,9 @@ The flattener mechanically removes every high-level construct in six sequential 
 | 5     | **Constant materialization** | Replaces each referenced constant bit with a `__VCC__` (1) or `__GND__` (0) instance |
 | 6     | **Hierarchy flattening**   | Inlines every user component, prefixing instance names and rewiring ports; extracts `init` seeds and the rest of the metadata |
 
-**Why monomorphization comes first.** A parameterized component's generator ranges, port widths, and `when` conditions all depend on its parameters, so they cannot be resolved until the parameters are bound. Phase 2 walks the instantiation graph from the top component, and for each distinct argument tuple clones the component definition with the concrete values substituted (`Adder<8>` and `Adder<16>` become two ordinary definitions). After phase 2 **no parameter identifiers remain** — the program is parameter-free, and phases 3–6 run as global passes exactly as before. This is the same specialization model as C++ templates or Rust monomorphization; non-recursive parameterization guarantees it terminates.
+Name and structure validation (duplicate and reserved names, unknown types, block counts, `top` markers, constant overflow) runs between phases 1 and 2 over **every** component of **every** loaded module, used or not. Phases 2–6 process only the components reachable from the top, so errors that need expansion — unknown signals (E0307), width and index errors (E0401–E0404), connection-rule errors (E0501–E0506) — are not reported for a component that is never instantiated. After phase 6 the flattener computes the timing metadata (`max_depth`, per-output depths, feedback) and emits the netlist with its `meta` block (`base_shdl.md` §4).
+
+**Why monomorphization comes first.** A parameterized component's generator ranges, port widths, and `when` conditions all depend on its parameters, so they cannot be resolved until the parameters are bound. Phase 2 walks the instantiation graph from the top component, and for each distinct argument tuple clones the component definition with the concrete values substituted (`Adder<8>` and `Adder<16>` become two ordinary definitions). After phase 2 **no parameter identifiers remain** — the program is parameter-free, and phases 3–6 run as global passes exactly as before. This is the same specialization model as C++ templates or Rust monomorphization. Termination is guaranteed because **all** recursive instantiation is rejected (E0311) — even recursion guarded by a `when` that would stop at a base case (`Chain<N-1>` inside `when {N > 1}` is still an error).
 
 Construct-by-construct, the mapping is:
 
@@ -890,12 +919,12 @@ Construct-by-construct, the mapping is:
 | Generator `>i[8]{ … }`        | the body emitted 8 times with `i` substituted                       |
 | Conditional `when {c}{ … }`   | the body if `c` is true at flatten time, else nothing               |
 | Constant `FIVE = 5`           | `FIVE_bit1: __VCC__; FIVE_bit2: __GND__; FIVE_bit3: __VCC__;` (referenced bits only) |
-| `init { n1.O = 1 }`           | nothing structural — an `init` entry in `meta` (`base_shdl.md` §4.11) |
+| `init { n1.O = 1; }`          | nothing structural — an `init` entry in `meta` (`base_shdl.md` §4.11) |
 | Instance `fa1: FullAdder`     | `fa1`'s internal gates, renamed `fa1_x1`, `fa1_x2`, …               |
 | `use …`                       | nothing — the imported definitions are inlined where instantiated   |
 | Comments                      | nothing — discarded                                                 |
 
-The flattening guarantees functional equivalence, name uniqueness (via hierarchical prefixing), full resolution to the six primitives, and determinism. The pipeline is detailed in [`base_shdl.md`](base_shdl.md); the resulting metadata is what lets the debugger and driver present multi-bit ports, hierarchy, and source locations even though the netlist itself is flat single-bit logic.
+The flattening guarantees functional equivalence, name uniqueness (via hierarchical prefixing), full resolution to the six primitives, and determinism. The pipeline is detailed in [`base_shdl.md`](base_shdl.md); the resulting metadata is what lets the Python driver (and the planned debugger) present multi-bit ports, hierarchy, and source locations even though the netlist itself is flat single-bit logic.
 
 ---
 
@@ -965,12 +994,13 @@ Notes:
 
 - `NameTemplate` carries `{expr}` substitutions only meaningfully inside a generator; outside one it is a plain `IDENTIFIER`.
 - An `IndexExpr` that is a bare `ArithExpr` selects a single bit; the colon forms are slices.
-- `/` in `ArithExpr` is integer division.
+- `/` in `ArithExpr` is integer division, truncating toward zero. Arithmetic groups with braces only; parentheses group only `BoolExpr`s, and there is no unary minus.
+- Parameter defaults, constant values, and `init` values are `NUMBER` literals (decimal, `0x` hex, or `0b` binary), never expressions.
 - An `IDENTIFIER` inside an `ArithExpr` resolves to a generator variable or a component parameter (both compile-time integers); using one outside the scope where it is bound is an error (§14).
 - `RelOp` and the boolean operators `&&`/`||` appear only inside a `when` condition (`BoolExpr`) and are evaluated at flatten time.
 - A `Concat` in signal position is distinguished from a `{expr}` substitution (which appears inside a `NameTemplate`/`IndexExpr`) by context with one token of lookahead; a single-item brace group with no comma is an equivalent one-element concatenation.
-- A `Replication` is recognized when a `ConcatItem` begins with an arithmetic **count immediately followed by a brace group of signals** (`8{sign}`); the group's contents are parsed as signals, never as a substitution expression. The count must be a literal or a parameter/loop-variable expression, and the group must be signal syntax — a brace group holding a single bare arithmetic expression after an identifier count (`N{i+1}`) is read as a `NameTemplate` with an `{expr}` substitution (a *template*), not a replication. Replication therefore requires a literal count or signal-only group contents; the two forms never overlap.
-- The `Component` production fixes the body order `{ Declaration } [ InitBlock ] ConnectBlock` for readability, but the parser accepts the three kinds of body block (declarations, the optional `init`, the `connect`) in **any order** and freely interleaved. The only structural constraints are the count rules of §14 — exactly one `connect` block and at most one `init` block (E0309/E0310); order is not enforced.
+- A `Replication` is recognized by its first token. A `ConcatItem` that begins with a **number** is always a replication: the count is the whole arithmetic expression up to the brace group (`8{sign}`, `2*W{sign}`, `1*N{a, b}`). A `ConcatItem` that begins with an **identifier immediately followed by `{`** is a replication only when the brace group contains signal syntax — a comma, a dot, an index, or a nested group (`W{a.O, b}`, `W{V[1]}`); a group holding a single arithmetic expression (`fa{i}`, `N{i+1}`, and also `W{S}`) is read as a `NameTemplate` with an `{expr}` substitution. An identifier followed by anything else (`W*2{…}`) is parsed as a plain signal. So an identifier count over a single-signal group must be written with a leading literal (`1*W{S}`) — see §6.5.1.
+- The `Component` production fixes the body order `{ Declaration } [ InitBlock ] ConnectBlock` for readability, but the parser accepts the three kinds of body block (declarations, the optional `init`, the `connect`) in **any order** and freely interleaved. The only structural constraints are the count rules of §14 — exactly one `connect` block and at most one `init` block (both E0309); order is not enforced.
 - A flattener consumes its own emitted Base SHDL output: a **trailing `meta { … }` block** following the structural component (`base_shdl.md` §4) is *accepted and ignored* by the SHDL parser. The metadata is not re-interpreted — re-flattening already-flattened text reproduces the same structural core (the basis for the idempotence property; `base_shdl.md` §4). The block's body is a single JSON object; the parser skips it as a unit after the component's closing brace.
 
 ---
@@ -981,15 +1011,19 @@ A module is well-formed only if all of the following hold. Violations are report
 
 | Area               | Requirement                                                                 | Codes  |
 |--------------------|------------------------------------------------------------------------------|--------|
-| Names              | No duplicate component or instance names; no use of reserved `__…` or `…_<digits>_` names; no redefinition of a primitive type name | E03xx  |
-| References         | Every referenced component, instance, port, and signal must exist            | E03xx  |
-| Widths             | Connection ends agree in width (after concatenation/replication); bit indices lie in `1 … width`; widths > 0 | E04xx  |
-| Connections        | One driver per sink; no floating inputs/outputs; no self-connection          | E05xx  |
-| Generators         | Non-empty, well-ordered ranges; open-ended bound unambiguous; loop variables used only within their body; `when` conditions are well-formed; an emitted body is legal for its context | E06xx  |
-| Imports            | Target module exists; no circular imports                                    | E07xx  |
-| Constants          | Value fits its declared width (overflow assertion); non-negative             | E08xx  |
-| Parameters         | Every parameter bound by argument or default; positional before named; no parameter bound twice; arguments evaluate to non-negative integers; widths derived from parameters are positive | E09xx  |
-| Initial state      | `init` target is drivable (output port or instance output), never an input; each net seeded at most once; value fits the target width | E0Axx  |
+| Top selection      | A top component can be determined (§3)                                       | E0001  |
+| Lexical            | Valid UTF-8; only ASCII tokens outside comments; comments terminated        | E0101  |
+| Syntax             | Source matches the grammar (§13); nesting at most 200 levels deep            | E0201  |
+| Names              | No duplicate names in a module or component (a component's parameters, ports, instances, and constants share one namespace); no declared `__…` or `…_<digits>_` names; no redefinition of a primitive type name; no collision with a name the flattener generates | E0301, E0303–E0305, E0308 |
+| References         | Every referenced component type, instance, port, and signal must exist       | E0306, E0307 |
+| Structure          | Exactly one `connect` and at most one `init` per component; at most one `top` per module; no recursive instantiation | E0309–E0311 |
+| Widths             | Connection ends agree in width (after concatenation/replication); bit indices lie in `1 … width`; slices well-ordered; widths > 0 | E0401–E0404 |
+| Connections        | One driver per sink; no floating inputs/outputs; every end plays a legal role; no gate-less alias cycle | E0501–E0506 |
+| Generators         | Non-empty, well-ordered ranges; open-ended bound unambiguous; names in expressions bound; each item legal for its context; no division by zero | E0601–E0605 |
+| Imports            | Target module exists (with exact case) and maps to one file; no circular imports; imported names defined in the target | E0701–E0703 |
+| Constants          | Value fits its declared width (overflow assertion). A negative value cannot be written at all (syntax error, E0201) | E0801  |
+| Parameters         | Every parameter bound by argument or default; positional before named; no parameter bound twice; arguments evaluate to non-negative integers; widths derived from parameters are positive | E0901–E0906 |
+| Initial state      | `init` target is drivable (output port or instance output), never an input; each net seeded at most once; value fits the target width | E0A01–E0A03 |
 
 Validity that depends on parameter values — that every generated index lies in range and every referenced bit exists — is checked **after monomorphization (§12, phase 2), per instantiation**: an `Adder<8>` and an `Adder<16>` are each validated against their bound widths.
 
@@ -1013,12 +1047,65 @@ Every diagnostic carries a source position (`line ≥ 1`, `column ≥ 1`) and a 
 
 ### 14.2 Documented Limits
 
-Two implementation limits are fixed by the downstream representation and are part of the V1 contract:
+Two implementation limits are fixed by the downstream representation and are part of the V1 contract. Both are enforced by the **compiler** (`shdlc`), not the flattener: `shdl-flatten` emits Base SHDL for a design that exceeds them, and compiling it (with `shdlc`, `Circuit`, or the `shdl` CLI) fails with an unpositioned `shdlc: error: …` message rather than a coded diagnostic.
 
-- **Maximum port width: 64 bits.** The compiled ABI carries a port's value in a `uint64_t` (`shdlc_goals.md` §3.1), so a port wider than 64 bits cannot be poked or peeked and is rejected.
+- **Maximum port width: 64 bits.** The compiled ABI carries a port's value in a `uint64_t` (`shdlc_goals.md` §3.1), so a port wider than 64 bits cannot be poked or peeked and is rejected (`shdlc: error: port 'A': width 65 out of range 1..64`).
 - **Maximum single-bit input-wire count: 65535.** The generated C indexes input wires with a 16-bit table (`base_shdl.md` §3.4), capping a flattened component at 65535 single-bit input wires.
 
-There is deliberately **no** maximum-gate-count limit in V1: total gate count is bounded only by available memory, not by a fixed cap.
+Two further limits guard the flattener itself against runaway input and are reported as ordinary diagnostics:
+
+- **Maximum syntactic nesting depth: 200.** Blocks, generators, conditionals, brace groups, and expressions nested more than 200 levels deep are a syntax error (E0201, "input nests deeper than the 200-level limit").
+- **Maximum values per range item: 1,000,000.** A single generator range item, or a replication count, that would produce more than 1,000,000 values is E0601.
+
+There is deliberately **no** maximum-gate-count limit in V1: total gate count is bounded only by available memory, not by a fixed cap. Numeric literals are unbounded integers.
+
+### 14.3 Error-Code Catalog
+
+The reference flattener uses exactly these codes (the complete `ErrorCode` set in `flattener/diagnostics.py`); there are no others. Every diagnostic is printed as `file:line:col: error[CODE]: message`, and the tools exit with status 1.
+
+| Code  | Meaning |
+|-------|---------|
+| E0001 | Cannot determine the top component (no marker and several components, an empty main module, or an unknown `--top` name); also an invalid `SOURCE_DATE_EPOCH` |
+| E0101 | Lexical error: a character outside the ASCII token alphabet, an unterminated comment, a malformed number, or a file that is not valid UTF-8 |
+| E0201 | Syntax error (every parse error, including a negative literal where a `NUMBER` is required and nesting beyond 200 levels) |
+| E0301 | Duplicate name (components in a module, names in a component, an import colliding with a local component or another import, a generated duplicate) |
+| E0303 | Declared name uses the reserved `__` prefix |
+| E0304 | Declared or generated name matches the reserved `…_<digits>_` bus-expansion pattern |
+| E0305 | A component redefines a primitive type (takes precedence over E0303 for `__VCC__`/`__GND__`) |
+| E0306 | Unknown component type (checked in every component of every loaded module, including unused ones and untaken `when` branches) |
+| E0307 | Unknown signal, instance port, or an instance used as a signal |
+| E0308 | A name collides with one the flattener generates (a flattened gate path or a constant power pin) |
+| E0309 | A component without exactly one `connect` block, or with more than one `init` block |
+| E0310 | More than one `top`-marked component in a module |
+| E0311 | Recursive instantiation (always rejected, even when guarded by `when`) |
+| E0401 | Connection width mismatch |
+| E0402 | Bit index or slice out of range |
+| E0403 | Non-positive width (port or constant) outside parameter specialization |
+| E0404 | Empty or ill-ordered slice |
+| E0501 | A sink driven more than once |
+| E0502 | An instance input never connected |
+| E0503 | An output port bit never driven |
+| E0504 | Self-connection (reserved; in practice the role check reports E0505 first) |
+| E0505 | Invalid connection role (for example an input port, instance output, constant, or replication as a destination) |
+| E0506 | Connection cycle containing no gate |
+| E0601 | Empty, ill-ordered, negative, or oversize range; replication count below 1 or above 1,000,000 |
+| E0602 | Open-ended range bound ambiguous or unresolvable |
+| E0603 | A name in an expression is not a parameter or generator variable in scope |
+| E0604 | An item whose first token cannot start an item of its context: a concatenation among declarations (`{A, B} -> Y;` outside `connect`), or a non-signal token inside `connect`. A misplaced item that starts with an identifier (`A -> Y;` among declarations, `n: NOT;` inside `connect`) is reported as E0201 instead |
+| E0605 | Division by zero in a compile-time expression |
+| E0701 | Module or file not found (including a case mismatch with the on-disk name), or one module name bound to two different files |
+| E0702 | Circular import |
+| E0703 | Imported name not defined in the target module |
+| E0801 | Constant value does not fit its declared width |
+| E0901 | Unknown named argument, or arguments given to a primitive |
+| E0902 | Parameter not bound and without a default; a parameterized top without defaults |
+| E0903 | Positional argument after a named one, or too many positional arguments |
+| E0904 | Parameter bound twice |
+| E0905 | Argument evaluates to a negative number |
+| E0906 | Width derived during parameter specialization is not positive |
+| E0A01 | `init` target is not drivable (an input, an instance input, a constant, or a net that resolves to a top-level input) |
+| E0A02 | Net seeded more than once |
+| E0A03 | `init` value does not fit the target width |
 
 ---
 
