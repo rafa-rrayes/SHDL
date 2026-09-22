@@ -574,7 +574,7 @@ c_source = compile_text(POWER)[1]
 start = c_source.index("static void recompute_outputs")
 print(c_source[start : c_source.index("}", start) + 1])
 
-lib_path = build_library(POWER, "power" + lib_suffix())
+lib_path = build_library(POWER, "power" + lib_suffix()).resolve()
 first = Sim(lib_path)
 print(first.peek("V"))           # cycle 0: VCC still reads 0
 first.step(1)
@@ -582,7 +582,7 @@ print(first.peek("V"))           # from cycle 1 on it reads 1
 
 second = Sim(lib_path)           # same path: dlopen returns the same loaded image
 print(second.peek("V"))
-fresh = load_fresh_copy(lib_path, ".")
+fresh = load_fresh_copy(lib_path, lib_path.parent)
 print(fresh.peek("V"), fresh.path.stem)
 ```
 
@@ -598,7 +598,7 @@ static void recompute_outputs(void)
 0 power.copy0000
 ```
 
-The last two lines show why the test harness has `load_fresh_copy`. The dynamic loader caches libraries by path, so a second load of the same file shares its state and does not run the constructor again. A copy at a new path is an independent instance.
+The last two lines show why the test harness has `load_fresh_copy`. The dynamic loader caches libraries by path, so a second load of the same file shares its state and does not run the constructor again. A copy at a new path is an independent instance. The example resolves the path first because `Sim` hands it to `ctypes` unchanged. On Linux the dynamic loader treats a library name without a `/` as a name to search for on the system library path, not as a file in the current directory (macOS also tries the current directory).
 
 ### The load-time constructor
 
@@ -711,7 +711,7 @@ from shdlc import build_library
 from shdlc.cc import lib_suffix
 from shdlc.harness import Sim
 
-lib_path = build_library(flatten_program("circuit.shdl").text, "add2" + lib_suffix())
+lib_path = build_library(flatten_program("circuit.shdl").text, "add2" + lib_suffix()).resolve()
 sim = Sim(lib_path)
 sim.poke("A", 3)
 sim.poke("B", 1)

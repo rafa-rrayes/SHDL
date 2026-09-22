@@ -323,10 +323,11 @@ loop:   ADD  r3, r3, r1
 The driver module has a command-line entry point,
 `python -m sr16tools.driver LIB ASM_FILE [MAX_INSTRUCTIONS]`. It resets the
 CPU, assembles the file, loads it through the DMA port, clocks until `HALT`
-and prints the final state:
+and prints the final state. `LIB` goes to `ctypes` unchanged, so write `./sr16.dylib`
+rather than `sr16.dylib`. On Linux the dynamic loader treats a library name without a `/` as a name to search for on the system library path, not as a file in the current directory (macOS also tries the current directory).
 
 ```console check continue
-$ PYTHONPATH=examples/CPU python -m sr16tools.driver sr16.dylib examples/CPU/programs/mul.s
+$ PYTHONPATH=examples/CPU python -m sr16tools.driver ./sr16.dylib examples/CPU/programs/mul.s
 halted after 74 cycles, pc=0x0007
 flags: z=1 n=0 c=1 v=0
   R0 = 0x0000 (0)
@@ -359,7 +360,7 @@ from pathlib import Path
 from sr16tools.asm import assemble
 from sr16tools.driver import SR16
 
-cpu = SR16("sr16.dylib", fast_settle=True)
+cpu = SR16("./sr16.dylib", fast_settle=True)
 for name in ("mul", "popcount", "maxarray"):
     cpu.reset()
     cpu.load_program(assemble(Path(f"examples/CPU/programs/{name}.s").read_text()))
@@ -468,7 +469,7 @@ triple: PUSH r2             ; save r2
         RET
 """)
 
-cpu = SR16("sr16.dylib", fast_settle=True)
+cpu = SR16("./sr16.dylib", fast_settle=True)
 gold = Golden()
 cpu.reset()
 cpu.load_program(words)
@@ -531,7 +532,7 @@ from sr16tools.driver import SR16
 from sr16tools.golden import Golden
 
 words = assemble(Path("examples/CPU/programs/mul.s").read_text())
-cpu = SR16("sr16.dylib", t_settle=20)
+cpu = SR16("./sr16.dylib", t_settle=20)
 gold = Golden()
 cpu.reset()
 cpu.load_program(words)

@@ -53,6 +53,7 @@ from flattener.validate import validate_program  # noqa: E402
 FENCE = re.compile(r"^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})(?P<lang>[\w+-]*)\s*(?P<meta>.*)$")
 TITLE = re.compile(r'title="([^"]*)"')
 ERROR = re.compile(r"\berror=(E0[0-9A]\d\d)\b")
+CHOICES = re.compile(r"\(choose from [^)]*\)")
 
 
 @dataclass
@@ -115,6 +116,9 @@ def parse_blocks(text: str) -> list[Block]:
 
 
 def normalize(text: str) -> list[str]:
+    # argparse quotes an invalid choice's options ('a', 'b') in newer 3.14
+    # patch releases and not in older ones; compare them unquoted
+    text = CHOICES.sub(lambda m: m.group(0).replace("'", ""), text)
     return [ln.rstrip() for ln in text.strip("\n").split("\n")]
 
 
@@ -208,6 +212,9 @@ def check_console(page: Path, block: Block, shell_state: Path, scratch: Path, re
     env["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{env['PATH']}"
     env["NO_COLOR"] = "1"
     env["COLUMNS"] = "80"
+    # byte-order sorting (`ls`), as on the Linux CI runner; macOS sorts by locale
+    env.pop("LC_ALL", None)
+    env["LC_COLLATE"] = "C"
     for cmd, expected in steps:
         # Each command runs in a fresh bash that restores the working
         # directory saved by the previous one, so `cd` carries across steps.

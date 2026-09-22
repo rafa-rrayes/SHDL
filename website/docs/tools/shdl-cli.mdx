@@ -74,7 +74,7 @@ The only global option is `-h`/`--help`. Every subcommand also accepts `-h` (for
 $ shdl frob 2>&1; echo "exit status: $?"
 usage: shdl [-h]
             {new,init,add,remove,install,build,test,run,search,info,verify-package,publish} ...
-shdl: error: argument command: invalid choice: 'frob' (choose from new, init, add, remove, install, build, test, run, search, info, verify-package, publish)
+shdl: error: argument command: invalid choice: 'frob' (choose from 'new', 'init', 'add', 'remove', 'install', 'build', 'test', 'run', 'search', 'info', 'verify-package', 'publish')
 exit status: 2
 $ shdl --version 2>&1; echo "exit status: $?"
 usage: shdl [-h]
@@ -269,9 +269,9 @@ arith
 gates
 
 shdl_modules/arith:
+README.md
 arith.shdl
 package.json
-README.md
 tests
 ```
 

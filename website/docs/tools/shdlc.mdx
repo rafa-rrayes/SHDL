@@ -342,7 +342,7 @@ The `shdlc` package exports two functions (`shdlc.__all__` is `build_library`, `
 | `shdlc.harness.load_fresh_copy` | `(lib_path, work_dir) -> Sim` | Copies the library to `work_dir/<stem>.copyNNNN<suffix>` and loads the copy, so the instance has its own state. |
 | `shdlc.harness.STRICT_CFLAGS` | `tuple[str, ...]` | The defaults plus `-Wall -Wextra -Werror -pedantic`. The test suites build with these to prove that the generated C is warning-free. |
 
-`Sim` does no name or value checking; it is the raw ABI. For checked access, metadata and lifecycle management, use [`Circuit`](./python-api.mdx).
+`Sim` does no name or value checking; it is the raw ABI. It passes its path to `ctypes` unchanged, and `Path` drops a leading `./`, so give `Sim` and `load_fresh_copy` absolute paths, as the example does with `Path.cwd()`. On Linux the dynamic loader treats a library name without a `/` as a name to search for on the system library path, not as a file in the current directory (macOS also tries the current directory). For checked access, metadata and lifecycle management, use [`Circuit`](./python-api.mdx).
 
 ```python
 from pathlib import Path
@@ -361,7 +361,7 @@ print(c_source.splitlines()[0])
 lib = build_library(base, "adder8_py.so", emit_c="adder8_py.c")
 print(lib, sorted(p.name for p in Path(".").glob("adder8_py*")))
 
-sim = load_fresh_copy(lib, ".")
+sim = load_fresh_copy(lib, Path.cwd())
 sim.poke("A", 100)
 sim.poke("B", 55)
 sim.step(17)

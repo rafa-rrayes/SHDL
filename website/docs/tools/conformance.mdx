@@ -211,7 +211,7 @@ summary: 40 checks, 0 failure(s)
 ```console check
 $ shdl-conformance run --tier D 2>&1; echo "exit $?"
 usage: shdl-conformance run [-h] [--filter FILTER] [--tier {A,B,C}]
-shdl-conformance run: error: argument --tier: invalid choice: 'D' (choose from A, B, C)
+shdl-conformance run: error: argument --tier: invalid choice: 'D' (choose from 'A', 'B', 'C')
 exit 2
 $ shdl-conformance regen --case nope; echo "exit $?"
 unknown case 'nope'; available: abi_lazy_peek, abi_peek_input, abi_poke_masking, abi_reset_init, abi_step_zero, abi_vcc_cycle0, add100, add2, adder8_ripple, adder_n_default, adder_n_mixed, alu, bus_ops, comparator, concat_demo, cond_matrix, const_demo, cpu_rege, d_latch, deep_hier, degen_slice, derived_gates, diamond, full_adder, init_comb, mux2, mux4n, nested_repl, passthru_wire, pipe, primitives_all, register_n, repeated_names, repeater, ring_clock, single_gate, split_byte, sr_latch
