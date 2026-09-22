@@ -1,0 +1,516 @@
+---
+title: The simulation model
+sidebar_label: Simulation model
+description: How SHDL simulates a circuit one gate level per cycle, what cycle 0 looks like, how peek, step, settle and step_settle advance time, and how feedback, init seeds, reset and glitches behave.
+---
+
+This page explains what a **cycle** is in SHDL and how every part of the toolchain advances one. It covers the unit-delay model and how the compiled simulator implements it, the power-on state at cycle 0, the lazy evaluation rule behind `peek`, the difference between `step`, `settle` and `step_settle`, the timing metadata the flattener computes, and how feedback circuits, `init` seeds, `reset` and glitches behave. Every trace on this page is real output.
+
+The normative definition is [shdl.md §11, Simulation Semantics](/specs/shdl#11-simulation-semantics). The compiler's side of the contract is in [shdlc_goals.md §2](/specs/shdlc_goals#2-the-simulation-model).
+
+## Unit delay: one gate level per cycle
+
+Simulation advances in discrete cycles. On each cycle, **every gate simultaneously computes its output from the values its inputs had at the end of the previous cycle**. Each gate therefore has a propagation delay of exactly one cycle, and a signal moves forward one gate level per cycle.
+
+- A result is not visible the instant an input changes. It ripples forward, and a circuit whose longest input-to-output path is N gates deep needs N cycles before its outputs reflect new inputs.
+- Input ports hold whatever value you last poked until you change them.
+- Values are 2-state: every wire is 0 or 1. There is no X or Z.
+- The model is deterministic. The same inputs always produce the same cycle-by-cycle trace, including for circuits with feedback.
+
+This is the principle the whole project is built around ([SHDL_Project.md §1.1](/specs/SHDL_Project#11-the-defining-principle-gate-level-fidelity)). No stage of the toolchain evaluates gates in topological order or otherwise collapses propagation into one step, because that would erase the behavior SHDL exists to show. Helpers such as `settle()` run above the model and never change it.
+
+### How the compiled simulator implements it
+
+The C code that [`shdlc`](../tools/shdlc.mdx) generates keeps the gate outputs in two buffers, `cur` (the committed state) and `nxt`. One cycle is a single `tick()`:
+
+1. **Compute.** Every gate writes `nxt[g]` using only `cur[]` and the input values. Nothing reads `nxt`, so no gate can observe another gate's update from the same cycle, and the order the gates are listed in does not matter.
+2. **Commit.** The two buffer pointers are swapped, so `nxt` becomes the new `cur`. Output ports are then recomputed from the new state.
+
+This is the compute-commit contract of [shdlc_goals.md §2.3](/specs/shdlc_goals#23-the-compute-commit-contract). A poke writes the input value immediately, but gates only read inputs during a tick, so a gate wired directly to an input sees the change one cycle later. [Compiler internals](../architecture/compiler-internals.mdx) shows the generated code.
+
+## Cycle 0: everything starts at 0
+
+Before the first cycle, every gate output is 0 and every input is 0. The only exception is a gate output you seed with an [`init` block](#seeding-state-with-init). This holds even where it looks "wrong":
+
+```shdl title="powerOn.shdl"
+"""Cycle 0: every gate output starts at 0."""
+
+top component PowerOn(A) -> (N, One) {
+    ONE = 1;
+    n1: NOT;
+
+    connect {
+        A -> n1.A;
+        n1.O -> N;
+        ONE -> One;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+c = Circuit("powerOn.shdl")
+print("cycle 0:", c["N"], c["One"])
+c.step()
+print("cycle 1:", c["N"], c["One"])
+```
+
+```text title="Output"
+cycle 0: 0 0
+cycle 1: 1 1
+```
+
+- `NOT(0)` is 1, but at cycle 0 the NOT gate has not computed anything yet, so `N` reads 0. It becomes 1 after the first cycle.
+- The constant `ONE` also reads 0 at cycle 0. The flattener lowers each referenced constant bit to a power pin (`__VCC__` for 1, `__GND__` for 0), and a power pin is a gate like any other: it produces its constant on each tick, so it holds 0 until the first one. The flattener accounts for this by giving power pins a depth of 1 (see [timing metadata](#timing-metadata)).
+
+## Peeking is lazy
+
+Reading an output can advance the simulation. The rule, from the compiled ABI:
+
+- `poke` sets an input and marks the circuit as having a pending change.
+- `peek` of an **output** port runs exactly one cycle first if a change is pending, then reads the value. The cycle clears the pending flag, so a second peek does not tick again.
+- `peek` of an **input** port returns the poked value and never ticks.
+- `step`, `step_settle`, `settle` and `run_batch` clear the pending flag as soon as they run at least one cycle. `reset` clears it too.
+
+A chain of four buffers (an `OR` with both inputs tied together is a buffer) makes the rule visible. `Q[1]` is one gate from `A`, and `Q[4]` is four gates away:
+
+```shdl title="delay.shdl"
+"""Four buffers in a row: Q[k] is k gates away from A."""
+
+top component Delay(A) -> (Q[4]) {
+    >i[4]{ b{i}: OR; }
+
+    connect {
+        A -> b1.A;  A -> b1.B;
+        >i[2:4]{ b{i-1}.O -> b{i}.A;  b{i-1}.O -> b{i}.B; }
+        >i[4]{ b{i}.O -> Q[{i}]; }
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+c = Circuit("delay.shdl")
+c["A"] = 1
+print(c["A"])              # an input: no tick
+print(f"{c['Q']:04b}")     # an output with a poke pending: one tick
+print(f"{c['Q']:04b}")     # nothing pending: no tick
+c.step(2)
+print(f"{c['Q']:04b}")
+```
+
+```text title="Output"
+1
+0001
+0001
+0111
+```
+
+Binary `0001` means only `Q[1]` (the least significant bit) is high: the lazy peek ran one cycle. The two explicit cycles then carry the value to `Q[3]`.
+
+The rule exists so that `poke` followed by `peek` behaves sensibly for a circuit of depth 1 without an explicit `step`. For anything deeper, advance time explicitly and treat the lazy tick as a detail. `step(0)` runs no cycle, so it leaves a pending change pending:
+
+```python continue
+c["A"] = 0
+c.step(0)
+print(f"{c['Q']:04b}")     # the pending poke is still applied by this peek
+```
+
+```text title="Output"
+1110
+```
+
+## Advancing time
+
+PySHDL gives you three ways to advance the simulation. They are summarized here and specified in [pyshdl.md §6](/specs/pyshdl#6-stepping-settle-and-step_settle).
+
+| Method | Cycles run | Returns | Refuses |
+|---|---|---|---|
+| `step(cycles=1)` | exactly `cycles` | `None` | nothing |
+| `settle()` | exactly `timing.max_depth` | `max_depth` | circuits with feedback, and circuits without timing metadata |
+| `step_settle(cycles=1)` | from 1 up to `cycles`, stopping early once the gate state stops changing | the number of cycles run | nothing |
+
+### `step(n)`
+
+`step(n)` runs exactly `n` cycles. `n` must be an `int` from 0 to 2,147,483,647 (the C ABI takes a 32-bit `int`). `step(0)` is a no-op. Anything else raises before any cycle runs:
+
+```python
+from SHDL import Circuit
+
+c = Circuit("powerOn.shdl")
+for bad in (-1, 2**31, 1.5):
+    try:
+        c.step(bad)
+    except (ValueError, TypeError) as e:
+        print(f"{type(e).__name__}: {e}")
+```
+
+```text title="Output"
+ValueError: cycles must be in 0..2147483647, got -1
+ValueError: cycles must be in 0..2147483647, got 2147483648
+TypeError: cycles must be an int, got float
+```
+
+`step_settle` and `run_batch` validate their `cycles` argument the same way. The raw C function `step(int)` treats any value of 0 or less as a no-op; see the [C ABI](../tools/c-abi.mdx).
+
+### `settle()`
+
+`settle()` is exactly `step(max_depth)`, where `max_depth` comes from the circuit's [timing metadata](#timing-metadata). It returns the number of cycles it ran.
+
+Why that number is enough: in a circuit without feedback, a gate at depth k depends only on values at most k gate levels upstream. After k cycles with the inputs held, it has computed from the current inputs, whatever state it started in. After `max_depth` cycles, every gate and every output has.
+
+`settle()` refuses a circuit with feedback. A loop has no depth that guarantees a stable state, and a latch or oscillator may never reach one:
+
+```python
+from SHDL import Circuit, SettleRefusedError
+
+latch = Circuit("examples/srLatch.shdl")
+try:
+    latch.settle()
+except SettleRefusedError as e:
+    print(e)
+```
+
+```text title="Output"
+settle() is refused: circuit 'SRLatch' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+```
+
+A circuit loaded from a bare shared library, with no Base SHDL metadata, raises `MetadataUnavailableError` instead. See [Python API](../tools/python-api.mdx) for the full error list.
+
+### `step_settle(n)`
+
+`step_settle(n)` runs cycles one at a time, up to `n`. After each cycle it compares the new gate state with the previous one. If they are identical, it stops and returns the number of cycles it ran, **including the final cycle that changed nothing**. Once a cycle changes nothing, every later cycle with the same inputs would compute the same state again, so stopping early is observably identical to `step(n)`. If the state never repeats within `n` cycles, all `n` run and it returns `n`. Oscillators always run the full count.
+
+It is always at least one cycle when `n` is 1 or more: even an already stable circuit needs one cycle to confirm it.
+
+The difference from `settle()` matters because `max_depth` is a structural bound. A particular input often settles faster than the longest path, and `step_settle` measures the actual time. The 8-bit ripple-carry adder from the repository's `examples/` directory has a `max_depth` of 17. Here is 255 + 1, one cycle at a time:
+
+```python
+from SHDL import Circuit
+
+c = Circuit("examples/adder8.shdl")
+c["A"] = 255
+c["B"] = 1
+for cycle in range(1, 18):
+    c.step()
+    print(f"cycle {cycle:2}: Sum={c['Sum']:08b} Cout={c['Cout']}")
+```
+
+```text title="Output"
+cycle  1: Sum=00000000 Cout=0
+cycle  2: Sum=11111110 Cout=0
+cycle  3: Sum=11111100 Cout=0
+cycle  4: Sum=11111100 Cout=0
+cycle  5: Sum=11111000 Cout=0
+cycle  6: Sum=11111000 Cout=0
+cycle  7: Sum=11110000 Cout=0
+cycle  8: Sum=11110000 Cout=0
+cycle  9: Sum=11100000 Cout=0
+cycle 10: Sum=11100000 Cout=0
+cycle 11: Sum=11000000 Cout=0
+cycle 12: Sum=11000000 Cout=0
+cycle 13: Sum=10000000 Cout=0
+cycle 14: Sum=10000000 Cout=0
+cycle 15: Sum=00000000 Cout=0
+cycle 16: Sum=00000000 Cout=1
+cycle 17: Sum=00000000 Cout=1
+```
+
+You can watch the carry move one bit every two cycles, clearing each sum bit as it passes. The final answer (0, carry 1) is complete at cycle 16. Now the same addition with `step_settle`, then a second addition that settles much sooner:
+
+```python continue
+c.reset()
+c["A"] = 255
+c["B"] = 1
+print(c.step_settle(100))   # stable after 16 cycles, confirmed by the 17th
+print(c.step_settle(100))   # already stable: one cycle to confirm
+c["A"] = 100
+c["B"] = 55
+print(c.step_settle(100), c["Sum"])
+```
+
+```text title="Output"
+17
+1
+7 155
+```
+
+Use `settle()` when you want a guaranteed bound for a combinational circuit. Use `step_settle(n)` when you want to know how long an input actually took, or to advance a sequential circuit until it stops changing with `n` as a safety cap.
+
+### Batches
+
+`run_batch(frames, cycles=1, settle=False)` applies a list of input frames in one C call. For each frame it pokes the frame's inputs (inputs a frame leaves out keep their current value), runs `cycles` cycles, and reads every output. With `settle=True`, each frame runs `step_settle(cycles)` instead, so `cycles` becomes the cap. It is observably identical to the equivalent poke, step and peek loop. For a combinational circuit, pass `cycles=max_depth`:
+
+```python continue
+c.reset()
+frames = [{"A": 10, "B": 20}, {"B": 30}, {}]
+print([row["Sum"] for row in c.run_batch(frames, cycles=17)])
+```
+
+```text title="Output"
+[30, 40, 40]
+```
+
+:::warning[The default is one cycle]
+
+`run_batch` defaults to `cycles=1` whether or not `settle=True`, and one cycle is not enough for most circuits. Pass a cycle count that covers the circuit's depth.
+
+:::
+
+## Timing metadata
+
+The flattener analyzes the netlist and writes a `timing` block into the Base SHDL metadata. Here it is for the full adder in `examples/fullAdder.shdl`:
+
+```console check
+$ shdl-flatten examples/fullAdder.shdl --timestamp 2026-01-01T00:00:00Z | sed -n '/"timing"/,/^  },/p'
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "Sum": 2,
+      "Cout": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "ha1_x1",
+      "ha2_a1",
+      "o1",
+      "Cout"
+    ]
+  },
+```
+
+| Field | Meaning |
+|---|---|
+| `max_depth` | The largest depth of any output. This is the number of cycles `settle()` runs. |
+| `output_depths` | The depth of each output wire, keyed by its flattened single-bit name (`Sum_1_`, `Sum_2_`, ... for a multi-bit port). |
+| `is_combinational` | `true` when the netlist has no feedback. Always the opposite of `has_feedback`. |
+| `has_feedback` | `true` when some gate's output can reach its own input. |
+| `critical_path` | A real chain of connections ending at the first output (in port order) whose depth equals `max_depth`. It starts at an input, a power pin, or a gate inside a feedback loop. |
+
+Depth is counted as follows. Input ports have depth 0. A gate's depth is one more than the largest depth among the gates and inputs that feed it. Power pins have depth 1, because they read 0 until the first cycle, so a critical path can start at a constant. With feedback, a loop is a strongly connected group of gates (or a gate that feeds itself), and edges inside a loop are ignored, so `max_depth` then describes only the feedback-free part of the circuit and is not a settle count.
+
+PySHDL exposes three of these fields as `Circuit.timing`, a `TimingInfo(max_depth, is_combinational, has_feedback)`. `timing` is `None` when the Base SHDL has no timing block. `output_depths` and `critical_path` are only available in the Base SHDL text. The full metadata format is in [Base SHDL](../architecture/base-shdl.mdx).
+
+## Feedback and state
+
+Because every gate reads last cycle's values, a wire may depend on its own previous value. That is how SHDL builds latches, registers and clocks from ordinary gates, with no special syntax ([shdl.md §11.2](/specs/shdl#112-feedback-and-sequential-circuits)). The flattener flags such a circuit with `has_feedback`.
+
+### An unseeded latch oscillates
+
+Here is an SR latch made of two cross-coupled NOR gates, each spelled out as an `OR` followed by a `NOT`, with no `init` block:
+
+```shdl title="norLatch.shdl"
+"""An SR latch with no power-on state."""
+
+top component NorLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;
+    o2: OR;  i2: NOT;
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+```
+
+With `S` and `R` both 0 it should hold its state. But at cycle 0 both `Q` and `Qn` are 0, which is not a valid latch state, and the two halves are perfectly symmetric:
+
+```python
+from SHDL import Circuit
+
+c = Circuit("norLatch.shdl")
+print(c.timing)
+for cycle in range(9):
+    print(f"cycle {cycle}: Q={c['Q']} Qn={c['Qn']}")
+    c.step()
+print("step_settle(1000) ran", c.step_settle(1000), "cycles")
+```
+
+```text title="Output"
+TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+cycle 0: Q=0 Qn=0
+cycle 1: Q=1 Qn=1
+cycle 2: Q=1 Qn=1
+cycle 3: Q=0 Qn=0
+cycle 4: Q=0 Qn=0
+cycle 5: Q=1 Qn=1
+cycle 6: Q=1 Qn=1
+cycle 7: Q=0 Qn=0
+cycle 8: Q=0 Qn=0
+step_settle(1000) ran 1000 cycles
+```
+
+The latch oscillates with period 4 forever. In a deterministic unit-delay network a symmetric state never breaks its symmetry, so there is nothing to settle into, and `step_settle(1000)` runs all 1000 cycles. Real hardware escapes this through tiny timing differences; SHDL does not model those. The fix is to give the latch a defined power-on state.
+
+`max_depth` is 1 here because edges inside the loop are ignored: it measures only the path from `S` or `R` into the loop.
+
+### Seeding state with `init`
+
+An `init` block sets chosen gate outputs to a value at cycle 0. `examples/srLatch.shdl` is the same latch with every net in the loop seeded to a consistent state (`Q` = 0, `Qn` = 1):
+
+```shdl fragment
+top component SRLatch(S, R) -> (Q, Qn) {
+    o1: OR;  i1: NOT;     # NOR #1, owned by the latch
+    o2: OR;  i2: NOT;     # NOR #2
+
+    init {
+        o1.O = 1;   # OR(R=0, Qn=1)
+        i1.O = 0;   # Q  = 0
+        o2.O = 0;   # OR(S=0, Q=0)
+        i2.O = 1;   # Qn = 1
+    }
+
+    connect {
+        R -> o1.A;  i2.O -> o1.B;  o1.O -> i1.A;  i1.O -> Q;
+        S -> o2.A;  i1.O -> o2.B;  o2.O -> i2.A;  i2.O -> Qn;
+    }
+}
+```
+
+Each seed equals what its gate computes from the other seeds with `S` = `R` = 0, so the state is a fixed point and holds from cycle 0:
+
+```python
+from SHDL import Circuit
+
+c = Circuit("examples/srLatch.shdl")
+print("power-on:", c["Q"], c["Qn"])
+c["S"] = 1
+print("set:     ", c.step_settle(20), c["Q"], c["Qn"])
+c["S"] = 0
+print("hold:    ", c.step_settle(20), c["Q"], c["Qn"])
+c["R"] = 1
+print("reset:   ", c.step_settle(20), c["Q"], c["Qn"])
+```
+
+```text title="Output"
+power-on: 0 1
+set:      5 1 0
+hold:     1 1 0
+reset:    5 0 1
+```
+
+Setting takes 4 cycles to propagate around the loop (plus the one that confirms it), releasing `S` changes nothing, and resetting mirrors setting.
+
+Seed a loop completely. A seed that covers only part of a loop leaves the other gates at 0, and the result may be an inconsistent state that oscillates as above. This is why the example spells each NOR out as `OR` + `NOT` instead of importing a composite `NOR`: seeding a composite's output reaches only its final gate. The language rules for `init` (legal targets, widths, one seed per net) are in [Sequential logic](../language-reference/sequential-logic.mdx) and [shdl.md §11.4](/specs/shdl#114-initial-state).
+
+A seed has no lasting effect on a gate outside a loop. It sets the value at cycle 0, and the gate overwrites it on the first cycle from its real inputs:
+
+```shdl title="seeded.shdl"
+"""An init seed on a combinational gate lasts one cycle."""
+
+top component Seeded(A, B) -> (P) {
+    g: AND;
+
+    init { g.O = 1; }
+
+    connect {
+        A -> g.A;  B -> g.B;  g.O -> P;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+c = Circuit("seeded.shdl")
+print(c["P"])   # cycle 0: the seed
+c.step()
+print(c["P"])   # cycle 1: AND(0, 0)
+```
+
+```text title="Output"
+1
+0
+```
+
+`init` produces no gates. The seeds travel in the Base SHDL metadata, and the compiled library writes them into its state on every reset.
+
+### Clocks
+
+A loop with no stable state is a clock. A ring of N buffers whose last stage feeds the first circulates a pulse with period N. See `examples/ringClock.shdl` and the [ring oscillator example](../examples/ring-oscillator.mdx). Advance such circuits with `step(n)`; `settle()` refuses them and `step_settle(n)` always runs all `n` cycles.
+
+## Reset
+
+`reset()` returns the circuit to cycle 0 ([shdlc_goals.md §2.4](/specs/shdlc_goals#24-reset-semantics)):
+
+- every gate output is set to 0, then the `init` seeds are applied;
+- every input is set to 0;
+- any pending lazy tick is discarded;
+- power pins and constants read 0 again until the next cycle.
+
+```python
+from SHDL import Circuit
+
+c = Circuit("powerOn.shdl")
+c["A"] = 1
+c.step(3)
+print(c["A"], c["N"], c["One"])
+c.reset()
+print(c["A"], c["N"], c["One"])
+```
+
+```text title="Output"
+1 0 1
+0 0 0
+```
+
+The compiled library also resets itself when it is loaded, so a freshly constructed `Circuit` is already at its seeded power-on state, as the latch above showed. The load-time reset is a constructor function that the generated C only emits for GCC-compatible compilers; see the [C ABI](../tools/c-abi.mdx).
+
+## Glitches and hazards
+
+Because every gate has the same delay, paths of different lengths that reconverge can produce a brief wrong value before the right one arrives. In real hardware this is called a hazard. SHDL reproduces it exactly, every time.
+
+The simplest case is `A AND NOT A`, which is logically always 0:
+
+```shdl title="edge.shdl"
+"""A AND NOT A: always 0, except when A rises."""
+
+top component Edge(A) -> (P) {
+    n: NOT;
+    g: AND;
+
+    connect {
+        A -> n.A;
+        A -> g.A;  n.O -> g.B;
+        g.O -> P;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+c = Circuit("edge.shdl")
+c.settle()
+print("steady:", c["P"])
+c["A"] = 1
+for cycle in range(1, 4):
+    c.step()
+    print(f"cycle {cycle}: P={c['P']}")
+```
+
+```text title="Output"
+steady: 0
+cycle 1: P=1
+cycle 2: P=0
+cycle 3: P=0
+```
+
+When `A` rises, the `AND` sees the new `A` on its first input in the same cycle the `NOT` is still producing its old output of 1. For one cycle both inputs are 1, and `P` pulses high. One cycle later the `NOT` catches up and `P` returns to 0. Turned around, this is a useful circuit: a rising-edge detector that emits a one-cycle pulse.
+
+`settle()` and `step_settle()` only show you the final value, so they hide glitches. Step one cycle at a time when you want to see them. The full adder on [Your first circuit](../getting-started/first-circuit.mdx#watch-it-ripple) shows the same effect on its `Sum` output.
+
+## Summary
+
+| You want to | Use |
+|---|---|
+| The final outputs of a combinational circuit | `settle()` |
+| To see signals propagate, or catch glitches | `step()` in a loop |
+| To know how many cycles an input actually took | `step_settle(n)` |
+| To advance a latch, register or clock | `step(n)`, or `step_settle(n)` with a cap |
+| To run many input vectors quickly | `run_batch(frames, cycles=max_depth)` |
+| To return to the power-on state | `reset()` |

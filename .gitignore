@@ -29,3 +29,7 @@ htmlcov/
 # Claude Code: keep shareable workflows under version control; ignore local state
 .claude/*
 !.claude/workflows/
+
+# Docs site (website/): npm dependencies and Docusaurus caches (build/ is above)
+website/node_modules/
+website/.docusaurus/

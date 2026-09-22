@@ -1,0 +1,638 @@
+---
+title: Base SHDL format
+sidebar_label: Base SHDL
+description: The flat netlist format between the SHDL flattener and the compiler, with every metadata key shown on real flattener output.
+---
+
+Base SHDL is the text format that sits between the front end and the back end. The flattener turns an SHDL program into one Base SHDL file. `shdlc` and PySHDL compile that file to C. The file has two parts:
+
+- a **structural core**: one component made of six primitive gates, with every signal one bit wide
+- a **`meta` block**: one JSON object that records what flattening threw away, such as bus groupings, the component hierarchy, source locations, timing and initial state
+
+This page walks through the format using real `shdl-flatten` output. The normative definition is [base_shdl.md](/specs/base_shdl); this page summarizes it and points out where the code does something the spec does not say.
+
+## Who writes it and who reads it
+
+| Producer | How |
+|---|---|
+| [`shdl-flatten`](../tools/shdl-flatten.mdx) | Writes the file to stdout or to `-o FILE`. |
+| `flatten_program()` in `flattener.pipeline` | Returns it as `.text`, with the metadata also parsed as `.meta`. See [the flattening pipeline](./flattening-pipeline.mdx). |
+| `Circuit(...)` in PySHDL | Writes `{name}.base.shdl` into the build directory before compiling. |
+| `shdl build --emit-base` | Writes `build/<name>.base.shdl` next to the library. |
+| The conformance suite | Stores one golden `expected.base.shdl` per case under `conformance/cases/`. See [conformance](../tools/conformance.mdx). |
+
+| Consumer | How |
+|---|---|
+| [`shdlc`](../tools/shdlc.mdx) | Parses the file with `shdlc.baseshdl.parse_base`, checks it with `shdlc.model.build_circuit`, and generates C. See [compiler internals](./compiler-internals.mdx). |
+| PySHDL `Circuit` | Uses the same parser and checker, then reads the metadata for port names, widths, timing and init. See [PySHDL internals](./pyshdl-internals.mdx). |
+| `BaseEval` in `shdlc/sim/base_eval.py` | A pure-Python interpreter of Base SHDL that the test suite uses as an oracle. |
+
+Nothing else sits between the two halves. The flattener and the compiler share no Python objects, only this text.
+
+## A complete example
+
+The adder below is the `add2` conformance case: a 2-bit ripple-carry adder built from two full adders.
+
+```shdl title="fullAdder.shdl"
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  a1: AND;
+    x2: XOR;  a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A;   B -> x1.B;
+        A -> a1.A;   B -> a1.B;
+
+        x1.O -> x2.A;  Cin -> x2.B;
+        x1.O -> a2.A;  Cin -> a2.B;
+        a1.O -> o1.A;  a2.O -> o1.B;
+
+        x2.O -> Sum;   o1.O -> Cout;
+    }
+}
+```
+
+```shdl title="circuit.shdl"
+"""2-bit ripple-carry adder"""
+use fullAdder::{FullAdder};
+
+top component Add2(A[2], B[2], Cin) -> (Sum[2], Cout) {
+    fa1: FullAdder;
+    fa2: FullAdder;
+
+    connect {
+        A[1] -> fa1.A;  B[1] -> fa1.B;  Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+
+        A[2] -> fa2.A;  B[2] -> fa2.B;  fa1.Cout -> fa2.Cin;
+        fa2.Sum -> Sum[2];
+        fa2.Cout -> Cout;
+    }
+}
+```
+
+Flatten it with a pinned timestamp, so the output is reproducible:
+
+```console check
+$ shdl-flatten circuit.shdl --timestamp 2026-01-01T00:00:00Z -o add2.base.shdl
+$ cat add2.base.shdl
+component Add2(A_1_, A_2_, B_1_, B_2_, Cin) -> (Sum_1_, Sum_2_, Cout) {
+    fa1_x1: XOR;
+    fa1_a1: AND;
+    fa1_x2: XOR;
+    fa1_a2: AND;
+    fa1_o1: OR;
+    fa2_x1: XOR;
+    fa2_a1: AND;
+    fa2_x2: XOR;
+    fa2_a2: AND;
+    fa2_o1: OR;
+
+    connect {
+        A_1_ -> fa1_x1.A;
+        B_1_ -> fa1_x1.B;
+        A_1_ -> fa1_a1.A;
+        B_1_ -> fa1_a1.B;
+        fa1_x1.O -> fa1_x2.A;
+        Cin -> fa1_x2.B;
+        fa1_x1.O -> fa1_a2.A;
+        Cin -> fa1_a2.B;
+        fa1_a1.O -> fa1_o1.A;
+        fa1_a2.O -> fa1_o1.B;
+        A_2_ -> fa2_x1.A;
+        B_2_ -> fa2_x1.B;
+        A_2_ -> fa2_a1.A;
+        B_2_ -> fa2_a1.B;
+        fa2_x1.O -> fa2_x2.A;
+        fa1_o1.O -> fa2_x2.B;
+        fa2_x1.O -> fa2_a2.A;
+        fa1_o1.O -> fa2_a2.B;
+        fa2_a1.O -> fa2_o1.A;
+        fa2_a2.O -> fa2_o1.B;
+        fa1_x2.O -> Sum_1_;
+        fa2_x2.O -> Sum_2_;
+        fa2_o1.O -> Cout;
+    }
+}
+
+meta {
+  "version": "2.0",
+...
+```
+
+The `...` stands for the rest of the metadata, which the [metadata](#the-metadata-block) section below takes apart key by key. The whole file is 271 lines, and it is byte-identical to `conformance/cases/add2/expected.base.shdl`.
+
+A few things to notice:
+
+- The 2-bit ports `A`, `B` and `Sum` became single-bit wires `A_1_`, `A_2_` and so on, bit 1 first.
+- The `fa1` and `fa2` instances are gone. Their gates survive with the instance name as a prefix: `fa1_x1`, `fa2_o1`.
+- Every connection is a single `source -> destination;` line with one bit on each side.
+- There are no comments, no imports, no parameters and no `use` lines.
+
+## The structural core
+
+### Grammar
+
+The structural core is exactly one component. From [base_shdl.md §3.2](/specs/base_shdl#32-grammar):
+
+```text
+Component       = "component" IDENTIFIER "(" IdentifierList ")" "->" "(" IdentifierList ")" "{" { InstanceDecl } ConnectBlock "}" ;
+IdentifierList  = [ IDENTIFIER { "," IDENTIFIER } ] ;
+InstanceDecl    = IDENTIFIER ":" PrimitiveType ";" ;
+PrimitiveType   = "AND" | "OR" | "NOT" | "XOR" | "__VCC__" | "__GND__" ;
+ConnectBlock    = "connect" "{" { Connection } "}" ;
+Connection      = Signal "->" Signal ";" ;
+Signal          = IDENTIFIER | IDENTIFIER "." IDENTIFIER ;
+```
+
+The optional metadata follows the component's closing brace as `meta` and then a JSON object.
+
+The production reader is `parse_base` in [`shdlc/baseshdl.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/baseshdl.py). It is a hand-written scanner that shares no code with the SHDL front end. Details that the grammar leaves open:
+
+- Whitespace is free. `#` comments running to the end of the line are skipped, although the flattener never writes any.
+- All declarations come before `connect`. A gate named `connect` is therefore impossible, because the reader stops declaring at that word.
+- The `connect` block is required but may be empty.
+- After the component, the reader accepts either the end of the text or `meta` followed by JSON. Anything else raises `unexpected token 'x' after component`. After the JSON, only whitespace may follow; a trailing comment also counts as `trailing content after meta object`.
+
+Its error messages are `expected 'x', got 'y'`, `expected identifier, got 'x'`, `unexpected end of input at offset N`, `unknown primitive type 'X'`, `duplicate instance 'x'`, `malformed meta JSON: …` and the two above. They carry no line numbers, because the reader only ever sees machine-written text.
+
+### The six primitives
+
+| Type | Input pins | Output | Value | Generated C expression |
+|---|---|---|---|---|
+| `AND` | `A`, `B` | `O` | A and B | `(uint8_t)(a & b)` |
+| `OR` | `A`, `B` | `O` | A or B | `(uint8_t)(a \| b)` |
+| `XOR` | `A`, `B` | `O` | A xor B | `(uint8_t)(a ^ b)` |
+| `NOT` | `A` | `O` | not A | `(uint8_t)(a ^ 1u)` |
+| `__VCC__` | none | `O` | always 1 | `1u` |
+| `__GND__` | none | `O` | always 0 | `0u` |
+
+The last column is what [`shdlc/codegen.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/codegen.py) emits. `NOT` is `^ 1u` rather than `~`, which keeps the value 0 or 1 in a `uint8_t` ([§3.3](/specs/base_shdl#33-primitive-types)). The compiler's model renames `__VCC__` and `__GND__` to `VCC` and `GND` internally.
+
+Every derived gate from the standard library, such as `NAND`, `NOR` or `MUX`, arrives already decomposed into these six. See [standard gates](../language-reference/standard-gates.mdx).
+
+### Names
+
+| Name shape | Example | Where it comes from |
+|---|---|---|
+| Port name | `Cin` | A 1-bit port of the top component keeps its name. |
+| Bus-expanded port | `A_1_`, `Sum_16_` | A multi-bit port becomes one wire per bit: `{Port}_{bit}_`, 1-based, LSB first ([§3.4](/specs/base_shdl#34-port-naming-convention-for-expanded-ports)). |
+| Top-level gate | `g`, `n1` | A primitive declared directly in the top component. |
+| Flattened gate | `fa1_x1`, `alu_add_fa3_x2` | Instance names joined by `_`, one per level of nesting ([§3.5](/specs/base_shdl#35-instance-naming)). |
+| Constant bit | `FIVE_bit1` | One `__VCC__` or `__GND__` per constant bit that is actually read ([constants](../language-reference/constants.mdx)). |
+
+The trailing underscore in `A_1_` is what keeps bus wires from colliding with user names: SHDL forbids identifiers of the shape `…_<digits>_` (error `E0304`). That reservation is a promise the flattener makes, not a rule consumers check. `shdlc` and PySHDL accept any identifier in a hand-written Base SHDL file ([§3.5](/specs/base_shdl#35-instance-naming)).
+
+### Connection rules
+
+A source is an input wire or `gate.O`. A destination is a gate input pin or an output wire. [§3.6](/specs/base_shdl#36-connection-rules) lists the rules. The flattener never produces a file that breaks them, and `build_circuit` in [`shdlc/model.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/model.py) re-checks every one of them for any file it is given:
+
+| Rule | Checked by |
+|---|---|
+| Only `O` is readable on a gate. | `build_circuit` |
+| Input wires are sources only. | `build_circuit` |
+| Each gate pin and each output wire has exactly one driver. | `build_circuit` |
+| Every gate input pin is driven, and every output wire is driven. | `build_circuit` |
+| Fan-out is unlimited. | (allowed) |
+| An output wire may be read as a source, for example `O -> Copy;`. Chains of such aliases must not form a cycle. | `build_circuit` |
+| Feedback loops through gates are allowed. They are how latches and registers work. | (allowed) |
+
+When you compile Base SHDL through PySHDL, a parse error becomes `CompileError("invalid Base SHDL: …")` and a rule violation becomes `CompileError("invalid circuit: …")`:
+
+```python
+from SHDL import Circuit, CompileError
+
+BROKEN = [
+    "component T(A) -> (O) { n: NAND; connect { A -> n.A; n.O -> O; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> O; } } meta [1] x",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; n.A -> O; } }",
+    "component T(A) -> (O) { g: AND; connect { A -> g.A; g.O -> O; } }",
+    "component T(A, B) -> (O) { n: NOT; connect { A -> n.A; B -> n.A; n.O -> O; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> A; A -> O; } }",
+    "component T(A) -> (O, P) { connect { P -> O; O -> P; } }",
+]
+for text in BROKEN:
+    try:
+        Circuit.from_base(text)
+    except CompileError as e:
+        print(e)
+```
+
+```text title="Output"
+invalid Base SHDL: unknown primitive type 'NAND'
+invalid Base SHDL: trailing content after meta object
+invalid circuit: connection source 'n.A': only pin 'O' of gate 'n' is readable
+invalid circuit: gate 'g': AND input pin 'B' is not driven
+invalid circuit: pin 'n.A' driven more than once
+invalid circuit: cannot drive input wire 'A'
+invalid circuit: output alias cycle: O -> P -> O
+```
+
+[Compiler internals](./compiler-internals.mdx) lists every message `build_circuit` can raise.
+
+## The metadata block
+
+The `meta` keyword is followed by exactly one JSON object ([§4.1](/specs/base_shdl#41-purpose-and-placement)). A reader that only needs the netlist can stop at the component's closing brace. The flattener always writes all ten keys, in this order, pretty-printed with two-space indentation:
+
+| Key | Contains | Read in 1.1.0 by |
+|---|---|---|
+| `version` | The metadata format version, always `"2.0"`. | Nothing reads it. |
+| `ports` | Bus groupings: each port's single-bit wires, LSB first. | `shdlc` (C port tables), PySHDL (port names and widths) |
+| `hierarchy` | The tree of component instances that was flattened away. | Only the flattener's self-check |
+| `source_map` | The file, line and column behind every gate. | Only the flattener's self-check |
+| `constants` | Each constant's value, width and materialized bits. | Only the flattener's self-check |
+| `timing` | Circuit depth, per-output depth, feedback flags, critical path. | PySHDL (`settle()`, `Circuit.timing`), `BaseEval` |
+| `monitors` | Reserved for debugger watch groups. Always `{}`. | Nothing |
+| `stats` | Gate and connection counts. | PySHDL (`circuit.info.stats`) |
+| `doc` | Doc comment, source file name, flattening timestamp. | PySHDL (`circuit.info.description`, from `doc.description` only) |
+| `init` | Initial values for gate outputs. | `shdlc` (the `init_seeds` table), PySHDL (`circuit.info.init`), `BaseEval` |
+
+Every key is optional for readers, and unknown keys are ignored ([§4.2](/specs/base_shdl#42-grammar-overview)). The hierarchy, source map, constants and monitors blocks are there for the planned debugger and other tools; see the [roadmap](../roadmap.mdx).
+
+The examples below read the adder's metadata back with `parse_base`, the same parser the compiler uses:
+
+```python
+import json
+from shdlc.baseshdl import parse_base
+
+with open("add2.base.shdl", encoding="utf-8") as f:
+    comp = parse_base(f.read())
+
+print(comp.name)
+print(comp.inputs, "->", comp.outputs)
+print(len(comp.gates), "gates,", len(comp.connections), "connections")
+meta = comp.meta
+print(list(meta))
+```
+
+```text title="Output"
+Add2
+['A_1_', 'A_2_', 'B_1_', 'B_2_', 'Cin'] -> ['Sum_1_', 'Sum_2_', 'Cout']
+10 gates, 23 connections
+['version', 'ports', 'hierarchy', 'source_map', 'constants', 'timing', 'monitors', 'stats', 'doc', 'init']
+```
+
+### `ports`
+
+`ports` maps each original port name to its list of wires. Index 0 of the list is bit 1, the least significant bit. A 1-bit port is a one-element list.
+
+```python continue
+for direction, groups in meta["ports"].items():
+    for port, wires in groups.items():
+        print(direction, port, wires)
+```
+
+```text title="Output"
+inputs A ['A_1_', 'A_2_']
+inputs B ['B_1_', 'B_2_']
+inputs Cin ['Cin']
+outputs Sum ['Sum_1_', 'Sum_2_']
+outputs Cout ['Cout']
+```
+
+This is what lets you write `adder["A"] = 3` instead of poking two wires. Rules the compiler enforces ([§4.3](/specs/base_shdl#43-ports--port-grouping)):
+
+- If `ports` is present, it needs both `inputs` and `outputs`.
+- A port is 1 to 64 wires wide, because values cross the C ABI as `uint64_t`.
+- Input wires must be inputs, output wires must be outputs, and every wire must exist.
+- An input wire may belong to only one input port. Output wires may be shared.
+- A partial map is legal. An input wire in no port stays 0 and cannot be poked; an output wire in no port cannot be read.
+- If `ports` is missing entirely, every wire becomes its own 1-bit port with the same name.
+
+[Writing Base SHDL by hand](#writing-base-shdl-by-hand) shows the last two rules at work.
+
+### `hierarchy`
+
+`hierarchy` has one key, the top component's name. Each component instance records its type, the file and line of the instance, the prefix its gates received, what each of its ports was wired to, and its own children. Each primitive records the flattened gate name.
+
+```python continue
+top = meta["hierarchy"]["Add2"]
+print(top["source_file"], top["source_line"], list(top["instances"]))
+fa2 = top["instances"]["fa2"]
+print({k: v for k, v in fa2.items() if k != "instances"})
+print(fa2["instances"]["x1"])
+```
+
+```text title="Output"
+circuit.shdl 4 ['fa1', 'fa2']
+{'type': 'FullAdder', 'source_file': 'circuit.shdl', 'source_line': 6, 'prefix': 'fa2_', 'ports': {'A': 'A_2_', 'B': 'B_2_', 'Cin': 'fa1_o1.O', 'Sum': 'Sum_2_', 'Cout': 'Cout'}}
+{'type': 'XOR', 'gate': 'fa2_x1'}
+```
+
+How to read it:
+
+- The top entry's `source_line` is the line of the component definition (line 4). An instance's `source_line` is the line where it is instantiated (`fa2` is on line 6).
+- Each `ports` value names the net that port is connected to, using a **canonical name**: the input wire if the net is a top-level input; else the first top-level output wire the net drives; else `gate.O`. That is why `fa2.Cin` shows `fa1_o1.O` (an internal net) while `fa2.Cout` shows `Cout`.
+- A 1-bit port maps to a string, a wider one to a list, LSB first.
+- A parameterized instance also has `"params"`, for example `{"N": 2}`, and its `type` is shown as written, such as `AdderN`. Power pins appear as primitive children with type `__VCC__` or `__GND__`.
+
+### `source_map`
+
+`source_map.gates` gives the declaration site of every gate. `source_map.lines` inverts that: for each file and line, the gates it produced, counting both the declaration line and every instantiation line up the chain.
+
+```python continue
+sm = meta["source_map"]
+print(sm["gates"]["fa2_x1"])
+for file, lines in sm["lines"].items():
+    for line, gates in lines.items():
+        print(f"{file}:{line}", gates)
+```
+
+```text title="Output"
+{'file': 'fullAdder.shdl', 'line': 2, 'column': 5}
+circuit.shdl:5 ['fa1_x1', 'fa1_a1', 'fa1_x2', 'fa1_a2', 'fa1_o1']
+circuit.shdl:6 ['fa2_x1', 'fa2_a1', 'fa2_x2', 'fa2_a2', 'fa2_o1']
+fullAdder.shdl:2 ['fa1_x1', 'fa1_a1', 'fa2_x1', 'fa2_a1']
+fullAdder.shdl:3 ['fa1_x2', 'fa1_a2', 'fa2_x2', 'fa2_a2']
+fullAdder.shdl:4 ['fa1_o1', 'fa2_o1']
+```
+
+File names are base names. Lines and columns are 1-based. Files are sorted by name and lines by number; line numbers are JSON string keys. A constant's bits map to the line of the constant declaration.
+
+### The remaining keys
+
+```python continue
+for key in ("constants", "timing", "monitors", "stats", "doc", "init"):
+    print(key, json.dumps(meta[key]))
+```
+
+```text title="Output"
+constants {}
+timing {"max_depth": 5, "output_depths": {"Sum_1_": 2, "Sum_2_": 4, "Cout": 5}, "is_combinational": true, "has_feedback": false, "critical_path": ["A_1_", "fa1_x1", "fa1_a2", "fa1_o1", "fa2_a2", "fa2_o1", "Cout"]}
+monitors {}
+stats {"total_gates": 10, "total_connections": 23, "total_ports": 8, "by_type": {"XOR": 4, "AND": 4, "OR": 2}}
+doc {"description": "2-bit ripple-carry adder", "source": "circuit.shdl", "flattened_at": "2026-01-01T00:00:00Z"}
+init {}
+```
+
+| Key | Fields |
+|---|---|
+| `constants` | Per constant: `value`, `width`, and `bits` mapping each bit index that is read to its gate. Empty here: the adder has no constants. |
+| `timing` | Explained in [reading timing](#reading-timing-and-critical_path). |
+| `monitors` | Always `{}`. SHDL has no syntax that fills it ([§4.8](/specs/base_shdl#48-monitors--debugger-watch-configuration)). |
+| `stats` | `total_gates`, `total_connections`, `total_ports` (input plus output wires, here 5 + 3), and `by_type` in order of first appearance. |
+| `doc` | `description` is the module's `"""doc comment"""` and is omitted when there is none. `source` is the top file's base name. `flattened_at` is the timestamp; pin it with `--timestamp` for reproducible output. |
+| `init` | Empty unless the program has `init` blocks. See the next section. |
+
+## Constants, init and feedback
+
+The adder has no constants, no initial state and no loops. This SR latch has all three: a constant `EN`, an `init` block and two cross-coupled gates.
+
+```shdl title="latch.shdl"
+"""SR latch built from OR and NOT, with a constant-enabled reset."""
+top component Latch(S, R) -> (Q, Qn) {
+    EN = 1;
+    g: AND;
+    o1: OR;  n1: NOT;
+    o2: OR;  n2: NOT;
+
+    init { o1.O = 1; n1.O = 0; n2.O = 1; }
+
+    connect {
+        R -> g.A;   EN -> g.B;
+        g.O -> o1.A;  n2.O -> o1.B;  o1.O -> n1.A;  n1.O -> Q;
+        S -> o2.A;    n1.O -> o2.B;  o2.O -> n2.A;  n2.O -> Qn;
+    }
+}
+```
+
+```python
+import json
+from flattener.pipeline import flatten_program
+
+out = flatten_program("latch.shdl", timestamp="2026-01-01T00:00:00Z")
+print(out.text[: out.text.index("meta {")].rstrip())
+for key in ("constants", "timing", "init"):
+    print(key, json.dumps(out.meta[key]))
+```
+
+```text title="Output"
+component Latch(S, R) -> (Q, Qn) {
+    g: AND;
+    o1: OR;
+    n1: NOT;
+    o2: OR;
+    n2: NOT;
+    EN_bit1: __VCC__;
+
+    connect {
+        R -> g.A;
+        EN_bit1.O -> g.B;
+        g.O -> o1.A;
+        n2.O -> o1.B;
+        o1.O -> n1.A;
+        n1.O -> Q;
+        S -> o2.A;
+        n1.O -> o2.B;
+        o2.O -> n2.A;
+        n2.O -> Qn;
+    }
+}
+constants {"EN": {"value": 1, "width": 1, "bits": {"1": "EN_bit1"}}}
+timing {"max_depth": 1, "output_depths": {"Q": 1, "Qn": 1}, "is_combinational": false, "has_feedback": true, "critical_path": ["n1", "Q"]}
+init {"o1.O": 1, "Q": 0, "Qn": 1}
+```
+
+- **Constants** become power pins. `EN = 1` became one `__VCC__` gate, `EN_bit1`, declared after the ordinary gates. The `init` block and the constant declaration leave no other trace in the structural core.
+- **`init` keys use canonical names**, like the hierarchy's port values. `n1.O` drives the output `Q`, so its seed is stored as `"Q"`; `n2.O` becomes `"Qn"`; `o1.O` drives no output and keeps its gate name. Each value is 0 or 1. A multi-bit seed is split into one key per bit. ([§4.11](/specs/base_shdl#411-init--initial-state) shows the keys as `"n1.O"`; the flattener writes the canonical form.)
+- **Feedback** shows in `timing`: `has_feedback` is `true` and `is_combinational` is `false`.
+
+The seeds are what the circuit holds before the first cycle. `shdlc` compiles them into a table that `reset()` loads, and PySHDL exposes them as `circuit.info.init`. Because the circuit has feedback, `settle()` refuses to guess a cycle count:
+
+```python
+from SHDL import Circuit
+
+with Circuit("latch.shdl") as latch:
+    print("init:", dict(latch.info.init))
+    print("cycle 0:", latch["Q"], latch["Qn"])
+    latch["S"] = 1
+    for cycle in range(1, 5):
+        latch.step()
+        print(f"cycle {cycle}:", latch["Q"], latch["Qn"])
+    try:
+        latch.settle()
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}")
+```
+
+```text title="Output"
+init: {'o1.O': 1, 'Q': 0, 'Qn': 1}
+cycle 0: 0 1
+cycle 1: 0 1
+cycle 2: 0 0
+cycle 3: 0 0
+cycle 4: 1 0
+SettleRefusedError: settle() is refused: circuit 'Latch' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+```
+
+Setting `S` takes four cycles to flip the latch, one gate per cycle: `o2`, then `n2`, then `o1`, then `n1`. See the [simulation model](../concepts/simulation-model.mdx) for why every gate costs one cycle.
+
+A multi-bit constant only materializes the bits that are read. Bits beyond the declared width read as 0:
+
+```shdl title="const_demo.shdl"
+component ConstDemo(A) -> (O1, O2, O3) {
+    FIVE[3] = 5;
+    a1: AND;  a2: AND;  a3: AND;
+
+    connect {
+        FIVE[1] -> a1.A;  A -> a1.B;  a1.O -> O1;   # bit 1 of 5 -> __VCC__
+        FIVE[2] -> a2.A;  A -> a2.B;  a2.O -> O2;   # bit 2 of 5 -> __GND__
+        FIVE[9] -> a3.A;  A -> a3.B;  a3.O -> O3;   # beyond width -> __GND__
+    }
+}
+```
+
+```python
+import json
+from flattener.pipeline import flatten_program
+
+meta = flatten_program("const_demo.shdl", timestamp="2026-01-01T00:00:00Z").meta
+print(json.dumps(meta["constants"]))
+print(json.dumps(meta["timing"]))
+print(json.dumps(meta["stats"]["by_type"]))
+print(json.dumps(meta["doc"]))
+```
+
+```text title="Output"
+{"FIVE": {"value": 5, "width": 3, "bits": {"1": "FIVE_bit1", "2": "FIVE_bit2", "9": "FIVE_bit9"}}}
+{"max_depth": 2, "output_depths": {"O1": 2, "O2": 2, "O3": 2}, "is_combinational": true, "has_feedback": false, "critical_path": ["FIVE_bit1", "a1", "O1"]}
+{"AND": 3, "__VCC__": 1, "__GND__": 2}
+{"source": "const_demo.shdl", "flattened_at": "2026-01-01T00:00:00Z"}
+```
+
+`FIVE[3] = 5` is binary `101`, so bit 1 is a `__VCC__` and bit 2 a `__GND__`; bit 9 is past the width and is also a `__GND__`. Bit 3 is never read, so it has no gate. The module has no doc comment, so `doc` has no `description`.
+
+## Reading `timing` and `critical_path`
+
+Timing is computed by [`flattener/timing.py`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/timing.py) under the unit-delay model, where every gate takes one cycle ([§4.7](/specs/base_shdl#47-timing--circuit-depth-and-propagation)):
+
+| Field | Meaning |
+|---|---|
+| `max_depth` | The largest value in `output_depths`, or 0 if there are no outputs. For a circuit without feedback, this is how many cycles a change at the inputs needs to reach every output. |
+| `output_depths` | Per output wire: the depth of the gate that drives it. An output wired straight to an input has depth 0. |
+| `is_combinational` | `true` when there is no feedback loop. Always the opposite of `has_feedback`. |
+| `has_feedback` | `true` when some gate feeds back into itself through a loop. |
+| `critical_path` | One longest path, from its start to the deepest output. |
+
+Depth is counted like this:
+
+- An input wire has depth 0.
+- A gate has depth 1 plus the largest depth among the gates that feed it, ignoring input wires (depth 0) and ignoring any edge inside a feedback loop. A power pin has depth 1.
+- A gate whose only feeders are inside its own loop, like `n1` in the latch, also has depth 1.
+
+`critical_path` starts at the first output with depth `max_depth` and walks backwards, at each gate choosing the first feeder exactly one level shallower. It ends at an input wire, which is included, or at a gate with no such feeder: a power pin, as in `["FIVE_bit1", "a1", "O1"]`, or a gate fed only from inside its loop, as in the latch's `["n1", "Q"]`. For an output wired straight to an input, the path is `[input, output]`.
+
+For the adder, the carry is slowest: `A_1_` goes through `fa1_x1`, `fa1_a2`, `fa1_o1` into the second full adder's carry logic, so `Cout` has depth 5 and `Sum_1_` only 2.
+
+How the numbers are used:
+
+- `Circuit.settle()` runs `max_depth` cycles and returns that number. It needs `timing` to be present and refuses when `has_feedback` is `true`, as shown above. See the [Python API](../tools/python-api.mdx).
+- In a circuit with feedback, `max_depth` is only a depth of the acyclic parts. It is not a settle count, so drive such circuits with `step(n)`.
+- `output_depths` tells you how many cycles after a change each output becomes valid, which is useful when reading one output before the slowest is ready.
+
+## Serialization and self-check
+
+The flattener writes `meta ` followed by `json.dumps(meta, indent=2, ensure_ascii=False)` and a newline, so non-ASCII doc comments stay readable. Given the same sources and the same `--timestamp`, the output is byte-for-byte identical; the conformance goldens depend on that ([§7](/specs/base_shdl#7-serialization)).
+
+Before emitting, the flattener checks its own metadata against the netlist: the ports' order, that every hierarchy leaf names a real gate, that the source map covers every gate exactly once, and so on. A failure there is a flattener bug, not a user error. [The flattening pipeline](./flattening-pipeline.mdx) lists the nine checks.
+
+The size limits are enforced by `shdlc`, not by the format: a port is at most 64 bits wide, and a circuit has at most 65,535 input wires, because the generated C indexes input wires with `uint16_t`. There is no limit on gate count ([§6](/specs/base_shdl#documented-limits)).
+
+## Writing Base SHDL by hand
+
+You rarely need to, but any tool can produce Base SHDL, and PySHDL compiles it with `Circuit.from_base()`. A hand-written file may use comments, any gate names, and output aliases such as `O -> Copy;`. Without a `meta` block, every wire is its own 1-bit port and there is no timing or init:
+
+```python
+from SHDL import Circuit
+
+BASE = """\
+# A hand-written inverter with a second, aliased output.
+component Inv(A) -> (O, Copy) {
+    n: NOT;
+    connect {
+        A -> n.A;
+        n.O -> O;
+        O -> Copy;
+    }
+}
+"""
+
+with Circuit.from_base(BASE) as inv:
+    print(inv)
+    print(inv.info.inputs[0])
+    print(inv.timing, dict(inv.info.init), dict(inv.info.stats))
+    inv["A"] = 0
+    print(inv["O"], inv["Copy"])
+    try:
+        inv.settle()
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Inv' (A) -> (O, Copy)>
+PortInfo(name='A', direction='input', wires=('A',))
+None {} {}
+1 1
+MetadataUnavailableError: settle() requires timing metadata, which this circuit's Base SHDL lacks
+```
+
+`inv["O"]` reads 1 even though no cycle has run: reading an output after a poke runs one pending cycle first. See the [C ABI](../tools/c-abi.mdx).
+
+A `ports` block can rename and group wires, and it may leave some out:
+
+```python
+from SHDL import Circuit
+HALF = """\
+component Half(X, Y) -> (P, Q) {
+    a: AND;
+    x: XOR;
+    connect { X -> a.A; Y -> a.B; X -> x.A; Y -> x.B; a.O -> P; x.O -> Q; }
+}
+meta {"ports": {"inputs": {"In": ["X", "Y"]}, "outputs": {"Sum": ["Q"]}}}
+"""
+
+with Circuit.from_base(HALF) as half:
+    print(half)
+    for value in range(4):
+        half["In"] = value
+        print(value, "->", half["Sum"])
+    print("Q" in half, "P" in half)
+```
+
+```text title="Output"
+<SHDL.Circuit 'Half' (In[2]) -> (Sum)>
+0 -> 0
+1 -> 1
+2 -> 1
+3 -> 0
+False False
+```
+
+The inputs are now one 2-bit port `In`, with `X` as bit 1. The output `P` is in no port, so it cannot be read, and the raw wire name `Q` is no longer a port name either.
+
+On the command line, pass `--base` to `shdlc`. It otherwise decides by extension, and `add2.base.shdl` ends in `.shdl`, so it is flattened as SHDL source and rejected:
+
+```console check
+$ shdlc add2.base.shdl --no-build
+shdlc: error: add2.base.shdl:1:16: error[E0304]: port name 'A_1_' matches the reserved bus-expansion pattern '..._<digits>_'
+$ shdlc --base add2.base.shdl --no-build
+$ ls add2.base.c
+add2.base.c
+```
+
+The output name comes from the input's stem, so the C file is `add2.base.c`. Use `-o` or `--emit-c` to choose a name. See [shdlc](../tools/shdlc.mdx).
+
+## Who uses which block
+
+[§5](/specs/base_shdl#5-how-each-consumer-uses-the-metadata) of the spec lists the consumers the format was designed for. In 1.1.0:
+
+| Consumer | Blocks used |
+|---|---|
+| `shdlc` release build | `ports`, `init` |
+| PySHDL | `ports`, `timing`, `init`, `stats`, `doc.description` |
+| `BaseEval` test oracle | `timing`, `init` |
+| Debug build of `shdlc` (planned) | All |
+| SHDB debugger (planned) | All |
+
+The debugger, the debug build and the `.shdb` file, which is planned as a copy of this JSON object, are not in 1.1.0. See the [roadmap](../roadmap.mdx).

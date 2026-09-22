@@ -1,0 +1,297 @@
+---
+title: Multiplexer
+sidebar_label: Multiplexer
+description: A one-bit 2-to-1 multiplexer, a width-parameterized MuxN and a 4-way Mux4N composed from three MuxN instances, with a static-hazard trace.
+---
+
+A multiplexer (mux) is a selector: a control input picks which of several data
+inputs appears on the output. This page covers the three multiplexers in
+`examples/`:
+
+- `Mux2`, which selects one of two single bits;
+- `MuxN<N>`, which selects one of two `N`-bit buses;
+- `Mux4N<N>`, which selects one of four buses by nesting three `MuxN`.
+
+It also shows a *static hazard*: a one-cycle glitch that the unit-delay model
+makes visible.
+
+## Mux2
+
+`O` follows `A` when the select input `S` is 0, and `B` when `S` is 1:
+
+| S | A | B | O |
+|---|---|---|---|
+| 0 | 0 | 0 | 0 |
+| 0 | 0 | 1 | 0 |
+| 0 | 1 | 0 | 1 |
+| 0 | 1 | 1 | 1 |
+| 1 | 0 | 0 | 0 |
+| 1 | 0 | 1 | 1 |
+| 1 | 1 | 0 | 0 |
+| 1 | 1 | 1 | 1 |
+
+In Boolean form, `O = (A AND NOT S) OR (B AND S)`. Each AND gate lets its data
+input through only when the select line enables it, and the OR merges them.
+[`examples/mux2.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/mux2.shdl):
+
+```shdl title="mux2.shdl"
+"""
+03 -- Mux2: a 2-to-1 multiplexer, one bit wide.
+
+O = A when S = 0, B when S = 1.  Classic AND-OR select logic:
+
+    O = (A AND NOT S) OR (B AND S)
+
+Demonstrates fan-out: S drives two gates, and fan-out is free (§6.4).
+"""
+
+top component Mux2(A, B, S) -> (O) {
+    inv: NOT;
+    gA:  AND;     # passes A when S = 0
+    gB:  AND;     # passes B when S = 1
+    o1:  OR;
+
+    connect {
+        S -> inv.A;
+
+        A -> gA.A;   inv.O -> gA.B;
+        B -> gB.A;   S     -> gB.B;
+
+        gA.O -> o1.A;  gB.O -> o1.B;
+        o1.O -> O;
+    }
+}
+```
+
+- **`inv: NOT;`** A `NOT` gate has a single input, `A`, and output `O`.
+- **`S -> inv.A;`** and **`S -> gB.B;`** drive two gate inputs from one signal.
+  Fan-out is free: a signal can feed any number of inputs, with no extra gate or
+  delay. See [Connections](../language-reference/connections.mdx).
+- Every gate input must be driven exactly once. Leaving one unconnected is
+  error E0502, and connecting two sources to it is E0501. See
+  [Errors](../language-reference/errors.mdx).
+
+| Property | Value |
+|---|---|
+| Gates | 4 (1 NOT, 2 AND, 1 OR) |
+| Connections | 8 |
+| `max_depth` | 3 |
+| Critical path | `S`, `inv`, `gA`, `o1`, `O` |
+
+The path through the inverter is the longest: a change of `S` has to pass the
+`NOT`, then `gA`, then `o1`. A change of `A` or `B` takes only two levels.
+
+### Simulate it
+
+The Python sessions on this page run from the root of a checkout of the
+repository, so example paths start with `examples/`.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/mux2.shdl") as c:
+    print("S A B | O")
+    for s in (0, 1):
+        for a in (0, 1):
+            for b in (0, 1):
+                c["S"], c["A"], c["B"] = s, a, b
+                c.settle()
+                assert c["O"] == (b if s else a)
+                print(f"{s} {a} {b} | {c['O']}")
+```
+
+```text title="Output"
+S A B | O
+0 0 0 | 0
+0 0 1 | 0
+0 1 0 | 1
+0 1 1 | 1
+1 0 0 | 0
+1 0 1 | 1
+1 1 0 | 0
+1 1 1 | 1
+```
+
+### A static hazard
+
+Set `A = B = 1`. Whichever input is selected, `O` should stay 1. Now switch `S`
+from 1 to 0 and step one cycle at a time:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/mux2.shdl") as c:
+    c["A"], c["B"], c["S"] = 1, 1, 1
+    c.settle()
+    print("settled with S=1: O =", c["O"])
+    c["S"] = 0
+    for cycle in range(1, 5):
+        c.step(1)
+        print(f"S=0, cycle {cycle}: O = {c['O']}")
+```
+
+```text title="Output"
+settled with S=1: O = 1
+S=0, cycle 1: O = 1
+S=0, cycle 2: O = 0
+S=0, cycle 3: O = 1
+S=0, cycle 4: O = 1
+```
+
+On cycle 1, `gB` turns off at once because it reads `S` directly, but `gA`
+still sees the old output of `inv`, which was 0. On cycle 2, `o1` sees both AND
+gates at 0 and drops `O` to 0. On cycle 3, `gA`'s new value reaches `o1` and
+`O` is 1 again.
+
+That one-cycle dip is a static hazard. Real hardware has the same race between
+the inverted and the direct path of `S`. It is invisible if you only read `O`
+after `max_depth` cycles, which is why `settle()` exists; if the output fed a
+latch or a clock input instead, the glitch could be captured. The
+[Simulation model](../concepts/simulation-model.mdx) page covers glitches and
+settling.
+
+## MuxN: selecting whole buses
+
+[`examples/muxN.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/muxN.shdl)
+holds two components. The first, `MuxN`, repeats the `Mux2` cell once per bit
+and shares one inverter between all the bits:
+
+```shdl title="muxN.shdl"
+"""
+09 -- MuxN / Mux4N: parameterized multiplexers, composed hierarchically.
+
+MuxN selects between two N-bit buses with one select line, one
+AND-OR cell per bit.  Mux4N then composes three MuxN instances into
+a 4-way select tree, passing its own parameter N straight through to
+the children (§5.3).
+"""
+
+component MuxN<N = 8>(A[N], B[N], S) -> (O[N]) {
+    inv: NOT;
+    >i[N]{ gA{i}: AND;  gB{i}: AND;  o{i}: OR; }
+
+    connect {
+        S -> inv.A;
+        >i[N]{
+            A[{i}] -> gA{i}.A;   inv.O -> gA{i}.B;
+            B[{i}] -> gB{i}.A;   S     -> gB{i}.B;
+            gA{i}.O -> o{i}.A;   gB{i}.O -> o{i}.B;
+            o{i}.O -> O[{i}];
+        }
+    }
+}
+
+top component Mux4N<N = 8>(D0[N], D1[N], D2[N], D3[N], S[2]) -> (O[N]) {
+    mLow:  MuxN<N>;     # D0 / D1, selected by S[1]
+    mHigh: MuxN<N>;     # D2 / D3, selected by S[1]
+    mOut:  MuxN<N>;     # low pair / high pair, selected by S[2]
+
+    connect {
+        D0 -> mLow.A;    D1 -> mLow.B;    S[1] -> mLow.S;
+        D2 -> mHigh.A;   D3 -> mHigh.B;   S[1] -> mHigh.S;
+
+        mLow.O  -> mOut.A;
+        mHigh.O -> mOut.B;
+        S[2]    -> mOut.S;
+        mOut.O  -> O;
+    }
+}
+```
+
+In `MuxN`:
+
+- **`MuxN<N = 8>`** takes a width parameter with default 8. See
+  [Parameters](../language-reference/parameters.mdx).
+- **`>i[N]{ gA{i}: AND;  gB{i}: AND;  o{i}: OR; }`** declares three gates per
+  bit. A generator body can hold several declarations. See
+  [Generators](../language-reference/generators.mdx).
+- **`inv.O -> gA{i}.B;`** fans the single inverter out to all `N` bits. `S`
+  itself fans out to `inv` and to all `N` `gB` gates.
+
+`MuxN` has 25 gates at `N = 8`: 1 NOT, 16 AND and 8 OR. Its depth stays 3
+whatever the width, because every bit is an independent copy of the same
+three-level cell. Build it on its own with `top`:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/muxN.shdl", top="MuxN") as c:
+    print(c, "max_depth:", c.timing.max_depth)
+    c["A"], c["B"] = 0x0F, 0xA5
+    for s in (0, 1):
+        c["S"] = s
+        c.settle()
+        print(f"S={s}: O = {c['O']:#04x}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'MuxN' (A[8], B[8], S) -> (O[8])> max_depth: 3
+S=0: O = 0x0f
+S=1: O = 0xa5
+```
+
+## Mux4N: a select tree
+
+`Mux4N` selects one of four buses with a two-bit select `S`. It is a tree of
+three `MuxN`: `mLow` picks between `D0` and `D1`, `mHigh` between `D2` and `D3`
+(both on `S[1]`), and `mOut` picks between those two results on `S[2]`.
+
+| S (binary) | `S[2]` | `S[1]` | O |
+|---|---|---|---|
+| 0 (`00`) | 0 | 0 | `D0` |
+| 1 (`01`) | 0 | 1 | `D1` |
+| 2 (`10`) | 1 | 0 | `D2` |
+| 3 (`11`) | 1 | 1 | `D3` |
+
+Worth noticing in the source:
+
+- **`mLow: MuxN<N>;`** passes `Mux4N`'s own parameter down to the child, so one
+  `N` sets the width of the whole tree. See
+  [Parameters](../language-reference/parameters.mdx) and
+  [shdl.md §5.3](/specs/shdl#53-parameter-arguments).
+- **`D0 -> mLow.A;`** and **`mOut.O -> O;`** connect whole buses in one
+  statement.
+- **`S[1] -> mLow.S;`** takes one bit of the two-bit select. `S[1]` is the least
+  significant bit, so it chooses within each pair and `S[2]` chooses the pair.
+- Two components share one file, and `top` picks `Mux4N` as the default.
+
+| Property | Value |
+|---|---|
+| Gates | 75 (3 NOT, 48 AND, 24 OR): three `MuxN<8>` |
+| Connections | 155 |
+| `max_depth` | 5 |
+| Critical path | `S[1]`, `mLow_inv`, `mLow_gA1`, `mLow_o1`, `mOut_gA1`, `mOut_o1`, `O[1]` |
+
+The depth is 5, not 6: `mOut`'s inverter works on `S[2]` in parallel with the
+first level, so its select is ready when the first-level results arrive and only
+its AND and OR add to the path.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/muxN.shdl") as c:
+    print(c)
+    print("max_depth:", c.timing.max_depth)
+    data = {"D0": 0x11, "D1": 0x22, "D2": 0x33, "D3": 0x44}
+    for port, value in data.items():
+        c[port] = value
+    for s in range(4):
+        c["S"] = s
+        c.settle()
+        print(f"S={s} ({s:02b}): O = {c['O']:#04x}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Mux4N' (D0[8], D1[8], D2[8], D3[8], S[2]) -> (O[8])>
+max_depth: 5
+S=0 (00): O = 0x11
+S=1 (01): O = 0x22
+S=2 (10): O = 0x33
+S=3 (11): O = 0x44
+```
+
+## Next
+
+The [decoder](./decoder.mdx) does the opposite job: it turns a binary number
+into a one-hot set of select lines. The [ALU](./alu.mdx) uses `Mux4N` to choose
+between its four operation results.

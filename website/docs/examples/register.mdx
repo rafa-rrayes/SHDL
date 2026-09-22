@@ -1,0 +1,324 @@
+---
+title: Register
+sidebar_label: Register
+description: An N-bit load-enable register built from D latches with a generator, its load and hold behavior over cycles, its power-on state, and the edge-triggered master-slave register the SR16 CPU uses instead.
+---
+
+A register stores a whole word. This page builds one from the
+[D latch](./latches.mdx) of the previous page: `RegisterN<N>` places `N` latches
+side by side and drives all their enables from one load input. It traces a load
+and a hold cycle by cycle, shows where the power-on value comes from and why it
+cannot be overridden from outside, and then compares it with the edge-triggered
+register that the [SR16 CPU](./sr16-cpu.mdx) is built from.
+
+## What it does
+
+| LD | Q |
+|---|---|
+| 1 | follows `D` (after the latches' write delay) |
+| 0 | holds the last value loaded |
+
+At power-on, `Q` is 0.
+
+## Source
+
+[`examples/registerN.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/registerN.shdl):
+
+```shdl title="registerN.shdl"
+"""
+13 -- RegisterN: an N-bit load-enable register from D latches.
+
+A generator instantiates user-defined sequential components in bulk
+exactly as it does primitives.  While LD is high the register tracks
+D; when LD drops it holds the last value.  The inverted outputs of
+the latches are simply left unused -- instance outputs need no
+consumers (§6.4: fan-out, including zero, is free).
+"""
+
+use dLatch::{DLatch};
+
+top component RegisterN<N = 8>(D[N], LD) -> (Q[N]) {
+    >i[N]{ bit{i}: DLatch; }
+
+    connect {
+        >i[N]{
+            D[{i}]   -> bit{i}.D;
+            LD       -> bit{i}.EN;
+            bit{i}.Q -> Q[{i}];
+        }
+    }
+}
+```
+
+Line by line:
+
+- **`use dLatch::{DLatch};`** imports the D latch, which in turn imports the SR
+  latch. Each module is resolved from its own directory. See
+  [Imports](../language-reference/imports.mdx).
+- **`>i[N]{ bit{i}: DLatch; }`** declares `N` latches, `bit1` to `bitN`. A
+  generator instantiates a sequential component exactly as it does a gate. See
+  [Generators](../language-reference/generators.mdx).
+- **`LD -> bit{i}.EN;`** fans the single load input out to every latch, so all
+  `N` bits load together.
+- **`bit{i}.Q -> Q[{i}];`** collects the stored bits into the output bus. Each
+  latch's `Qn` is left unconnected. An unused output is not an error; only
+  undriven inputs are. See [Connections](../language-reference/connections.mdx).
+
+## Size and timing
+
+At `N = 8`:
+
+| Property | Value |
+|---|---|
+| Gates | 56 (24 NOT, 16 AND, 16 OR): 8 D latches of 7 gates |
+| Connections | 96 |
+| `has_feedback` | true, so `settle()` is refused |
+| `max_depth` | 1 |
+| `init` entries | 32: four per bit, from `SRLatch` |
+
+## Simulate it
+
+The sessions on this page run from the root of a checkout of the repository.
+Load `0xa5`, then drop `LD` and change `D`:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/registerN.shdl") as c:
+    print(c)
+    print(dict(c.info.stats["by_type"]), "init entries:", len(c.info.init))
+    print(f"power-on: Q = {c['Q']:#04x}")
+
+    c["D"], c["LD"] = 0xA5, 1
+    for cycle in range(1, 7):
+        c.step(1)
+        print(f"D=0xa5 LD=1 cycle {cycle}: Q = {c['Q']:#04x}")
+
+    c["LD"] = 0
+    c.step(1)
+    c["D"] = 0x3C
+    for cycle in range(1, 4):
+        c.step(1)
+        print(f"D=0x3c LD=0 cycle {cycle}: Q = {c['Q']:#04x}")
+    c.step(1000)
+    print(f"1000 cycles later: Q = {c['Q']:#04x}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'RegisterN' (D[8], LD) -> (Q[8])>
+{'NOT': 24, 'AND': 16, 'OR': 16} init entries: 32
+power-on: Q = 0x00
+D=0xa5 LD=1 cycle 1: Q = 0x00
+D=0xa5 LD=1 cycle 2: Q = 0x00
+D=0xa5 LD=1 cycle 3: Q = 0x00
+D=0xa5 LD=1 cycle 4: Q = 0x00
+D=0xa5 LD=1 cycle 5: Q = 0xa5
+D=0xa5 LD=1 cycle 6: Q = 0xa5
+D=0x3c LD=0 cycle 1: Q = 0xa5
+D=0x3c LD=0 cycle 2: Q = 0xa5
+D=0x3c LD=0 cycle 3: Q = 0xa5
+1000 cycles later: Q = 0xa5
+```
+
+All eight bits appear together on cycle 5, the D latch's write delay. After
+`LD` falls, `D` is ignored and the value stays for as long as you keep
+stepping.
+
+`LD` has to stay high for at least 4 cycles for the value to stick: the
+[latches](./latches.mdx) page shows what a shorter pulse
+does to a single latch.
+
+### Transparent while loading
+
+A latch-based register is *transparent*: as long as `LD` is high, `Q` keeps
+following `D`, not just the value `D` had when `LD` rose.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/registerN.shdl") as c:
+    c["LD"] = 1
+    for value in (0x11, 0x22, 0x33):
+        c["D"] = value
+        c.step(5)
+        print(f"LD=1, D={value:#04x}: Q = {c['Q']:#04x}")
+    c["LD"] = 0
+    c.step(1)
+    c["D"] = 0x44
+    c.step(5)
+    print(f"LD=0, D=0x44: Q = {c['Q']:#04x}")
+```
+
+```text title="Output"
+LD=1, D=0x11: Q = 0x11
+LD=1, D=0x22: Q = 0x22
+LD=1, D=0x33: Q = 0x33
+LD=0, D=0x44: Q = 0x33
+```
+
+That is fine when `D` is stable while `LD` is high. It is a problem when a
+register's output feeds, through some logic, back into its own input, as a CPU's
+program counter does: a transparent register would race around that loop for as
+long as `LD` stays high. The edge-triggered register below avoids that.
+
+## Power-on state
+
+`RegisterN` has no `init` block, but each of its latches has the four seeds of
+`SRLatch`, so every bit powers on at `Q = 0`. The `init` entries keep the
+flattened names:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/registerN.shdl") as c:
+    for name, value in list(c.info.init.items())[:8]:
+        print(f"{name} = {value}")
+```
+
+```text title="Output"
+bit1_latch_o1.O = 1
+Q_1_ = 0
+bit1_latch_o2.O = 0
+bit1_latch_i2.O = 1
+bit2_latch_o1.O = 1
+Q_2_ = 0
+bit2_latch_o2.O = 0
+bit2_latch_i2.O = 1
+```
+
+`Qn` is not connected to an output here, so its seed is listed under the gate
+that drives it, `bit1_latch_i2.O`. `Q` of bit 1 drives the output port `Q[1]`,
+whose flattened name is `Q_1_`.
+
+Because every net of each latch is already seeded, an enclosing component
+cannot give the register a different power-on value with its own `init`.
+Seeding `r.Q` targets the same nets that `SRLatch` seeds, and a net can be
+seeded only once, so the flattener rejects it with E0A02:
+
+```shdl error=E0A02
+use registerN::{RegisterN};
+
+top component Preset(D[8], LD) -> (Q[8]) {
+    r: RegisterN<8>;
+
+    init { r.Q = 165; }
+
+    connect {
+        D -> r.D;  LD -> r.LD;
+        r.Q -> Q;
+    }
+}
+```
+
+The message is
+`net 'Q_1_' is seeded more than once (first seed at srLatch.shdl:27:9)`. To
+power up with a different value, the latch itself has to be seeded that way:
+for example a copy of `SRLatch` whose four seeds describe the set state
+(`o1.O = 0`, `i1.O = 1`, `o2.O = 1`, `i2.O = 0`), which is also a fixed point.
+See [Sequential logic](../language-reference/sequential-logic.mdx) and
+[shdl.md §11.4](/specs/shdl#114-initial-state).
+
+## An edge-triggered register
+
+The SR16 CPU does not use `RegisterN`. Its registers are built in
+[`examples/CPU/seq.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/seq.shdl)
+from two D latches per bit, a *master* and a *slave*, driven by a two-phase
+clock:
+
+```shdl fragment
+component MSFFE(D, LD, Phi1, Phi2) -> (Q) {
+    en: AND;           # master strobes only when loaded: EN = LD & Phi1
+    m:  DLatch;
+    s:  DLatch;
+
+    connect {
+        LD   -> en.A;   Phi1 -> en.B;
+        D    -> m.D;    en.O -> m.EN;
+        m.Q  -> s.D;    Phi2 -> s.EN;
+        s.Q  -> Q;
+    }
+}
+
+top component RegE<N = 16>(D[N], LD, Phi1, Phi2) -> (Q[N]) {
+    >i[N]{ b{i}: MSFFE; }
+
+    connect {
+        >i[N]{
+            D[{i}]  -> b{i}.D;
+            LD      -> b{i}.LD;
+            Phi1    -> b{i}.Phi1;
+            Phi2    -> b{i}.Phi2;
+            b{i}.Q  -> Q[{i}];
+        }
+    }
+}
+```
+
+The master captures `D` while `Phi1` is high, if `LD` is set. The slave copies
+the master while `Phi2` is high. The two phases never overlap, so there is
+never a path straight from `D` to `Q`: `Q` changes only on `Phi2`, and the
+value it takes is whatever the master held when `Phi1` fell. That makes the
+register behave as if it were edge-triggered, even though it is built from
+level-sensitive latches.
+
+`seq.shdl` imports `dLatch` from `examples/`, so pass that directory as an
+include directory:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/CPU/seq.shdl", include_dirs=["examples"]) as c:
+    print(c)
+    print(dict(c.info.stats["by_type"]))
+
+    def pulse(phase):
+        c[phase] = 1
+        c.step(8)
+        c[phase] = 0
+        c.step(2)
+
+    c["D"], c["LD"] = 0x1234, 1
+    c.step(8)
+    print(f"D=0x1234, no clock yet: Q = {c['Q']:#06x}")
+    pulse("Phi1")
+    print(f"after Phi1:             Q = {c['Q']:#06x}")
+    c["D"] = 0xBEEF
+    c.step(8)
+    print(f"D=0xbeef:               Q = {c['Q']:#06x}")
+    pulse("Phi2")
+    print(f"after Phi2:             Q = {c['Q']:#06x}")
+    c["LD"] = 0
+    pulse("Phi1")
+    pulse("Phi2")
+    print(f"LD=0, one full clock:   Q = {c['Q']:#06x}")
+    c["LD"] = 1
+    pulse("Phi1")
+    pulse("Phi2")
+    print(f"LD=1, one full clock:   Q = {c['Q']:#06x}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'RegE' (D[16], LD, Phi1, Phi2) -> (Q[16])>
+{'AND': 80, 'NOT': 96, 'OR': 64}
+D=0x1234, no clock yet: Q = 0x0000
+after Phi1:             Q = 0x0000
+D=0xbeef:               Q = 0x0000
+after Phi2:             Q = 0x1234
+LD=0, one full clock:   Q = 0x1234
+LD=1, one full clock:   Q = 0xbeef
+```
+
+`0x1234` was captured by `Phi1` and published by `Phi2`. Changing `D` to
+`0xbeef` between the phases did not reach `Q`, because the master had already
+closed. With `LD = 0` a full clock leaves the register unchanged, and with
+`LD = 1` it loads the current `D`.
+
+Each phase pulse here lasts 8 cycles, above the 5-cycle write delay of a D
+latch. The CPU's driver uses 16 (`T_CAP`), and waits 4 more (`T_GAP`) between
+phases. The [SR16 CPU](./sr16-cpu.mdx) page covers the clocking.
+
+## Next
+
+The [ALU](./alu.mdx) is the combinational counterpart of a register in a
+datapath. The [ring oscillator](./ring-oscillator.mdx) page shows how feedback
+can generate a clock.

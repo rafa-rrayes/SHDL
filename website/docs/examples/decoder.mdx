@@ -1,0 +1,412 @@
+---
+title: Decoder
+sidebar_label: Decoder
+description: Binary-to-one-hot decoders, from the Dec2, Dec3 and Dec4 parts of the SR16 CPU to a 3-to-8 decoder with enable written with generators and conditional emission.
+---
+
+A decoder turns an `n`-bit binary number into `2^n` output lines, exactly one of
+which is high: the line whose index is the number. That output shape is called
+*one-hot*. Decoders drive select lines: they pick one register to write, one
+memory word to access, or one operation to perform.
+
+This page covers the three decoders the [SR16 CPU](./sr16-cpu.mdx) is built
+with, then writes a 3-to-8 decoder with an enable input from scratch, using
+generators and `when`/`else` to compute the wiring. Each one is checked against
+all of its inputs.
+
+## What it computes
+
+A 2-to-4 decoder has a two-bit input and four outputs. Output line `k` (counting
+from 1, as SHDL bus bits do) is high when the input equals `k - 1`:
+
+| S (binary) | `O[4]` | `O[3]` | `O[2]` | `O[1]` | O as a number |
+|---|---|---|---|---|---|
+| 0 (`00`) | 0 | 0 | 0 | 1 | 1 |
+| 1 (`01`) | 0 | 0 | 1 | 0 | 2 |
+| 2 (`10`) | 0 | 1 | 0 | 0 | 4 |
+| 3 (`11`) | 1 | 0 | 0 | 0 | 8 |
+
+Read the output bus as an integer and it is `1 << S`. Each output is the AND of
+every input bit, either true or complemented: `O[1]` is `NOT S[2] AND NOT S[1]`,
+`O[4]` is `S[2] AND S[1]`. A 3-to-8 decoder works the same way with one more
+input bit and twice the outputs.
+
+## The CPU's decoders
+
+[`examples/CPU/parts.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/parts.shdl#L42-L88)
+defines `Dec2`, `Dec3` and `Dec4`. Each is built from the one before it:
+
+```shdl fragment
+"One-hot decoders. O[k] is high when S = k-1 (S is read as an unsigned int)."
+
+component Dec2(S[2]) -> (O[4]) {
+    n1: NOT;  n2: NOT;
+    a1: AND;  a2: AND;  a3: AND;  a4: AND;
+
+    connect {
+        S[1] -> n1.A;   S[2] -> n2.A;
+
+        n1.O -> a1.A;   n2.O -> a1.B;    # S = 00
+        S[1] -> a2.A;   n2.O -> a2.B;    # S = 01
+        n1.O -> a3.A;   S[2] -> a3.B;    # S = 10
+        S[1] -> a4.A;   S[2] -> a4.B;    # S = 11
+
+        a1.O -> O[1];  a2.O -> O[2];  a3.O -> O[3];  a4.O -> O[4];
+    }
+}
+
+component Dec3(S[3]) -> (O[8]) {
+    d2: Dec2;  n3: NOT;
+    >i[8]{ a{i}: AND; }
+
+    connect {
+        S[1:2] -> d2.S;   S[3] -> n3.A;
+        >i[4]{
+            d2.O[{i}] -> a{i}.A;     n3.O -> a{i}.B;
+            d2.O[{i}] -> a{i+4}.A;   S[3] -> a{i+4}.B;
+            a{i}.O   -> O[{i}];
+            a{i+4}.O -> O[{i+4}];
+        }
+    }
+}
+
+component Dec4(S[4]) -> (O[16]) {
+    d3: Dec3;  n4: NOT;
+    >i[16]{ a{i}: AND; }
+
+    connect {
+        S[1:3] -> d3.S;   S[4] -> n4.A;
+        >i[8]{
+            d3.O[{i}] -> a{i}.A;     n4.O -> a{i}.B;
+            d3.O[{i}] -> a{i+8}.A;   S[4] -> a{i+8}.B;
+            a{i}.O   -> O[{i}];
+            a{i+8}.O -> O[{i+8}];
+        }
+    }
+}
+```
+
+The block is marked as an excerpt because the file holds more parts than these
+three. What to notice:
+
+- **`"One-hot decoders. ..."`** A double-quoted string on one line is a comment.
+  SHDL has no string values, so any quoted text is a comment. See
+  [Lexical elements](../language-reference/lexical-elements.mdx).
+- **`Dec2`** is written out by hand: two inverters and one AND per output line.
+  The comment on each line says which input value that AND recognizes.
+- **`Dec3`** doubles `Dec2`. The low two bits go to a `Dec2`, and each of its
+  four outputs is ANDed twice: once with `NOT S[3]` for the lower half of the
+  outputs, once with `S[3]` for the upper half.
+- **`S[1:2] -> d2.S;`** wires a two-bit slice of `S` to the two-bit input of
+  `d2`. A slice is inclusive at both ends, and both sides must have the same
+  width. See [Signals](../language-reference/signals.mdx) and
+  [shdl.md §6.3](/specs/shdl#63-slices-expanders).
+- **`>i[8]{ a{i}: AND; }`** declares eight ANDs, `a1` to `a8`. `[8]` counts from
+  1 to 8. See [Generators](../language-reference/generators.mdx).
+- **`>i[4]{ ... a{i+4} ... }`** loops only four times but wires two gates per
+  iteration, `a{i}` and `a{i+4}`. Arithmetic inside the braces computes the
+  second name, and `O[{i+4}]` computes a bit index the same way.
+- **`d2.O[{i}]`** selects one bit of an instance's output bus with a generator
+  expression.
+- **`Dec4`** repeats the same doubling around a `Dec3`.
+
+### Size and timing
+
+| Component | Gates | Connections | `max_depth` | Critical path |
+|---|---|---|---|---|
+| `Dec2` | 6 (2 NOT, 4 AND) | 14 | 2 | `S[1]`, `n1`, `a1`, `O[1]` |
+| `Dec3` | 15 (3 NOT, 12 AND) | 35 | 3 | `S[1]`, `d2_n1`, `d2_a1`, `a1`, `O[1]` |
+| `Dec4` | 32 (4 NOT, 28 AND) | 76 | 4 | `S[1]`, `d3_d2_n1`, `d3_d2_a1`, `d3_a1`, `a1`, `O[1]` |
+
+Each level of doubling adds one AND level and doubles the output count. Nested
+instances flatten with nested prefixes: the `n1` inside the `d2` inside `d3`
+becomes `d3_d2_n1`.
+
+### Where the CPU uses them
+
+| File | Instance | Decodes |
+|---|---|---|
+| [`control.shdl:36`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/control.shdl#L36-L38) | `opd: Dec4;` | the 4-bit opcode, one line per instruction class |
+| [`control.shdl:37`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/control.shdl#L36-L38) | `fd: Dec3;` | the 3-bit function field |
+| [`control.shdl:38`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/control.shdl#L36-L38) | `std: Dec2;` | the control state: FETCH, EXEC, MEMRD, HALTED |
+| [`alu.shdl:24`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/alu.shdl#L24) | `dec: Dec4;` | the 4-bit ALU operation |
+| [`regfile.shdl:14`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/regfile.shdl#L14) | `dec: Dec3;` | the write address, one line per register |
+| [`ram.shdl:17`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/ram.shdl#L17-L19) | `decL`, `decM: Dec3;` `decH: Dec2;` | the 8-bit address, split 3 + 3 + 2 bits |
+
+The RAM does not use one 256-output decoder. It decodes three fields of the
+address separately and ANDs one line from each, which gives 256 word selects
+from 8 + 8 + 4 decoder outputs.
+
+### Check them exhaustively
+
+`parts.shdl` has no `top` component, so name the one you want. It begins with
+`use muxN::{MuxN, Mux4N};`, and `muxN.shdl` lives in `examples/`, not in
+`examples/CPU/`, so pass `examples` as an include directory. Imports are searched
+in the importing file's own directory first, then in the include directories.
+See [Imports](../language-reference/imports.mdx). As on the other example pages,
+these sessions run from the root of a checkout of the repository.
+
+```python
+from SHDL import Circuit
+
+for top in ("Dec2", "Dec3", "Dec4"):
+    with Circuit("examples/CPU/parts.shdl", top=top, include_dirs=["examples"]) as c:
+        width = c.info.port("S").width
+        frames = [{"S": s} for s in range(2 ** width)]
+        rows = c.run_batch(frames, cycles=c.timing.max_depth)
+        assert all(row["O"] == 1 << f["S"] for f, row in zip(frames, rows))
+        print(c, f"max_depth={c.timing.max_depth}", f"{len(frames)} cases OK")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Dec2' (S[2]) -> (O[4])> max_depth=2 4 cases OK
+<SHDL.Circuit 'Dec3' (S[3]) -> (O[8])> max_depth=3 8 cases OK
+<SHDL.Circuit 'Dec4' (S[4]) -> (O[16])> max_depth=4 16 cases OK
+```
+
+`run_batch` applies each frame, advances `cycles` cycles and records every
+output. With `cycles=c.timing.max_depth` each row holds the settled output. The
+assertion checks the definition directly: the output bus, read as an integer,
+is `1 << S`.
+
+For `Dec3`, here is the whole table. The output is printed in binary with `O[1]`
+as the rightmost digit:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/CPU/parts.shdl", top="Dec3", include_dirs=["examples"]) as c:
+    for s in range(8):
+        c["S"] = s
+        c.settle()
+        print(f"S={s} ({s:03b}) -> O = {c['O']:08b}")
+```
+
+```text title="Output"
+S=0 (000) -> O = 00000001
+S=1 (001) -> O = 00000010
+S=2 (010) -> O = 00000100
+S=3 (011) -> O = 00001000
+S=4 (100) -> O = 00010000
+S=5 (101) -> O = 00100000
+S=6 (110) -> O = 01000000
+S=7 (111) -> O = 10000000
+```
+
+## A 3-to-8 decoder with enable
+
+The hand-written `Dec2` spells out which AND gets which input. A generator can
+compute that instead: output line `v + 1` needs `A[1]` when bit 0 of `v` is 1
+and `NOT A[1]` when it is 0, and likewise for `A[2]` and bit 1 of `v`.
+[`when`/`else`](../language-reference/generators.mdx) chooses between those two
+connections for each iteration.
+
+```shdl title="decoder2to4.shdl"
+"""
+Decoder2to4: a 2-to-4 line decoder.
+
+Output line Y[v+1] is 1 exactly when the input A equals v, so the
+output word is one-hot: Y = 1 << A.
+"""
+
+component Decoder2to4(A[2]) -> (Y[4]) {
+    n1: NOT;  n2: NOT;              # the complemented inputs
+    >v[0:3]{ g{v}: AND; }           # one AND per output line: g0..g3
+
+    connect {
+        A[1] -> n1.A;  A[2] -> n2.A;
+
+        >v[0:3]{
+            # Bit 0 of v picks A[1] or its complement...
+            when {v - 2 * {v / 2} == 1} { A[1] -> g{v}.A; }
+            else                        { n1.O -> g{v}.A; }
+            # ...and bit 1 of v picks A[2] or its complement.
+            when {v / 2 == 1}           { A[2] -> g{v}.B; }
+            else                        { n2.O -> g{v}.B; }
+
+            g{v}.O -> Y[{v + 1}];
+        }
+    }
+}
+```
+
+- **`>v[0:3]`** is a range generator: `v` takes 0, 1, 2 and 3, both ends
+  included. Counting from 0 makes `v` equal to the input value each gate
+  recognizes, so the gates are named `g0` to `g3`. The output bit is `v + 1`,
+  because bus bits count from 1.
+- **`{v - 2 * {v / 2} == 1}`** tests bit 0 of `v`. Generator arithmetic has
+  `+`, `-`, `*` and `/`, where `/` is integer division, and no remainder
+  operator, so `v - 2 * (v / 2)` computes `v mod 2`. Arithmetic groups with
+  nested braces: `{v / 2}` inside the outer braces. Parentheses are not allowed
+  there.
+- **`{v / 2 == 1}`** tests bit 1 of `v`, which for `v` from 0 to 3 is `v / 2`.
+- **`when {...} { ... } else { ... }`** emits the first block when the
+  condition holds and the second otherwise. Exactly one of the two connections
+  to `g{v}.A` is emitted in every iteration, so each gate input is driven once.
+  See [Generators](../language-reference/generators.mdx) and
+  [shdl.md §7.7](/specs/shdl#77-conditional-emission).
+
+The conditions are evaluated while flattening, so none of this reaches the
+netlist. `shdl-flatten` prints the connections it chose:
+
+```console check
+$ shdl-flatten decoder2to4.shdl | sed -n '/connect {/,/^    }/p'
+    connect {
+        A_1_ -> n1.A;
+        A_2_ -> n2.A;
+        n1.O -> g0.A;
+        n2.O -> g0.B;
+        g0.O -> Y_1_;
+        A_1_ -> g1.A;
+        n2.O -> g1.B;
+        g1.O -> Y_2_;
+        n1.O -> g2.A;
+        A_2_ -> g2.B;
+        g2.O -> Y_3_;
+        A_1_ -> g3.A;
+        A_2_ -> g3.B;
+        g3.O -> Y_4_;
+    }
+```
+
+This is exactly the wiring of `Dec2`, with the gates named after the value they
+recognize. In Base SHDL every bus is split into single bits: `A[1]` becomes
+`A_1_`. See [Base SHDL](../architecture/base-shdl.mdx).
+
+Now build the 3-to-8 decoder on top of it. The enable input `EN` forces every
+output to 0 when it is low, which lets several decoders share an output bus or
+lets a write strobe gate the selected line:
+
+```shdl title="decoder3to8.shdl"
+"""
+Decoder3to8: a 3-to-8 line decoder with an enable, built from a
+2-to-4 decoder.
+
+With EN = 1, output line Y[v+1] is 1 exactly when A equals v.
+With EN = 0, every output is 0.
+"""
+
+use decoder2to4::{Decoder2to4};
+
+component Decoder3to8(A[3], EN) -> (Y[8]) {
+    low: Decoder2to4;               # decodes the low two bits
+    n3:  NOT;
+    hi0: AND;  hi1: AND;            # EN AND NOT A[3], EN AND A[3]
+    >v[0:7]{ g{v}: AND; }
+
+    connect {
+        A[:2] -> low.A;
+        A[3] -> n3.A;
+        EN -> hi0.A;  n3.O -> hi0.B;
+        EN -> hi1.A;  A[3] -> hi1.B;
+
+        >v[0:7]{
+            low.Y[{v - 4 * {v / 4} + 1}] -> g{v}.A;
+            when {v < 4} { hi0.O -> g{v}.B; }
+            else         { hi1.O -> g{v}.B; }
+            g{v}.O -> Y[{v + 1}];
+        }
+    }
+}
+```
+
+- **`use decoder2to4::{Decoder2to4};`** imports the component from the file
+  above, which sits in the same directory.
+- **`A[:2] -> low.A;`** is an open-start slice: `A[:2]` means `A[1:2]`.
+- **`hi0` and `hi1`** combine the enable with the top bit once, so the eight
+  output gates need only two inputs each: one line of the low decoder and one
+  of the two enable lines.
+- **`low.Y[{v - 4 * {v / 4} + 1}]`** computes `(v mod 4) + 1`, the low
+  decoder's line for the low two bits of `v`.
+- **`when {v < 4}`** sends the lower four outputs to `hi0` (top bit 0) and the
+  upper four to `hi1` (top bit 1).
+
+| Property | `Decoder2to4` | `Decoder3to8` |
+|---|---|---|
+| Gates | 6 (2 NOT, 4 AND) | 17 (3 NOT, 14 AND) |
+| Connections | 14 | 39 |
+| `max_depth` | 2 | 3 |
+
+Check all 16 combinations of `A` and `EN`:
+
+```python
+from SHDL import Circuit
+
+with Circuit("decoder3to8.shdl") as c:
+    print(c, "max_depth:", c.timing.max_depth)
+    print("EN A   | Y")
+    for en in (0, 1):
+        for a in range(8):
+            c["A"], c["EN"] = a, en
+            c.settle()
+            assert c["Y"] == ((1 << a) if en else 0)
+            print(f" {en} {a:03b} | {c['Y']:08b}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Decoder3to8' (A[3], EN) -> (Y[8])> max_depth: 3
+EN A   | Y
+ 0 000 | 00000000
+ 0 001 | 00000000
+ 0 010 | 00000000
+ 0 011 | 00000000
+ 0 100 | 00000000
+ 0 101 | 00000000
+ 0 110 | 00000000
+ 0 111 | 00000000
+ 1 000 | 00000001
+ 1 001 | 00000010
+ 1 010 | 00000100
+ 1 011 | 00001000
+ 1 100 | 00010000
+ 1 101 | 00100000
+ 1 110 | 01000000
+ 1 111 | 10000000
+```
+
+### Watch the output switch
+
+A decoder's output is one-hot only once it has settled. While the input
+changes, the old line can still be high when the new one rises. Step the 2-to-4
+decoder from `A = 0` to `A = 3` one cycle at a time:
+
+```python
+from SHDL import Circuit
+
+with Circuit("decoder2to4.shdl") as c:
+    c["A"] = 0
+    c.settle()
+    print(f"A=0 settled: Y = {c['Y']:04b}")
+    c["A"] = 3
+    for cycle in range(1, 4):
+        c.step(1)
+        print(f"A=3, cycle {cycle}: Y = {c['Y']:04b}")
+```
+
+```text title="Output"
+A=0 settled: Y = 0001
+A=3, cycle 1: Y = 1111
+A=3, cycle 2: Y = 1000
+A=3, cycle 3: Y = 1000
+```
+
+On cycle 1, every AND gate sees the new input bits, but the inverters still
+output the 1s they computed for `A = 0`. `g3` reads `A[1]` and `A[2]`, both now
+1. `g1` and `g2` each read one new input bit and one stale inverter output. `g0`
+reads only the stale inverters. All four ANDs output 1, so all four lines are
+high at once. On cycle 2 the inverters have switched to 0, and only `g3` stays
+on.
+
+In a circuit that uses a decoder output to enable a latch, that cycle would
+write every location. This is why the CPU's register file and RAM AND each
+decoded line with the clock phase `Phi1`, while the address comes from latches
+that change only during the other phase, `Phi2`. By the time the strobe rises,
+the decoder has settled. See the
+[register](./register.mdx) page for latches with a load enable, and
+[Simulation model](../concepts/simulation-model.mdx) for the timing rules.
+
+## Next
+
+The [comparator](./comparator.mdx) turns two buses into a single "equal" bit.
+The [ALU](./alu.mdx) selects its result with a multiplexer; the SR16 ALU uses
+`Dec4` for the same job.

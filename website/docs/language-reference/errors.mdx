@@ -1,0 +1,997 @@
+---
+title: Errors
+description: Every diagnostic the SHDL flattener reports, covering the message format, the exit status, the documented limits and a real triggering example for each of the 41 error codes.
+---
+
+This page lists every error the flattener can report. It first describes how a diagnostic is printed. It then covers the documented limits, and after that it takes each error code in turn. Each code has a small program that triggers it and the exact message printed by `shdl-flatten`. Every example on this page is run against the reference flattener when the documentation is built. Normative text: [shdl.md §14.1](/specs/shdl#141-diagnostics-reporting-v1-contract), [§14.2](/specs/shdl#142-documented-limits) and [§14.3](/specs/shdl#143-error-code-catalog).
+
+## Diagnostic format {/* #format */}
+
+A diagnostic is one line on stderr. Nothing is written to stdout, and the exit status is 1:
+
+```shdl error=E0201 title="e0201.shdl"
+component Missing(A) -> (Y) {
+    connect { A -> Y }
+}
+```
+
+```console check
+$ shdl-flatten e0201.shdl > out.txt 2> err.txt; echo "exit $?"
+exit 1
+$ [ -s out.txt ] || echo "out.txt is empty"
+out.txt is empty
+$ cat err.txt
+e0201.shdl:2:22: error[E0201]: expected ';', found '}'
+```
+
+The line has the shape `FILE:LINE:COL: error[CODE]: MESSAGE`:
+
+| Part | Meaning |
+|---|---|
+| `FILE` | The base name of the file that contains the error. This can be an imported module rather than the file you flattened ([example](./imports.mdx#checking)). The one pseudo-file is `<environment>`, which is used for a bad `SOURCE_DATE_EPOCH` ([E0001](#e0001)). |
+| `LINE:COL` | 1-based. Errors that concern a whole file point at `1:1`. Examples are a missing file, or a module with no selectable top. |
+| `CODE` | One of the 41 codes below. The first two digits after `E` give the category: `00` usage, `01` lexical, `02` syntax, `03` names, `04` widths, `05` connections, `06` generators and expressions, `07` imports, `08` constants, `09` parameters and `0A` initial state. |
+| `MESSAGE` | Plain text. The wording is not part of the contract, but the code is. |
+
+The flattener stops at the first error. So a run reports **exactly one** diagnostic, and fixing it can reveal the next one. There are no warnings, no notes and no "did you mean" hints. The checks run in pipeline order ([`flattener/pipeline.py`](../tools/shdl-flatten.mdx#pipeline)):
+
+1. Every module is loaded (lexing, parsing and imports).
+2. Every component of every loaded module is validated.
+3. The top component is selected.
+4. The used components are specialized and expanded, one parameter binding at a time.
+5. The design is flattened.
+6. The timestamp is resolved.
+
+So a lexical error is always reported before a width error, even when the width error comes earlier in the file. A bad `SOURCE_DATE_EPOCH` is reported only when the source itself is error-free.
+
+For how the command line reports usage mistakes (exit status 2) and operating-system errors, see [shdl-flatten: Diagnostics and exit status](../tools/shdl-flatten.mdx#diagnostics).
+
+### From Python {/* #python */}
+
+`flatten_program` raises `flattener.diagnostics.SHDLError`. Its `diagnostic` field holds the code, the message and the position. `str()` of the exception is the same line that the CLI prints. `ErrorCode` is the complete set of codes:
+
+```python
+from flattener.diagnostics import ErrorCode, SHDLError
+from flattener.pipeline import flatten_program
+
+try:
+    flatten_program("e0201.shdl")
+except SHDLError as e:
+    d = e.diagnostic
+    print(d.code is ErrorCode.E0201, d.code.value)
+    print(d.pos.file, d.pos.line, d.pos.col)
+    print(d.message)
+    print(e)
+
+print(len(ErrorCode))
+print(" ".join(c.value for c in ErrorCode))
+```
+
+```text title="Output"
+True E0201
+e0201.shdl 2 22
+expected ';', found '}'
+e0201.shdl:2:22: error[E0201]: expected ';', found '}'
+41
+E0001 E0101 E0201 E0301 E0303 E0304 E0305 E0306 E0307 E0308 E0309 E0310 E0311 E0401 E0402 E0403 E0404 E0501 E0502 E0503 E0504 E0505 E0506 E0601 E0602 E0603 E0604 E0605 E0701 E0702 E0703 E0801 E0901 E0902 E0903 E0904 E0905 E0906 E0A01 E0A02 E0A03
+```
+
+PySHDL wraps the same diagnostic in `FlattenError`, and `FlattenError.diagnostic` has the same fields. See [Structured error details](../tools/python-api.mdx#structured-error-details).
+
+## Limits {/* #limits */}
+
+The flattener enforces two size limits, and each one has an error code:
+
+| Limit | Code | Message |
+|---|---|---|
+| Syntactic nesting of at most 200 levels. Nested `{…}` groups, generator bodies, concatenations and parenthesized conditions all count. | [E0201](#e0201) | `input nests deeper than the 200-level limit` |
+| At most 1,000,000 values per range item or replication count. Each part of a compound range such as `[1:4, 8]` is checked separately. | [E0601](#e0601) | `… would iterate N times, exceeding the 1000000 instance-count cap; narrow the range` |
+
+200 nested arithmetic groups are accepted, but 201 are not:
+
+```console check
+$ o=$(printf '{%.0s' $(seq 200)); c=$(printf '}%.0s' $(seq 200)); printf 'component Deep(A) -> (Y) {\n    connect { A[%s1%s] -> Y; }\n}\n' "$o" "$c" > deep.shdl; shdl-flatten deep.shdl -o /dev/null; echo "exit $?"
+exit 0
+$ o=$(printf '{%.0s' $(seq 201)); c=$(printf '}%.0s' $(seq 201)); printf 'component Deep(A) -> (Y) {\n    connect { A[%s1%s] -> Y; }\n}\n' "$o" "$c" > deep.shdl; shdl-flatten deep.shdl
+deep.shdl:2:217: error[E0201]: input nests deeper than the 200-level limit
+```
+
+The size cap is checked before a range is walked, so an oversized range fails immediately:
+
+```shdl error=E0601 title="cap.shdl"
+component Big(A) -> (Y) {
+    >i[1000001]{ n{i}: NOT; }
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten cap.shdl
+cap.shdl:2:8: error[E0601]: count range [1000001] would iterate 1000001 times, exceeding the 1000000 instance-count cap; narrow the range
+```
+
+The compiler adds two more limits that the flattener does not check. A port can be at most 64 bits wide, and a design can have at most 65,535 input wires. These are reported by `shdlc` without an error code. See [shdlc: Limits](../tools/shdlc.mdx#limits).
+
+## All codes {/* #index */}
+
+| Code | Meaning |
+|---|---|
+| [E0001](#e0001) | The top component cannot be determined, or `SOURCE_DATE_EPOCH` is invalid |
+| [E0101](#e0101) | Lexical error |
+| [E0201](#e0201) | Syntax error |
+| [E0301](#e0301) | Duplicate name |
+| [E0303](#e0303) | Reserved `__` prefix |
+| [E0304](#e0304) | Reserved bus-expansion name pattern |
+| [E0305](#e0305) | A component redefines a primitive |
+| [E0306](#e0306) | Unknown component type |
+| [E0307](#e0307) | Unknown signal, instance or port |
+| [E0308](#e0308) | Collision with a name the flattener generates |
+| [E0309](#e0309) | Wrong number of `connect` or `init` blocks |
+| [E0310](#e0310) | More than one `top` component |
+| [E0311](#e0311) | Recursive instantiation |
+| [E0401](#e0401) | Connection width mismatch |
+| [E0402](#e0402) | Index or slice out of range |
+| [E0403](#e0403) | Non-positive width |
+| [E0404](#e0404) | Empty or ill-ordered slice |
+| [E0501](#e0501) | A sink driven more than once |
+| [E0502](#e0502) | An instance input never connected |
+| [E0503](#e0503) | An output port bit never driven |
+| [E0504](#e0504) | Self-connection (reserved, never reported) |
+| [E0505](#e0505) | Invalid connection role |
+| [E0506](#e0506) | Connection cycle with no gate |
+| [E0601](#e0601) | Bad range or replication count |
+| [E0602](#e0602) | Open-ended range bound ambiguous or unresolvable |
+| [E0603](#e0603) | Unknown name in an expression |
+| [E0604](#e0604) | Item not allowed in this context |
+| [E0605](#e0605) | Division by zero |
+| [E0701](#e0701) | Module or file not found |
+| [E0702](#e0702) | Circular import |
+| [E0703](#e0703) | Imported name not defined |
+| [E0801](#e0801) | Constant value too wide |
+| [E0901](#e0901) | Unknown parameter, or arguments to a primitive |
+| [E0902](#e0902) | Parameter without a value |
+| [E0903](#e0903) | Bad positional argument |
+| [E0904](#e0904) | Parameter bound twice |
+| [E0905](#e0905) | Negative argument |
+| [E0906](#e0906) | Non-positive width after specialization |
+| [E0A01](#e0a01) | `init` target cannot be seeded |
+| [E0A02](#e0a02) | Net seeded more than once |
+| [E0A03](#e0a03) | `init` value too wide |
+
+In the per-code sections below, "other messages" lists the other message templates that the source raises under the same code. `…` marks the parts that are filled in.
+
+## Usage and environment {/* #usage */}
+
+### E0001: Top component cannot be determined {/* #e0001 */}
+
+There is no `top` marker and the main module does not have exactly one component, or `--top` names a component that the main module does not define. The same code is used when `SOURCE_DATE_EPOCH` is not an integer. See [Top-component selection](./components.mdx#top-selection).
+
+```shdl error=E0001 title="e0001.shdl"
+component Left(A) -> (Y)  { connect { A -> Y; } }
+component Right(A) -> (Y) { connect { A -> Y; } }
+```
+
+```console check
+$ shdl-flatten e0001.shdl
+e0001.shdl:1:1: error[E0001]: cannot determine the top component of module 'e0001': no 'top' marker and 2 components (Left, Right); use --top
+$ shdl-flatten e0001.shdl --top Middle
+e0001.shdl:1:1: error[E0001]: --top component 'Middle' not found in module 'e0001' (has: Left, Right)
+$ SOURCE_DATE_EPOCH=yesterday shdl-flatten e0001.shdl --top Left -o /dev/null
+<environment>:1:1: error[E0001]: invalid SOURCE_DATE_EPOCH 'yesterday': invalid literal for int() with base 10: 'yesterday'
+```
+
+An empty main module reports `no 'top' marker and 0 components (none)`. `--top` can only choose from the main module's own components. Imported ones do not count.
+
+## Lexical errors {/* #lexical */}
+
+### E0101: Lexical error {/* #e0101 */}
+
+The lexer found a character that cannot start a token, an unterminated comment, a malformed number, or bytes that are not UTF-8. See [Lexical elements](./lexical-elements.mdx).
+
+```shdl error=E0101 title="e0101.shdl"
+component Price(A) -> (Y) {
+    connect { A -> Y; }   $ not a comment
+}
+```
+
+```console check
+$ shdl-flatten e0101.shdl
+e0101.shdl:2:27: error[E0101]: unexpected character '$'
+$ printf 'component Caf\xe9(A) -> (Y) {\n    connect { A -> Y; }\n}\n' > latin1.shdl; shdl-flatten latin1.shdl
+latin1.shdl:1:14: error[E0101]: source is not valid UTF-8: invalid continuation byte at byte 13
+```
+
+Other messages:
+
+- `unterminated triple-quoted comment`
+- `unterminated string comment`
+- `hexadecimal literal has no digits`, `binary literal has no digits` and `invalid character '…' in numeric literal` ([Numeric literals](./lexical-elements.mdx#numeric-literals))
+
+## Syntax errors {/* #syntax */}
+
+### E0201: Syntax error {/* #e0201 */}
+
+Every parse error uses E0201. So does a negative literal where a number is required, and nesting deeper than 200 levels ([Limits](#limits)). The example is the one from [Diagnostic format](#format): the last connection of a block still needs its `;`.
+
+```console check
+$ shdl-flatten e0201.shdl
+e0201.shdl:2:22: error[E0201]: expected ';', found '}'
+```
+
+Other messages:
+
+- `expected …, found …`. This is the general form, as in the example above.
+- `imports must precede all component definitions`
+- `unterminated 'meta' block`, `unexpected content after the 'meta' block`
+- `a constant name must be a plain identifier (no substitutions)`
+- `expected ':' (instance) or '=' (constant) after name, found …`. This is what an identifier-led connection among the declarations produces. Compare [E0604](#e0604).
+- `expected a number, identifier, or '{expr}', found …`
+- `expected a relational operator`
+- `input nests deeper than the 200-level limit`
+
+## Names and declarations {/* #names */}
+
+Some checks in this section run on **every** component of **every** loaded module, including components that are never instantiated and the branches of a `when` that is not taken. These are E0301, E0303 and E0304 for declared names, and E0305, E0306, E0309 and E0310. The other checks run only on the components that are actually used, once per specialization: E0307, E0308, E0311, and E0301 and E0304 for generated names. See [Unused components](./components.mdx#unused-components) and [How imported modules are checked](./imports.mdx#checking).
+
+### E0301: Duplicate name {/* #e0301 */}
+
+A component has two declarations with the same name. Ports, instances and constants share one namespace ([One namespace per component](./components.mdx#namespace)). The same code covers two components with the same name in a module, an imported name that collides with a local component or another import, and a name that a generator produces twice.
+
+```shdl error=E0301 title="e0301.shdl"
+component Dup(A) -> (Y) {
+    A: NOT;
+    connect { A -> A.A;  A.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0301.shdl
+e0301.shdl:2:5: error[E0301]: duplicate name 'A' in component 'Dup' (first declared at e0301.shdl:1:15)
+```
+
+Other messages:
+
+- `duplicate component '…' in module '…'`
+- `imported name '…' collides with an existing component or import in module '…'`
+- `instance name '…' collides with a port of '…'` and `duplicate name '…' in component '…'` (generated names, [Name templates](./generators.mdx#name-templates))
+
+### E0303: Reserved `__` prefix {/* #e0303 */}
+
+A user name starts with `__`. The prefix is reserved for names that the flattener generates, such as the `__VCC__` and `__GND__` power pins ([Reserved names](./lexical-elements.mdx#reserved-names)). The check covers component, port, instance, constant and generator-variable names.
+
+```shdl error=E0303 title="e0303.shdl"
+component Reserved(A) -> (Y) {
+    __n: NOT;
+    connect { A -> __n.A;  __n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0303.shdl
+e0303.shdl:2:5: error[E0303]: instance name '__n' uses the reserved '__' prefix
+```
+
+### E0304: Reserved bus-expansion pattern {/* #e0304 */}
+
+A declared or generated name ends in `_<digits>_`. The flattener uses that pattern for the bits of a bus: bit 3 of `A` becomes `A_3_` in Base SHDL. For generated names, such as an instance template `n_{i}_`, the check runs after expansion ([Reserved names](./lexical-elements.mdx#reserved-names)).
+
+```shdl error=E0304 title="e0304.shdl"
+component BusName(A) -> (Y) {
+    n_1_: NOT;
+    connect { A -> n_1_.A;  n_1_.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0304.shdl
+e0304.shdl:2:5: error[E0304]: instance name 'n_1_' matches the reserved bus-expansion pattern '..._<digits>_'
+```
+
+### E0305: Component redefines a primitive {/* #e0305 */}
+
+A component is named `AND`, `OR`, `NOT`, `XOR`, `__VCC__` or `__GND__`. For `__VCC__` and `__GND__`, E0305 is reported instead of E0303. See [Standard gates](./standard-gates.mdx).
+
+```shdl error=E0305 title="e0305.shdl"
+component AND(A, B) -> (O) {
+    connect { A -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0305.shdl
+e0305.shdl:1:1: error[E0305]: component 'AND' redefines a primitive type
+```
+
+### E0306: Unknown component type {/* #e0306 */}
+
+An instance's type is neither a primitive, nor a component of the same module, nor an imported name. `NAND`, `NOR` and `XNOR` are not primitives. Import them from [`stdgates`](./imports.mdx#stdgates).
+
+```shdl error=E0306 title="e0306.shdl"
+component Unknown(A, B) -> (Y) {
+    n: NAND;
+    connect { A -> n.A;  B -> n.B;  n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0306.shdl
+e0306.shdl:2:8: error[E0306]: unknown component type 'NAND'
+```
+
+### E0307: Unknown signal, instance or port {/* #e0307 */}
+
+A connection names a signal, an instance or an instance port that does not exist, or uses an instance where a signal is required. See [Instance ports](./signals.mdx#instance-ports).
+
+```shdl error=E0307 title="e0307.shdl"
+component Typo(A) -> (Y) {
+    n: NOT;
+    connect { A -> n.A;  n.Q -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0307.shdl
+e0307.shdl:3:26: error[E0307]: primitive 'NOT' has no port 'Q'
+```
+
+Other messages:
+
+- `unknown signal '…'`, `unknown instance '…'`
+- `component '…' has no port '…'`
+- `instance '…' used as a signal; reference one of its ports (e.g. '….O')`
+
+### E0308: Collision with a generated name {/* #e0308 */}
+
+Flattening names each gate by its instance path joined with `_`. For example, gate `x` inside instance `h` becomes `h_x`. E0308 is reported when such a name is already taken by another gate or by a top-level port. It is also reported when an instance takes the name of a power pin that the flattener creates for a [constant](./constants.mdx#lowering). Because the check runs on the flattened design, it depends on the whole hierarchy and not on one component.
+
+```shdl error=E0308 title="e0308.shdl"
+component Inv(A) -> (O) {
+    x: NOT;
+    connect { A -> x.A;  x.O -> O; }
+}
+
+top component Clash(A) -> (Y, Z) {
+    h: Inv;  h_x: NOT;
+    connect {
+        A -> h.A;    h.O -> Y;
+        A -> h_x.A;  h_x.O -> Z;
+    }
+}
+```
+
+```console check
+$ shdl-flatten e0308.shdl
+e0308.shdl:7:14: error[E0308]: flattened gate name 'h_x' collides with an existing gate (declared at e0308.shdl:2:5)
+```
+
+Other messages:
+
+- `flattened gate name '…' collides with a top-level port`
+- `instance '…' collides with the power-pin name generated for bit … of constant '…' (declared at …)`
+
+To fix it, rename one side. Names such as `h_x` are legal, but they can collide once the hierarchy is flattened. See [Names after flattening](./components.mdx#names-after-flattening).
+
+### E0309: Wrong number of `connect` or `init` blocks {/* #e0309 */}
+
+A component must contain exactly one `connect` block, even an empty one, and at most one `init` block.
+
+```shdl error=E0309 title="e0309.shdl"
+component TwoBlocks(A) -> (Y) {
+    connect { A -> Y; }
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0309.shdl
+e0309.shdl:3:5: error[E0309]: component 'TwoBlocks' must contain exactly one connect block (found 2)
+```
+
+Other message: `component '…' may contain at most one init block` ([The init block](./sequential-logic.mdx#init)).
+
+### E0310: More than one `top` component {/* #e0310 */}
+
+A module can mark at most one component as `top` ([Top-component selection](./components.mdx#top-selection)).
+
+```shdl error=E0310 title="e0310.shdl"
+top component First(A) -> (Y)  { connect { A -> Y; } }
+top component Second(A) -> (Y) { connect { A -> Y; } }
+```
+
+```console check
+$ shdl-flatten e0310.shdl
+e0310.shdl:2:1: error[E0310]: module 'e0310' marks more than one component as 'top'
+```
+
+### E0311: Recursive instantiation {/* #e0311 */}
+
+A component instantiates itself, either directly or through other components. This is rejected even when the recursive instance sits in a `when` branch that would end the recursion ([Recursion is rejected](./components.mdx#recursion)). The message shows the chain of module-qualified names.
+
+```shdl error=E0311 title="e0311.shdl"
+component Forever(A) -> (Y) {
+    f: Forever;
+    connect { A -> f.A;  f.Y -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0311.shdl
+e0311.shdl:2:5: error[E0311]: recursive instantiation: e0311::Forever -> e0311::Forever
+```
+
+## Widths and indices {/* #widths */}
+
+### E0401: Connection width mismatch {/* #e0401 */}
+
+The source and destination of a connection have different widths. Widths are never extended or truncated implicitly ([Widths must match](./connections.mdx#widths)).
+
+```shdl error=E0401 title="e0401.shdl"
+component Narrow(A[2]) -> (Y) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0401.shdl
+e0401.shdl:2:15: error[E0401]: connection width mismatch: source has 2 bit(s), destination has 1
+```
+
+### E0402: Index or slice out of range {/* #e0402 */}
+
+A bit index or slice falls outside the signal's width. Bits are numbered from 1 to the width ([Bit numbering](./signals.mdx#bit-numbering)).
+
+```shdl error=E0402 title="e0402.shdl"
+component PastEnd(A[2]) -> (Y) {
+    connect { A[3] -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0402.shdl
+e0402.shdl:2:15: error[E0402]: bit index [3] out of range for 'A' of width 2
+```
+
+Other message: `slice [a:b] out of range for '…' of width …`.
+
+### E0403: Non-positive width {/* #e0403 */}
+
+A port or constant is declared with width 0, and no parameter is involved. When the width comes from a parameter binding, the code is [E0906](#e0906) instead.
+
+```shdl error=E0403 title="e0403.shdl"
+component NoBits(A[0]) -> (Y) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0403.shdl
+e0403.shdl:1:18: error[E0403]: port 'A' of 'e0403::NoBits' has non-positive width 0
+```
+
+Other message: `constant '…' has non-positive width …` ([Constants: Width](./constants.mdx#width)).
+
+### E0404: Empty or ill-ordered slice {/* #e0404 */}
+
+A slice `[a:b]` needs `1 <= a <= b`. A descending slice, or a slice that starts at 0, is E0404. A slice that ends past the signal's width is [E0402](#e0402).
+
+```shdl error=E0404 title="e0404.shdl"
+component Backwards(A[4]) -> (Y[2]) {
+    connect { A[3:2] -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0404.shdl
+e0404.shdl:2:15: error[E0404]: invalid slice [3:2] on 'A'
+```
+
+## Connections {/* #connections */}
+
+The connection checks run on each specialized component after its generators have been expanded. Each check works bit by bit, so a message can name a single bit, as in `'Y[1]'`. The rules are described in [Connections](./connections.mdx).
+
+### E0501: Sink driven more than once {/* #e0501 */}
+
+An output port bit or instance input bit has two drivers ([Single driver](./connections.mdx#single-driver)).
+
+```shdl error=E0501 title="e0501.shdl"
+component TwoDrivers(A, B) -> (Y) {
+    connect { A -> Y;  B -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0501.shdl
+e0501.shdl:2:24: error[E0501]: 'Y[1]' is driven more than once (first driver at e0501.shdl:2:15)
+```
+
+### E0502: Instance input never connected {/* #e0502 */}
+
+Every input bit of every instance must be driven. There is no implicit 0 ([Every input connected, every output driven](./connections.mdx#every-input-connected-every-output-driven)). To tie an input to a fixed value, use a [constant](./constants.mdx).
+
+```shdl error=E0502 title="e0502.shdl"
+component Floating(A) -> (Y) {
+    g: AND;
+    connect { A -> g.A;  g.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0502.shdl
+e0502.shdl:2:5: error[E0502]: input 'B' of instance 'g' (AND) is never connected
+```
+
+Other message: `'…' is never driven`, a backstop in the flattening phase that the per-component check makes unreachable in practice.
+
+### E0503: Output port bit never driven {/* #e0503 */}
+
+Every bit of every output port must be driven. The position is the component's declaration.
+
+```shdl error=E0503 title="e0503.shdl"
+component Undriven(A) -> (Y, Z) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0503.shdl
+e0503.shdl:1:1: error[E0503]: output port 'Z' of 'Undriven' is never driven
+```
+
+Other message: `output '…' is never driven`, a backstop in the flattening phase.
+
+### E0504: Self-connection (reserved) {/* #e0504 */}
+
+E0504 exists in `ErrorCode`, and the expander has a check for a signal that drives itself. But no program can reach that check. A connection source must be an input port, an instance output or a constant. A destination must be an output port or an instance input. These two sets never overlap, so `X -> X` always fails the role check first and is reported as [E0505](#e0505):
+
+```shdl error=E0505 title="e0504.shdl"
+component Itself(A) -> (Y) {
+    connect { A -> Y;  Y -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0504.shdl
+e0504.shdl:2:24: error[E0505]: output port 'Y' cannot be a connection source
+```
+
+Treat E0504 as reserved. See [Self-connections](./connections.mdx#self-connections).
+
+### E0505: Invalid connection role {/* #e0505 */}
+
+A signal is used on the wrong side of `->`. Only these can be sources: input ports, instance outputs and constants. Only these can be destinations: output ports and instance inputs. See [Sources and destinations](./connections.mdx#roles).
+
+```shdl error=E0505 title="e0505.shdl"
+component Back(A, B) -> (Y) {
+    connect { A -> Y;  B -> A; }
+}
+```
+
+```console check
+$ shdl-flatten e0505.shdl
+e0505.shdl:2:29: error[E0505]: input port 'A' cannot be a connection destination
+```
+
+Other messages:
+
+- `output port '…' cannot be a connection source`
+- `'….A' is an instance input and cannot be a connection source`
+- `'….O' is an instance output and cannot be a connection destination`
+- `constant '…' cannot be a connection destination`
+- `replication cannot appear in a connection destination` ([Replication](./signals.mdx#replication))
+
+### E0506: Connection cycle with no gate {/* #e0506 */}
+
+Connections form a loop that passes through no gate. Such a net has no driver. Feedback is allowed only through a gate ([Feedback](./connections.mdx#feedback)). The cycle becomes visible only after flattening, when the wires of the hierarchy are joined.
+
+```shdl error=E0506 title="e0506.shdl"
+component Wire(X) -> (Y) {
+    connect { X -> Y; }
+}
+
+top component Ring(A) -> (O) {
+    w1: Wire;  w2: Wire;
+    connect {
+        w1.Y -> w2.X;
+        w2.Y -> w1.X;
+        A -> O;
+    }
+}
+```
+
+```console check
+$ shdl-flatten e0506.shdl
+e0506.shdl:1:1: error[E0506]: connection cycle with no gate through 'w1.X[1]'
+```
+
+## Generators and expressions {/* #generators */}
+
+### E0601: Bad range or replication count {/* #e0601 */}
+
+A generator range is empty, ill-ordered or negative, or one of its items holds more than 1,000,000 values. The same code covers a replication count below 1 or above 1,000,000. See [Ranges](./generators.mdx#ranges) and [Replication](./signals.mdx#replication).
+
+```shdl error=E0601 title="e0601.shdl"
+component NoRange(A) -> (Y) {
+    connect { >i[0]{ A -> Y; } }
+}
+```
+
+```console check
+$ shdl-flatten e0601.shdl
+e0601.shdl:2:18: error[E0601]: range [0] is empty; a count range needs N >= 1
+```
+
+Other messages:
+
+- `range value … is negative`, `range bound … is negative`
+- `range [a:b] is empty or ill-ordered`, `range [:b] is empty; the bound must be >= 1`
+- `open-ended range resolves to [a:b], which is empty`
+- `replication count must be >= 1, got …`
+- `… would iterate … times, exceeding the 1000000 instance-count cap; narrow the range` ([Limits](#limits))
+
+### E0602: Open-ended range bound {/* #e0602 */}
+
+An open-ended range `[a:]` takes its upper bound from the width of the signals that the loop variable indexes. E0602 is reported when those signals have different widths, when no signal is indexed by the variable, or when the range is in declaration context, where nothing can supply the bound ([Open-ended ranges](./generators.mdx#open-ended-ranges)).
+
+```shdl error=E0602 title="e0602.shdl"
+component UpperHalf<N = 8>(A[N]) -> (Y[N / 2]) {
+    connect { >i[N / 2 + 1:]{ A[i] -> Y[i - N / 2]; } }
+}
+```
+
+```console check
+$ shdl-flatten e0602.shdl
+e0602.shdl:2:18: error[E0602]: ambiguous open-ended range bound: signals of widths [4, 8] are indexed by 'i'; give an explicit bound
+```
+
+Other messages:
+
+- `cannot resolve open-ended range bound: no signal in the generator body is indexed by '…'`
+- `open-ended range '[a:]' has no governing signal in declaration context; give an explicit bound`
+
+### E0603: Unknown name in an expression {/* #e0603 */}
+
+An index, width or argument expression uses a name that is neither a parameter of the component nor a generator variable in scope ([Index expressions](./signals.mdx#index-expressions)).
+
+```shdl error=E0603 title="e0603.shdl"
+component Unbound(A[4]) -> (Y) {
+    connect { A[M] -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0603.shdl
+e0603.shdl:2:17: error[E0603]: 'M' is not a parameter or generator variable in scope
+```
+
+### E0604: Item not allowed in this context {/* #e0604 */}
+
+The first token of an item cannot start any item in its context. Examples are a concatenation among the declarations, or a token inside `connect` that cannot start a signal ([Declaration context and connect context](./generators.mdx#contexts)).
+
+```shdl error=E0604 title="e0604.shdl"
+component Misplaced(A, B) -> (Y[2]) {
+    {A, B} -> Y;
+    connect { A -> Y[1];  B -> Y[2]; }
+}
+```
+
+```shdl error=E0604 title="e0604b.shdl"
+component Literal(A) -> (Y) {
+    connect { 1 -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0604.shdl
+e0604.shdl:2:5: error[E0604]: expected an instance or constant declaration, found '{'
+$ shdl-flatten e0604b.shdl
+e0604b.shdl:2:15: error[E0604]: expected a connection, found '1'
+```
+
+A misplaced item that starts with an identifier is parsed further before it fails. So it is reported as [E0201](#e0201), not E0604:
+
+```shdl error=E0201 title="e0604c.shdl"
+component Early(A) -> (Y) {
+    A -> Y;
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0604c.shdl
+e0604c.shdl:2:7: error[E0201]: expected ':' (instance) or '=' (constant) after name, found '->'
+```
+
+### E0605: Division by zero {/* #e0605 */}
+
+A compile-time expression divides by zero. The check runs when the expression is evaluated for a specific parameter binding ([Arithmetic](./generators.mdx#arithmetic)).
+
+```shdl error=E0605 title="e0605.shdl"
+component DivZero<N = 0>(A[4]) -> (Y) {
+    connect { A[{4 / N}] -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0605.shdl
+e0605.shdl:2:18: error[E0605]: division by zero
+```
+
+## Imports {/* #imports */}
+
+### E0701: Module or file not found {/* #e0701 */}
+
+The file named on the command line does not exist, or a `use` names a module that is not found. A module is searched for first in the importing file's directory, then in each `-I` directory in order ([Finding the module file](./imports.mdx#resolution)). The message counts the include directories that were searched.
+
+```shdl error=E0701 title="e0701.shdl"
+use nosuch::{Thing};
+
+component Lost(A) -> (Y) {
+    t: Thing;
+    connect { A -> t.A;  t.Y -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0701.shdl -I examples
+e0701.shdl:1:5: error[E0701]: module 'nosuch' not found (searched <scratch> and 1 include dir(s))
+$ shdl-flatten nosuch.shdl
+nosuch.shdl:1:1: error[E0701]: file not found: nosuch.shdl
+```
+
+Other messages:
+
+- `module '…' not found: the file on disk is '….shdl' (case mismatch with '….shdl')`. A file whose name differs only in case is rejected, even on a case-insensitive file system.
+- `module '…' resolves to two different files: already loaded …, now …`
+
+### E0702: Circular import {/* #e0702 */}
+
+The modules import each other in a cycle. That includes a module that imports itself. The message shows the chain.
+
+```shdl error=E0702 title="e0702.shdl"
+use e0702::{Self};
+
+component Self(A) -> (Y) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0702.shdl
+e0702.shdl:1:5: error[E0702]: circular import: e0702 -> e0702
+```
+
+### E0703: Imported name not defined {/* #e0703 */}
+
+The module exists, but it does not define the imported component. Only components defined in a module can be imported. A module's own imports are not re-exported ([What an import makes visible](./imports.mdx#visibility)). The primitives cannot be imported either, as this example shows:
+
+```shdl error=E0703 title="e0703.shdl"
+use stdgates::{AND};
+
+component NotThere(A, B) -> (Y) {
+    a: AND;
+    connect { A -> a.A;  B -> a.B;  a.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0703.shdl -I examples
+e0703.shdl:1:16: error[E0703]: module 'stdgates' does not define component 'AND'
+```
+
+## Constants {/* #constants */}
+
+### E0801: Constant value too wide {/* #e0801 */}
+
+A constant's value needs more bits than its declared width ([Constants: Width](./constants.mdx#width)).
+
+```shdl error=E0801 title="e0801.shdl"
+component Overflow() -> (Y[8]) {
+    D[8] = 300;
+    connect { D -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0801.shdl
+e0801.shdl:2:5: error[E0801]: constant 'D' value 300 does not fit in 8 bits
+```
+
+## Parameters {/* #parameters */}
+
+The examples in this section share one parameterized component. Each example changes only the instance on line 6. See [Arguments](./parameters.mdx#arguments) and [Argument errors](./parameters.mdx#argument-errors).
+
+```shdl fragment
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+```
+
+### E0901: Unknown parameter, or arguments to a primitive {/* #e0901 */}
+
+A named argument does not match any parameter of the component, or a primitive gate is given arguments.
+
+```shdl error=E0901 title="e0901.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass<Width = 4>;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0901.shdl
+e0901.shdl:6:13: error[E0901]: 'Pass' has no parameter named 'Width'
+```
+
+Other message: `primitive type '…' takes no parameters`.
+
+### E0902: Parameter without a value {/* #e0902 */}
+
+An instance does not bind a parameter that has no default. A `top` component, or a component selected with `--top`, must have a default for every parameter ([Parameterized top components](./parameters.mdx#top-parameters)).
+
+```shdl error=E0902 title="e0902.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0902.shdl
+e0902.shdl:6:5: error[E0902]: parameter 'N' of 'Pass' is not bound and has no default
+```
+
+Other messages:
+
+- `'top' component '…' has parameters without defaults`
+- `top component '…' parameter '…' has no default; a parameterized top requires defaults for all parameters`
+
+### E0903: Bad positional argument {/* #e0903 */}
+
+A positional argument follows a named one, or there are more positional arguments than parameters.
+
+```shdl error=E0903 title="e0903.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass<4, 4>;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0903.shdl
+e0903.shdl:6:16: error[E0903]: too many positional arguments for 'Pass' (1 parameter(s))
+```
+
+Other message: `positional argument after named argument`.
+
+### E0904: Parameter bound twice {/* #e0904 */}
+
+The same parameter is bound twice, either by a named argument that repeats a positional one or by two named arguments.
+
+```shdl error=E0904 title="e0904.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass<4, N = 4>;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0904.shdl
+e0904.shdl:6:16: error[E0904]: parameter 'N' of 'Pass' bound twice
+```
+
+### E0905: Negative argument {/* #e0905 */}
+
+Parameters are non-negative integers, so an argument expression must not evaluate to a negative number. Defaults are plain numbers and cannot be negative.
+
+```shdl error=E0905 title="e0905.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A[4]) -> (O[4]) {
+    p: Pass<3 - 4>;
+    connect { A -> p.A;  p.O -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0905.shdl
+e0905.shdl:6:13: error[E0905]: argument for parameter 'N' of 'Pass' evaluates to -1; parameters must be non-negative
+```
+
+### E0906: Non-positive width after specialization {/* #e0906 */}
+
+A parameter binding gives a port a width of 0 or less. The message names the specialization, and the position is the port declaration inside the parameterized component ([Specialization](./parameters.mdx#specialization)). The same width written as a plain literal is [E0403](#e0403).
+
+```shdl error=E0906 title="e0906.shdl"
+component Pass<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+
+top component Main(A) -> (O) {
+    p: Pass<0>;
+    connect { A -> O; }
+}
+```
+
+```console check
+$ shdl-flatten e0906.shdl
+e0906.shdl:1:19: error[E0906]: port 'A' of 'e0906::Pass<N=0>' has non-positive width 0
+```
+
+## Initial state {/* #initial-state */}
+
+These codes concern the `init` block. See [Sequential logic](./sequential-logic.mdx#init).
+
+### E0A01: `init` target cannot be seeded {/* #e0a01 */}
+
+Only nets driven by a gate can be seeded, which means instance outputs and the output ports they drive. Inputs, instance inputs, constants and nets that resolve to a top-level input are rejected ([Targets](./sequential-logic.mdx#init-targets)).
+
+```shdl error=E0A01 title="e0a01.shdl"
+component SeedInput(A) -> (Y) {
+    n: NOT;
+    init { A = 1; }
+    connect { A -> n.A;  n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0a01.shdl
+e0a01.shdl:3:12: error[E0A01]: init target 'A' is an input port; inputs are set by poke, not init
+```
+
+Other messages:
+
+- `init target '….A' is an instance input; only instance outputs and output ports can be seeded`
+- `init target '…' is a constant`
+- `init target '…' resolves to input '…'; inputs are set by poke, not init`. This is an output port or instance output that is wired straight through to a top-level input.
+
+### E0A02: Net seeded more than once {/* #e0a02 */}
+
+Two seeds reach the same net, even when they give the same value. Here `n.O` drives `Y`, so `n.O` and `Y` are one net ([One seed per net](./sequential-logic.mdx#one-seed-per-net)).
+
+```shdl error=E0A02 title="e0a02.shdl"
+component TwoNames() -> (Y) {
+    n: NOT;
+    init { n.O = 1;  Y = 0; }
+    connect { n.O -> n.A;  n.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten e0a02.shdl
+e0a02.shdl:3:22: error[E0A02]: net 'Y' is seeded more than once (first seed at e0a02.shdl:3:12)
+```
+
+### E0A03: `init` value too wide {/* #e0a03 */}
+
+The seed value needs more bits than the target has ([Values](./sequential-logic.mdx#init-values)).
+
+```shdl error=E0A03 title="e0a03.shdl"
+component TooBig() -> (Y[2]) {
+    a: NOT;  b: NOT;
+    init { Y = 5; }
+    connect { a.O -> a.A;  b.O -> b.A;  a.O -> Y[1];  b.O -> Y[2]; }
+}
+```
+
+```console check
+$ shdl-flatten e0a03.shdl
+e0a03.shdl:3:12: error[E0A03]: init value 5 does not fit the 2-bit target 'Y'
+```

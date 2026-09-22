@@ -1,0 +1,35 @@
+/* SHDL site theme: the green of a driven wire on a dark board. */
+:root {
+  --ifm-color-primary: #15803d;
+  --ifm-color-primary-dark: #137337;
+  --ifm-color-primary-darker: #126d34;
+  --ifm-color-primary-darkest: #0f5a2b;
+  --ifm-color-primary-light: #178d43;
+  --ifm-color-primary-lighter: #189346;
+  --ifm-color-primary-lightest: #1ba64f;
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #4ade80;
+  --ifm-color-primary-dark: #2fd76c;
+  --ifm-color-primary-darker: #27cc64;
+  --ifm-color-primary-darkest: #20a852;
+  --ifm-color-primary-light: #65e394;
+  --ifm-color-primary-lighter: #6fe59b;
+  --ifm-color-primary-lightest: #97ecb6;
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #111c33;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.08);
+}
+
+/* Wide reference tables scroll instead of squeezing their columns. */
+.markdown table {
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown table code {
+  white-space: nowrap;
+}

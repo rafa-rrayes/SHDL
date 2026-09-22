@@ -1,0 +1,210 @@
+---
+title: Architecture overview
+sidebar_label: Overview
+description: How the SHDL toolchain is put together, how the pieces talk to each other, and how the test suite and CI keep them honest.
+---
+
+This page is a map of the SHDL repository for contributors and curious users. It covers the five Python packages, the Base SHDL text contract between the front end and the compiler, the reference interpreters that check the compiler, the test suite, and the three GitHub Actions workflows. The pages after it go deeper into each stage: [the flattening pipeline](./flattening-pipeline.mdx), [Base SHDL](./base-shdl.mdx), [compiler internals](./compiler-internals.mdx) and [PySHDL internals](./pyshdl-internals.mdx).
+
+Everything here describes PySHDL 1.1.0, the version on `master`.
+
+## One distribution, five packages
+
+The PyPI distribution `PySHDL` (version 1.1.0, `requires-python >= 3.14`, no runtime dependencies) ships five top-level packages and four console scripts. A C compiler is the only thing it needs outside Python.
+
+| Package | Role | Console script |
+|---|---|---|
+| `flattener/` | Front end. Parses SHDL, resolves imports, instantiates parameters, unrolls generators, lowers everything to one flat netlist of primitives, computes timing, and emits Base SHDL text. | `shdl-flatten` |
+| `shdlc/` | Compiler. Parses Base SHDL, checks it, generates C, and runs the system C compiler to build a shared library. | `shdlc` |
+| `SHDL/` | PySHDL, the Python driver. The `Circuit` class runs flatten, compile, build and load in one process and wraps the library's C ABI. | none (import `SHDL`) |
+| `shdl_cli/` | The `shdl` project manager: `shdl.toml`, `shdl.lock`, the Circuit Circus index client, vendoring, and the `build`, `test` and `run` commands. | `shdl` |
+| `conformance/` | The frozen conformance corpus (`conformance/cases/`, 38 cases) and its runner. | `shdl-conformance` |
+
+The packages depend on each other in one direction only:
+
+```text
+shdl_cli ──► SHDL ──► shdlc ──► (flattener, only for .shdl input)
+                 └──► flattener
+conformance ──► shdlc, flattener
+```
+
+`shdlc` imports the flattener lazily, and only when you hand `shdlc` a `.shdl` file. Compiling a Base SHDL file never loads the flattener (the comment in `shdlc/cli.py` reads "Base-only usage must not require the flattener").
+
+### Inside each package
+
+| Module | What it does |
+|---|---|
+| `flattener/lexer.py`, `parser.py`, `ast_nodes.py`, `expr.py` | Tokenizer, recursive-descent parser, AST, compile-time expression evaluator. |
+| `flattener/loader.py` | Phase 1: reads the main file, resolves `use` imports, builds the program-wide component table. |
+| `flattener/validate.py` | Checks that do not depend on parameter values (names, block structure, type visibility). |
+| `flattener/phases/` | Phases 2 to 6: `monomorphize`, `expand`, `expander`, `constants`, `flatten`. |
+| `flattener/timing.py` | Depth analysis over the flat netlist (`max_depth`, `critical_path`, feedback). |
+| `flattener/metadata.py`, `emit.py` | Builds and self-checks the metadata JSON, then serializes the Base SHDL text. |
+| `flattener/pipeline.py` | `flatten_program`, which runs every stage in order and keeps all intermediates. |
+| `flattener/diagnostics.py`, `source.py` | Error codes, positioned diagnostics, source-file bookkeeping. |
+| `flattener/sim/high_eval.py` | `HighEval`, the first reference interpreter. |
+| `shdlc/baseshdl.py` | The Base SHDL parser used by the compiler, PySHDL and the tests. |
+| `shdlc/model.py` | Turns a parsed netlist into an indexed `Circuit` and enforces the structural invariants. |
+| `shdlc/codegen.py` | `generate_c`: the C emitter. |
+| `shdlc/cc.py` | Finds a C compiler and runs it (`find_cc`, `build_shared`, `lib_suffix`). |
+| `shdlc/compile.py` | `compile_text` and `build_library`, the two library entry points. |
+| `shdlc/harness.py` | `ctypes` bindings (`Sim`, `load_fresh_copy`) shared by PySHDL, the tests and the conformance runner. |
+| `shdlc/sim/base_eval.py` | `BaseEval`, the second reference interpreter. |
+| `SHDL/circuit.py`, `info.py`, `errors.py` | `Circuit`, the metadata views (`PortInfo`, `CircuitInfo`), and the exception tree. |
+| `shdl_cli/` | `cli.py` (argument parsing), `project.py`, `lockfile.py`, `resolver.py`, `semver.py`, `index_client.py`, `vendor.py`, `builder.py`, `runner.py`, `scaffold.py`, `publish.py`. |
+| `conformance/runner/` | `oracle.py` (`OracleSim`), `executor.py` (trace replay), `suite.py` (tiers), `schema.py`, `gen.py` (the only golden writer), `cli.py`. |
+
+## Base SHDL is the contract
+
+The flattener and the compiler never share Python objects. The only thing that passes between them is **Base SHDL text**: a flat netlist of six primitives (`AND`, `OR`, `XOR`, `NOT`, `__VCC__`, `__GND__`) followed by a `meta { … }` block holding one JSON object. [Base SHDL](./base-shdl.mdx) describes the format; the normative spec is [base_shdl.md](/specs/base_shdl#12-role-in-the-pipeline).
+
+This separation is deliberate:
+
+- **The compiler has no idea SHDL exists.** It sees single-bit wires and gates. Parameters, generators, slices, constants, imports and hierarchy are gone by the time it runs.
+- **The artifact is inspectable.** You can run `shdl-flatten` on any design and read exactly what will be simulated. See [shdl-flatten](../tools/shdl-flatten.mdx).
+- **The artifact is deterministic.** For a fixed `--timestamp`, the same source always produces byte-identical Base SHDL. The conformance corpus pins it byte for byte.
+- **Other consumers can attach.** The planned debugger and alternative backends read the same file. See the [roadmap](../roadmap.mdx).
+
+The compiler needs only the structural part plus `meta.ports` (to group bits into multi-bit ports) and `meta.init` (for the power-on state). It ignores the other metadata blocks. When `ports` is missing, it treats every wire as its own one-bit port.
+
+## Data flow
+
+```text
+  your .shdl files ─────────────────────────────────────────────────────────────┐
+         │                                                                       │
+         ▼                                                                       │
+  flattener/  flatten_program()                                                  │
+     load_program → validate_program → select_top → monomorphize → expand_all    │
+     → expand_connections → materialize_constants → validate_component_connections
+     → flatten → compute_timing → build_meta → verify_meta → emit_text           │
+         │                                                                       │
+         ▼                                                                       │
+  Base SHDL text   component Top(A_1_, …) -> (…) { gates; connect { … } }        │
+                   meta { {"version": "2.0", "ports": …, "init": …} }            │
+         │                                                                       │
+         ▼                                                                       │
+  shdlc/   parse_base → build_circuit → generate_c → build_shared (cc)           │
+         │                                                                       │
+         ▼                                                                       │
+  shared library  (.so / .dylib / .dll)                                          │
+    reset  poke  peek  step  step_settle  run_batch                              │
+         │                                                                       │
+         ▼                                                                       │
+  SHDL/  Circuit ── ctypes (via shdlc.harness) ──► a private copy of the library │
+         ▲                                                                       │
+         └── shdl_cli/  shdl build / test / run construct Circuit objects ◄──────┘
+```
+
+Three ways to drive this chain:
+
+| Entry point | Stages it runs | Where the files go |
+|---|---|---|
+| `shdl-flatten FILE` | flattener only | Base SHDL on stdout, or `-o FILE` |
+| `shdlc FILE` | flattener (for `.shdl`), then the compiler and `cc` | the library in the working directory |
+| `Circuit(path)` | everything, in one process, plus loading | a private temporary directory, removed on `close()` |
+
+`shdl build` calls `flatten_program` and `build_library` directly, the same pipeline `Circuit` uses, and writes into `build/`. `shdl test`, `shdl run` and `shdl verify-package` open a `Circuit`. See [PySHDL internals](./pyshdl-internals.mdx#how-shdl_cli-uses-circuit).
+
+## The reference interpreters
+
+A simulator that is only compared with itself proves nothing. SHDL keeps **two independent Python interpreters** that define what a circuit should do, plus an adapter that speaks the C ABI's rules.
+
+| Interpreter | Location | Reads | How it works |
+|---|---|---|---|
+| `HighEval` | `flattener/sim/high_eval.py` | The phase 3 model (`FlattenOutput.mono` and `.expanded`), before connection expansion, constants, flattening and emission | Builds alias classes with union-find, so every component port at any depth is a transparent alias. Stored cells are primitive gate outputs, referenced constant bits (0 at cycle 0, their value from cycle 1) and top-level input bits. |
+| `BaseEval` | `shdlc/sim/base_eval.py` | Parsed Base SHDL text | Every gate output is a stored bit; `step()` recomputes all gates from the current state at once. Cycle 0 is all zeros except `meta.init` seeds. It rejects poke values that do not fit the port. |
+| `OracleSim` | `conformance/runner/oracle.py` | Base SHDL text | Wraps `BaseEval` with the release ABI's discipline: pokes are masked and set a dirty flag, peeking an output ticks once if dirty, `step(n <= 0)` is a no-op. |
+
+Because `HighEval` resolves signals with a different mechanism from the one the flattener uses, agreement between it and `BaseEval` is evidence that lowering preserved behavior, not that one piece of code agrees with itself.
+
+The checks form a chain. Each link is tested against the one before it ([golden_tests.md §1.1](/specs/golden_tests#11-the-oracle-chain)):
+
+```text
+the specs (shdl.md §11, base_shdl.md)
+   └─► HighEval           tests/flattener/test_equivalence.py: per-cycle traces vs BaseEval
+        └─► BaseEval      tests/compiler (DualSim): lockstep vs the compiled C library
+             └─► compiled C library
+                  └─► conformance corpus: 38 cases, 40 traces, every expected value
+                      produced by OracleSim and never by the C code under test
+```
+
+## The test suite
+
+`pyproject.toml` sets `testpaths = ["tests"]`. `uv run pytest` collects **1905 tests** at v1.1.0:
+
+| Directory | Tests | What it covers |
+|---|---:|---|
+| `tests/flattener/` | 1002 | Lexer, parser, every phase, timing, metadata, emission, diagnostics, conformance Tier A, equivalence, fuzzing, robustness, scale |
+| `tests/compiler/` | 539 | Base parser, model invariants, codegen, the C toolchain, ABI contracts, differential lockstep, determinism, sanitizers, exported symbols |
+| `tests/cpu/` | 103 | The SR16 CPU in `examples/CPU/`, run in lockstep against its Python golden model |
+| `tests/pyshdl/` | 130 | `Circuit` construction, ports and value policy, `settle`, `run_batch`, errors, lockstep against `OracleSim`, conformance through the public API |
+| `tests/shdl_cli/` | 131 | Semver, the resolver, the lockfile, `shdl.toml` editing, the index client, scaffolding, end-to-end CLI runs |
+
+`tests/fixtures/` holds 16 small `.shdl` designs (`add2`, `adder8`, `alu`, `srlatch`, `clock` and others) that several suites share.
+
+### Kinds of tests
+
+| Kind | Where | What it pins |
+|---|---|---|
+| Per-phase unit tests | `tests/flattener/test_lexer.py` … `test_flatten.py`, `tests/compiler/test_model.py`, `test_codegen.py` | Each stage's output on small inputs. `test_model.py` also extracts the Add2 example from base_shdl.md §3.7 and checks it. |
+| Diagnostic-site pinning | `tests/flattener/test_diagnostic_sites.py`, `test_diagnostics_matrix.py` | An AST scan lists every `raise err(...)` in the flattener; each one must have a trigger that fires at that exact site with the exact `line:col`. The matrix test requires the set of tested codes to equal the `ErrorCode` enum. Because the flattener's line numbers are part of this contract, ruff's import-sorting rules (`I001`, `UP035`) are disabled for `flattener/`. |
+| Differential lockstep | `tests/compiler/test_differential.py`, `harness.py` (`DualSim`) | The compiled library and `BaseEval` run the same random pokes and steps and must agree on every port after every `step` or `reset`. `SHDLC_DIFF_CYCLES` sets the length (150 by default). |
+| Evaluator equivalence | `tests/flattener/test_equivalence.py` | `HighEval` against `BaseEval`, cycle by cycle, over random stimulus. |
+| PySHDL lockstep | `tests/pyshdl/test_pyshdl_lockstep.py` | `OracleSim` against `Circuit(strict=False)` for 150 random actions, with poke values up to `1 << 66` to exercise masking. |
+| Fuzzing | `tests/compiler/test_fuzz.py`, `tests/flattener/test_fuzz_source.py`, `test_nocrash.py`, `tests/compiler/test_nocrash_shdlc.py` | Random netlists and random SHDL sources. The no-crash tests require every input to either compile or fail with a diagnostic, never a traceback. |
+| Determinism | `tests/flattener/test_determinism.py`, `tests/compiler/test_determinism.py` | Byte-identical Base SHDL and byte-identical C for the same input. The compiler test compares C source, never library bytes (a macOS dylib embeds a random `LC_UUID`). |
+| Sanitizers | `tests/compiler/test_sanitizers.py` | Builds the circuit and a C driver into one executable with AddressSanitizer and UndefinedBehaviorSanitizer and runs it as a subprocess, with expected values from `BaseEval`. It skips itself if the compiler lacks sanitizer support. |
+| Exported symbols | `tests/compiler/test_symbols.py` | On macOS, `nm -gU` must list exactly the six ABI functions. |
+| Conformance | `tests/flattener/test_conformance.py`, `tests/pyshdl/test_pyshdl_conformance.py` | Every case's Base SHDL byte for byte (Tier A), every trace against the C library, and the same traces through the public `Circuit` API. |
+| CPU acceptance | `tests/cpu/` | Real programs (for example `fib(20) = 6765`) on the gate-level SR16, compared with the golden model instruction by instruction, plus hand-derived constants so a bug shared by both cannot pass. |
+
+Two more rules from [golden_tests.md §1.3](/specs/golden_tests#13-standing-enforcement-mechanisms-keep-forever) hold across the suite: compiler tests build with `STRICT_CFLAGS` (`-Wall -Wextra -Werror -pedantic`), so generated C must compile without a single warning; and random tests seed from `zlib.crc32` of the fixture name, so a failure reproduces.
+
+### Scaling the random tests
+
+The random and stress tests read environment variables. The defaults keep a normal run fast.
+
+| Variable | Default | Used by |
+|---|---|---|
+| `SHDLC_DIFF_CYCLES` | 150 | differential lockstep length |
+| `SHDLC_FUZZ` / `SHDLC_FUZZ_CYCLES` | 20 / 100 | random netlists and cycles per netlist |
+| `SHDLC_SOURCE_FUZZ` / `SHDLC_SOURCE_FUZZ_CYCLES` | 25 / 20 | random SHDL sources |
+| `SHDLC_SOURCE_FUZZ_CC` | unset | when set, also compiles source-fuzz circuits with the C compiler |
+| `SHDLC_NOCRASH` | 200 | no-crash robustness inputs |
+| `SHDLC_SCALE` | unset | when set (and not `0`), runs the large-circuit stress tests |
+
+## Continuous integration
+
+Three workflows live in `.github/workflows/`.
+
+### `ci.yml` (CI)
+
+- **Triggers:** pushes to `main` or `master`, every pull request, and manual dispatch. A newer run on the same ref cancels the older one.
+- **Matrix:** `ubuntu-latest` with `gcc`, `ubuntu-latest` with `clang`, `macos-latest` with `clang` (`fail-fast: false`). `CC` is set to the matrix compiler, so `shdlc` builds with it.
+- **Steps:** check out, install `uv` (with its cache), `uv python install 3.14`, `uv sync --frozen`, print the compiler version, then `uv run pytest -q`.
+
+This runs tiers T0 to T4 of the suite. The stress tests skip themselves because `SHDLC_SCALE` is not set.
+
+### `nightly.yml` (Nightly)
+
+- **Triggers:** daily at 07:00 UTC (`cron: "0 7 * * *"`) and manual dispatch.
+- **`soak` job** on Ubuntu and macOS: runs the full suite with the random tests turned up. The settings are `SHDLC_FUZZ=500`, `SHDLC_DIFF_CYCLES=5000`, `SHDLC_SOURCE_FUZZ=500`, `SHDLC_SOURCE_FUZZ_CYCLES=100`, `SHDLC_SOURCE_FUZZ_CC=1`, `SHDLC_NOCRASH=2000` and `SHDLC_SCALE=1`. This is tier T5.
+- **`coverage` job** on Ubuntu: `uv run --with pytest-cov pytest -q --cov=flattener --cov=shdlc --cov-branch --cov-report=term-missing`. The report is informational; no coverage threshold is enforced.
+
+### `publish.yml` (Publish to PyPI)
+
+- **Triggers:** a published GitHub release, or manual dispatch.
+- **`build` job:** `uv build` on Python 3.14, uploading `dist/` as an artifact.
+- **`publish-to-pypi` job:** trusted publishing (OIDC `id-token: write`) with `pypa/gh-action-pypi-publish`, in the `pypi` environment. It has no condition, so it runs on both triggers.
+- **`publish-to-testpypi` job:** runs only on manual dispatch.
+
+The manual trigger declares an optional `version` input, but no step reads it.
+
+## See also
+
+- [The flattening pipeline](./flattening-pipeline.mdx): every stage with its input, output and errors.
+- [Base SHDL](./base-shdl.mdx): the format, key by key.
+- [Compiler internals](./compiler-internals.mdx): from netlist to C to shared library.
+- [PySHDL internals](./pyshdl-internals.mdx): how `Circuit` wires it all together.
+- [Conformance](../tools/conformance.mdx): the corpus and `shdl-conformance`.
+- [golden_tests.md](/specs/golden_tests#12-test-tiers): the test tiers and coverage domains.

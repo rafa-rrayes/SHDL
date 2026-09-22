@@ -1,0 +1,708 @@
+---
+title: PySHDL internals
+sidebar_label: PySHDL internals
+description: How the SHDL Python package turns a .shdl file into a loaded simulation, and how Circuit validates, marshals and cleans up around the C ABI.
+---
+
+This page explains how the `SHDL` package (the PyPI distribution PySHDL) works inside. It follows a circuit from source text to a loaded shared library and covers every layer on the way: the four constructors, the artifact directory, the `ctypes` binding, how values are checked and encoded, the dirty flag behind lazy peeks, `settle()`, how `run_batch` marshals frames, the lifecycle, the metadata model and the exception hierarchy. It ends with how the `shdl` CLI drives `Circuit`. For the user-facing API, see the [Python API reference](../tools/python-api.mdx). The normative contract is [pyshdl.md](/specs/pyshdl#1-what-pyshdl-is).
+
+## Where the code lives {/* #module-map */}
+
+`Circuit` is a thin layer. The work is done by the flattener and the compiler, which `Circuit` calls in-process as ordinary Python functions. The only child process is the host C compiler.
+
+| Module | What it contributes |
+|---|---|
+| [`SHDL/__init__.py`](https://github.com/rafa-rrayes/SHDL/blob/master/SHDL/__init__.py) | Re-exports `Circuit`, `CircuitInfo`, `PortInfo`, `TimingInfo` and the eleven exception classes. |
+| [`SHDL/circuit.py`](https://github.com/rafa-rrayes/SHDL/blob/master/SHDL/circuit.py) | The `Circuit` class: the constructors, the build pipeline, name and value validation, the lifecycle. |
+| [`SHDL/info.py`](https://github.com/rafa-rrayes/SHDL/blob/master/SHDL/info.py) | `CircuitInfo`, `PortInfo`, `TimingInfo` and `info_from_meta`, which builds them from the metadata. |
+| [`SHDL/errors.py`](https://github.com/rafa-rrayes/SHDL/blob/master/SHDL/errors.py) | The exception hierarchy. |
+| [`flattener/pipeline.py`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/pipeline.py) | `flatten_program`: SHDL source to Base SHDL text. See [the flattening pipeline](./flattening-pipeline.mdx). |
+| [`shdlc/baseshdl.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/baseshdl.py) | `parse_base`: Base SHDL text to a `BaseComponent` (name, wires, gates, connections, `meta` dict). |
+| [`shdlc/model.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/model.py) | `build_circuit`: structural validation, port groups and init seeds. See [compiler internals](./compiler-internals.mdx). |
+| [`shdlc/codegen.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/codegen.py) | `generate_c`: the C source of the simulator. |
+| [`shdlc/cc.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/cc.py) | Finding the C compiler, `build_shared`, `lib_suffix` and the `DEFAULT_CFLAGS`/`DEV_CFLAGS` flag sets. |
+| [`shdlc/harness.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/harness.py) | `Sim`, the `ctypes` binding of the six ABI functions; `load_fresh_copy`; `identity_ports`. |
+
+The distribution declares no third-party dependencies (`dependencies = []` in `pyproject.toml`) and requires Python 3.14 or newer. At run time it needs a C compiler on the host, unless you only load prebuilt libraries with `from_library`.
+
+:::note[Version strings]
+
+In the 1.1.0 release, the module attribute `SHDL.__version__` still reads `"1.0.0"`, as do `shdlc.__version__` and `flattener.__version__`. To get the installed distribution's version, use `importlib.metadata.version("pyshdl")`, which returns `1.1.0`.
+
+:::
+
+## The pipeline {/* #pipeline */}
+
+Every constructor ends with a loaded shared library. They differ in where they join the pipeline:
+
+```text
+Circuit(path)     from_source(text)          from_base(base)       from_library(lib)
+     │                  │ writes <name>.shdl        │                     │
+     │◀─────────────────┘ in a temporary dir        │                     │
+     ▼                                              │                     │
+ 1  flatten_program ──▶ Base SHDL text ◀────────────┘                     │
+                              │                                           │
+                              ▼                                           │
+ 2  parse_base + build_circuit (validate; default the ports block)        │
+                              │                                           │
+                              ▼                                           │
+ 3  choose the artifact directory                                         │
+                              │                                           │
+                              ▼                                           │
+ 4  write <Name>.base.shdl, generate_c ──▶ <Name>.c                       │
+                              │                                           │
+                              ▼                                           │
+ 5  build_shared (host C compiler) ──▶ <Name><ext>                        │
+                              │                                           ▼
+ 6  load_fresh_copy: copy to <Name>.copyNNNN<ext>, open with ctypes.CDLL ◀┘
+                              │
+                              ▼
+                        a live Circuit
+```
+
+`<Name>` is the top component's name and `<ext>` is the platform's shared-library suffix from `shdlc.cc.lib_suffix()`: `.dylib` on macOS, `.dll` on Windows and Cygwin, `.so` everywhere else.
+
+| Stage | Code | Produces | A failure raises |
+|---|---|---|---|
+| 1. Flatten | `flatten_program(os.fspath(path), include_dirs or None, top)` | Base SHDL text, in memory | `FlattenError`, wrapping the flattener's diagnostic |
+| 2. Parse and validate | `parse_base(text)`, then `build_circuit(comp)` | a checked `BaseComponent`, with `meta["ports"]` filled in if it was missing | `CompileError("invalid Base SHDL: ...")` from the parser, `CompileError("invalid circuit: ...")` from the model |
+| 3. Directory | `_prepare_dir(build_dir)` | the directory, and whether the circuit owns it | `OSError`, not wrapped |
+| 4. Write | `write_text`, `generate_c(circuit)` | `<Name>.base.shdl` (the text exactly as received) and `<Name>.c` | `OSError`, not wrapped |
+| 5. Compile | `build_shared(c_path, dir / f"{Name}{ext}", cc=cc, cflags=cflags)` | `<Name><ext>` | `BuildError`, converted from `shdlc.cc.CCError`, with `.argv` and `.stderr` |
+| 6. Load | `_attach`, which calls `load_fresh_copy(lib, dir)` | `<Name>.copyNNNN<ext>`, opened by `ctypes` | `OSError` (the file is not a loadable library) or `AttributeError` (an ABI symbol is missing), not wrapped |
+
+A few details of the pipeline:
+
+- **Text is the only contract.** The flattener's output reaches the compiler as a string, in the same format `shdl-flatten` writes to a file. The compiler parses it again from scratch. Nothing else is passed in memory between the two halves of the toolchain. See [Base SHDL](./base-shdl.mdx).
+- **Validation comes before any files.** Stage 2 runs before stage 3, so invalid Base SHDL never creates a directory.
+- **Cleanup on failure.** Stages 3 to 6 run inside `try: ... except BaseException:`. If PySHDL created the directory, it is removed before the exception propagates, including on `KeyboardInterrupt`. A directory you passed with `build_dir=` is left as it is, so after a `BuildError` it still holds `<Name>.base.shdl` and `<Name>.c` for you to inspect.
+- **Compiler flags replace, not extend.** `build_shared` runs `find_cc(cc) + list(cflags if cflags is not None else DEFAULT_CFLAGS) + ["-o", out, c_path]`, so even an empty `cflags` replaces the defaults. `DEFAULT_CFLAGS` is `-std=c11 -O2 -shared -fPIC -fvisibility=hidden`. If you pass `cflags`, include `-shared` and `-fPIC` yourself. `find_cc` tries the `cc` argument, then `$CC`, then the first of `cc`, `clang` and `gcc` found on `PATH`. The value is split with `shlex`, so `CC="ccache clang"` works. See [shdlc](../tools/shdlc.mdx) for the full compiler reference.
+- **The timestamp is not pinned.** `Circuit` calls `flatten_program` without a timestamp, so `doc.flattened_at` in the retained `<Name>.base.shdl` is taken from `SOURCE_DATE_EPOCH` if it is set, and from the current UTC time otherwise.
+
+## The four constructors {/* #constructors */}
+
+| Constructor | Joins at | Differences |
+|---|---|---|
+| [`Circuit(path, ...)`](../tools/python-api.mdx#circuit-path) | stage 1 | The only constructor that runs `__init__`. `include_dirs` entries go through `os.fspath`, and an empty sequence becomes `None`. |
+| [`from_source(text, *, name="circuit", ...)`](../tools/python-api.mdx#from-source) | stage 1 | Checks `name` against `[A-Za-z_][A-Za-z0-9_]*` and raises `ValueError` otherwise. Writes `<name>.shdl` into a `TemporaryDirectory(prefix="shdl-source-")`, calls `Circuit(...)` on it, and deletes the temporary directory when construction returns. Diagnostics therefore name the file `<name>.shdl`. |
+| [`from_base(base, ...)`](../tools/python-api.mdx#from-base) | stage 2 | Created with `cls.__new__`, so `__init__` never runs. No `top` or `include_dirs`. |
+| [`from_library(lib_path, *, base=None, strict=None, build_dir=None, keep_artifacts=False)`](../tools/python-api.mdx#from-library) | stage 6 | No `cc`, `cflags`, `top` or `include_dirs`. Only the copy is written to the directory. |
+
+Details that follow from the code:
+
+- **`from_source` imports.** The flattener looks for an imported module in the importing file's directory first, then in each include directory. For `from_source` that first directory is the temporary one, which holds only the source itself. A `use` statement in source text therefore resolves only through `include_dirs`.
+- **Typed dispatch, no sniffing.** `from_base` and the `base=` argument of `from_library` decide by type alone. A `str` is Base SHDL text, an `os.PathLike` is a file to read as UTF-8, and anything else raises `TypeError`. A file name passed as a plain `str` is parsed as Base SHDL and fails:
+
+```python
+from pathlib import Path
+
+from flattener.pipeline import flatten_program
+from SHDL import Circuit, CompileError
+
+Path("Adder8.base.shdl").write_text(flatten_program("examples/adder8.shdl").text, encoding="utf-8")
+
+with Circuit.from_base(Path("Adder8.base.shdl")) as c:
+    print(c)
+try:
+    Circuit.from_base("Adder8.base.shdl")
+except CompileError as e:
+    print(e)
+```
+
+```text title="Output"
+<SHDL.Circuit 'Adder8' (A[8], B[8], Cin) -> (Sum[8], Cout)>
+invalid Base SHDL: expected 'component', got 'Adder8'
+```
+
+- **`from_library` checks, in order.** First, a path that is not a file raises `FileNotFoundError("shared library not found: ...")`. Next, `strict` defaults to `base is not None`. Asking for `strict=True` without `base` raises `MetadataUnavailableError`. Finally, `base` goes through the same parse and validation as stage 2, so invalid text raises `CompileError`. It is never compiled.
+- **`from_library` trusts `base`.** Nothing compares the metadata with the library. The name, the port list, the widths and the `run_batch` layout all come from `base`. If `base` describes a different circuit, PySHDL validates names and values against the wrong ports. The C library then prints `poke: unknown signal` or `peek: unknown signal` for ports it lacks and returns 0 from `peek`, and `run_batch` sends a buffer laid out for the wrong port list. Pass the Base SHDL the library was actually compiled from.
+- **Bare library name.** Without `base`, the circuit's `name` is the file's stem (`lib.stem`), and it has no metadata. See [bare libraries](../tools/python-api.mdx#bare-libraries).
+
+## Artifact directories {/* #artifacts */}
+
+`_prepare_dir` returns a directory and an ownership flag:
+
+| `build_dir` | Directory | Owned? |
+|---|---|---|
+| `None` (default) | `tempfile.mkdtemp(prefix="shdl-")`, in the system temporary directory | yes |
+| a path | that path, created with `mkdir(parents=True, exist_ok=True)` | no |
+
+`close()` deletes the directory only when the circuit owns it and `keep_artifacts` is false. The user-facing summary is in [lifecycle and build artifacts](../tools/python-api.mdx#lifecycle-and-build-artifacts).
+
+```python
+import shutil
+
+from SHDL import Circuit
+from shdlc.cc import lib_suffix
+
+c = Circuit("examples/adder8.shdl", keep_artifacts=True)
+d = c.build_dir
+print(d.name.startswith("shdl-"))
+print(sorted(p.name.replace(lib_suffix(), "{ext}") for p in d.iterdir()))
+c.close()
+print(repr(c), d.exists())
+shutil.rmtree(d)  # a kept temporary directory is yours to delete
+```
+
+```text title="Output"
+True
+['Adder8.base.shdl', 'Adder8.c', 'Adder8.copy0000{ext}', 'Adder8{ext}']
+<SHDL.Circuit 'Adder8' (closed)> True
+```
+
+The loaded copy's number comes from `_copy_counter`, one `itertools.count()` for the whole process, formatted with at least four digits. Several circuits in one process never collide, even when they share a `build_dir`. The counter is per process, though. Two processes that build into the same `build_dir` both start at `copy0000`, and each would overwrite a file the other has loaded. Give each process its own directory.
+
+Rebuilding a component into a shared `build_dir` overwrites `<Name>.base.shdl`, `<Name>.c` and `<Name><ext>`. That is safe within one process, because no circuit ever loads `<Name><ext>` itself; each loads its own copy.
+
+## The ctypes layer {/* #ctypes-layer */}
+
+`shdlc.harness.Sim` binds the six functions of the [release ABI](../tools/c-abi.mdx#functions). It opens the library with `ctypes.CDLL(str(path), mode=os.RTLD_LOCAL)` and declares every signature before the first call:
+
+| C prototype | `argtypes` | `restype` |
+|---|---|---|
+| `void reset(void)` | `[]` | `None` |
+| `void poke(const char *signal, uint64_t value)` | `[c_char_p, c_uint64]` | `None` |
+| `uint64_t peek(const char *signal)` | `[c_char_p]` | `c_uint64` |
+| `void step(int cycles)` | `[c_int]` | `None` |
+| `int step_settle(int cycles)` | `[c_int]` | `c_int` |
+| `void run_batch(const uint64_t *in, uint64_t *out, int count, int cycles, int settle)` | `[POINTER(c_uint64), POINTER(c_uint64), c_int, c_int, c_int]` | `None` |
+
+- **Names** are encoded as UTF-8 before each call. `peek` and `step_settle` results are converted to Python `int`.
+- **Symbols are resolved at load.** `Sim.__init__` looks up each function (`lib.poke` and so on) with `dlsym` to set its signature, so a library that lacks any of the six raises `AttributeError` (for example `dlsym(..., poke): symbol not found` on macOS) during construction, before you can use it.
+- **Arguments are checked in Python first.** `step`, `step_settle` and `run_batch` pass `cycles` as a C `int`. `Circuit` rejects anything outside `0..2147483647` before the call: a non-`int` raises `TypeError("cycles must be an int, got ...")`, and an out-of-range value raises `ValueError("cycles must be in 0..2147483647, got ...")`. Negative counts are refused, even though the C functions would treat them as a no-op. Poke values are masked to 64 bits or less before they reach `c_uint64`; see [value encoding](#value-encoding).
+- **The GIL is released.** `ctypes.CDLL` releases the global interpreter lock for the duration of each foreign call. A long `step(n)` on one circuit doesn't block Python threads that drive other circuits. Don't share one circuit between threads; see [threads](../tools/python-api.mdx#threads).
+
+### One copy per instance {/* #fresh-copy */}
+
+`dlopen` caches libraries by path. Opening the same file twice returns the same handle, so both handles share one set of C globals, and the [load-time constructor](#power-on) does not run the second time. `load_fresh_copy(lib_path, work_dir)` avoids this. It copies the file with `shutil.copy2` to a new name, `<stem>.copy<NNNN><suffix>`, and opens the copy. Every `Circuit` loads its own copy, so every `Circuit` has independent state and a freshly run constructor. The copy is made even when you load a library you built yourself:
+
+```python
+from pathlib import Path
+
+from flattener.pipeline import flatten_program
+from SHDL import Circuit
+from shdlc.cc import lib_suffix
+from shdlc.compile import build_library
+from shdlc.harness import Sim
+
+Path("lib").mkdir(exist_ok=True)
+lib = build_library(flatten_program("examples/adder8.shdl").text, Path("lib") / f"Adder8{lib_suffix()}")
+
+# Two Sim objects over the same path: dlopen returns one handle, so they share state.
+s1, s2 = Sim(lib), Sim(lib)
+s1.poke("A", 7)
+print(s2.peek("A"))
+
+# Two Circuits over the same file: each loads its own copy.
+with Circuit.from_library(lib) as c1, Circuit.from_library(lib) as c2:
+    c1.poke("A", 7)
+    print(c2.peek("A"))
+    print(sorted(p.name.replace(lib_suffix(), "{ext}") for p in c1.build_dir.iterdir()))
+```
+
+```text title="Output"
+7
+0
+['Adder8.copy0000{ext}']
+```
+
+Nothing ever unloads a copy. `close()` drops the circuit's reference to the `Sim` object, but `ctypes` has no public way to call `dlclose`, so the library stays mapped until the interpreter exits, even after `close()` deletes its file. A process that creates many circuits keeps each one's code and state in memory. This is rarely a problem for circuits of teaching size.
+
+## Value encoding {/* #value-encoding */}
+
+Each `PortInfo` carries its `wires` tuple. Three numbers are derived from it:
+
+| Property | Formula | 8-bit port | 1-bit port |
+|---|---|---|---|
+| `width` | `len(wires)` | 8 | 1 |
+| `max_value` | `2**width - 1` | 255 | 1 |
+| `min_value` | `-(2**(width - 1))` | -128 | -1 |
+
+`Circuit._encode(port, value)` runs on every checked poke, on `c[name] = value`, and on every entry of every `run_batch` frame:
+
+1. If `value` is not an `int`, raise `TypeError("port 'A' value must be an int, got float")`. `bool` is a subclass of `int`, so `True` and `False` are accepted.
+2. Under `strict=True`, if `value` is outside `min_value..max_value`, raise `PortValueError` with the allowed range in the message.
+3. Return `value & max_value`.
+
+Step 3 runs in both modes, so non-strict masking happens in Python. It keeps the low `width` bits, which is also what the C scatter would do. A negative value becomes its two's complement within the port's width. `peek` never sign-extends: it returns the zero-extended unsigned value.
+
+| Mode | Accepted values | Sent to `poke` |
+|---|---|---|
+| `strict=True` (default with metadata) | any `int` in `min_value..max_value` | `value & max_value` |
+| `strict=False` with metadata | any `int` | `value & max_value` |
+| bare library (no metadata) | any `int` | `value & (2**64 - 1)`. The C side keeps the port's low `width` bits. |
+
+Names are checked before values. With metadata, `poke` accepts only input names: an output name raises `SignalNotFoundError("'Sum' is an output port and cannot be poked; inputs: A, B, Cin")`, and any other unknown name raises `"unknown input port ..."`. `peek` accepts inputs and outputs and raises `"unknown signal ...; inputs: ...; outputs: ..."` for anything else. A bare library passes every name straight to C, which prints `poke: unknown signal "X"` or `peek: unknown signal "X"` to stderr and then does nothing, or returns 0.
+
+```python
+from SHDL import Circuit, PortValueError
+
+with Circuit("examples/adder8.shdl") as c:
+    for name in ("A", "Cin"):
+        p = c.info.port(name)
+        print(name, p.width, p.min_value, p.max_value)
+    c["A"] = -1
+    c["Cin"] = True
+    print(c["A"], c["Cin"])
+    try:
+        c["A"] = 256
+    except PortValueError as e:
+        print(e)
+
+with Circuit("examples/adder8.shdl", strict=False) as c:
+    c["A"] = 263
+    print(c["A"])
+    c["A"] = -2
+    print(c["A"])
+```
+
+```text title="Output"
+A 8 -128 255
+Cin 1 -1 1
+255 1
+value 256 does not fit 8-bit port 'A' (allowed -128..255); use strict=False for the ABI's masking semantics
+7
+254
+```
+
+A 1-bit port accepts `-1` under strict checking, because `-1` is the two's-complement pattern `1`. The spec's value policy is in [pyshdl.md §5](/specs/pyshdl#5-value-policy-strict-and-non-strict).
+
+## The dirty flag and lazy peek {/* #lazy-peek */}
+
+`Circuit.peek` adds nothing to the C `peek` except the name check. Lazy evaluation lives entirely in the generated C, around one `static int dirty` flag. Here are `poke` and `peek` as `shdlc` generates them for `examples/srLatch.shdl`:
+
+```c
+SHDLC_API void poke(const char *signal, uint64_t value)
+{
+    int i;
+    int b;
+
+    /* NULL takes the unknown-signal path; no name comparison on it. */
+    if (signal != 0) {
+        for (i = 0; i < NUM_IN_PORTS; i++) {
+            if (strcmp(signal, in_ports[i].name) == 0) {
+                for (b = 0; b < in_ports[i].width; b++) {
+                    inputs[in_ports[i].wires[b]] = (uint8_t)((value >> b) & 1u);
+                }
+                dirty = 1;
+                return;
+            }
+        }
+    }
+    fprintf(stderr, "poke: unknown signal \"%s\"\n",
+            signal != 0 ? signal : "(null)");
+}
+
+SHDLC_API uint64_t peek(const char *signal)
+{
+    int i;
+    int b;
+    uint64_t v;
+
+    /* NULL takes the unknown-signal path; no name comparison on it. */
+    if (signal != 0) {
+        for (i = 0; i < NUM_OUT_PORTS; i++) {
+            if (strcmp(signal, out_port_names[i]) == 0) {
+                if (dirty) {
+                    tick();
+                }
+                return out_vals[i];
+            }
+        }
+        for (i = 0; i < NUM_IN_PORTS; i++) {
+            if (strcmp(signal, in_ports[i].name) == 0) {
+                v = 0u;
+                for (b = 0; b < in_ports[i].width; b++) {
+                    v |= (uint64_t)inputs[in_ports[i].wires[b]] << b;
+                }
+                return v;
+            }
+        }
+    }
+    fprintf(stderr, "peek: unknown signal \"%s\"\n",
+            signal != 0 ? signal : "(null)");
+    return 0u;
+}
+```
+
+The rules:
+
+| Event | Effect on `dirty` |
+|---|---|
+| `poke` of a known input | sets it to 1, even when the value is unchanged |
+| `tick()` (one cycle, from `step`, `step_settle`, `run_batch` or a lazy peek) | clears it to 0 |
+| `peek` of an output while `dirty` is 1 | runs one `tick()` first, which clears it |
+| `peek` of an input | no change; inputs are read back from `inputs[]` and never tick |
+| `step(0)` | no change |
+| `reset()` | clears it to 0 |
+
+Reading an output right after a poke therefore shows the circuit one cycle later. A second read doesn't advance it again. In an 8-bit adder, `Sum` needs two gate levels (two XORs), so after one lazy tick it is still 0:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"] = 3
+    print(c["A"])    # an input: read back, no tick
+    print(c["Sum"])  # dirty: one tick, then read
+    print(c["Sum"])  # clean: no tick
+    c.step(1)
+    print(c["Sum"])
+    c.step(0)
+    print(c["Sum"])
+```
+
+```text title="Output"
+3
+0
+0
+3
+3
+```
+
+The same rules appear from the user's side in [peeking is lazy](../concepts/simulation-model.mdx#peeking-is-lazy) and [C ABI: lazy peek](../tools/c-abi.mdx#lazy-peek).
+
+## `settle()` and `step_settle()` {/* #settle */}
+
+`Circuit.settle()` is a policy on top of `step`, computed entirely from metadata. It makes these checks in order:
+
+1. The circuit is closed: `ClosedCircuitError`.
+2. There is no metadata (a bare library): `MetadataUnavailableError("settle() requires Base SHDL metadata, ...")`.
+3. The metadata has no usable `timing` block: `MetadataUnavailableError("settle() requires timing metadata, which this circuit's Base SHDL lacks")`.
+4. `timing.has_feedback` is true: `SettleRefusedError`.
+5. Otherwise it calls `step(timing.max_depth)` and returns `max_depth`.
+
+`settle()` never looks at the simulation state and never detects a fixed point. It always runs exactly `max_depth` cycles: the longest input-to-output path, which bounds how long any change can take to reach the outputs of a feedback-free circuit. In a circuit with feedback, `max_depth` is not a bound, so `settle()` refuses rather than return a state that may still be changing.
+
+`step_settle(n)` is the data-dependent alternative, and it is implemented in C. After each tick, the swapped-out buffer still holds the previous cycle, so one `memcmp` of the two gate buffers detects a fixed point. The call returns at the first tick that changed no gate and reports how many ticks ran, including that last one. The result is identical to `step(n)`, because once the gates stop changing, further ticks with the same inputs recompute the same state. An oscillator never reaches a fixed point and always runs all `n` ticks.
+
+```python
+from SHDL import Circuit, SettleRefusedError
+
+with Circuit("examples/adder8.shdl") as c:
+    c["A"] = 100
+    c["B"] = 55
+    print(c.step_settle(1000), c["Sum"])
+    c["A"] = 101
+    print(c.step_settle(1000), c["Sum"])
+    c["A"] = 101                 # same value: nothing to propagate
+    print(c.step_settle(1000))
+    print(c.settle(), c["Sum"])  # always max_depth
+
+with Circuit("examples/srLatch.shdl") as c:
+    print(c.timing)
+    try:
+        c.settle()
+    except SettleRefusedError as e:
+        print(e)
+```
+
+```text title="Output"
+6 155
+6 156
+1
+17 156
+TimingInfo(max_depth=1, is_combinational=False, has_feedback=True)
+settle() is refused: circuit 'SRLatch' has feedback, so max_depth is not a settle count; advance it explicitly with step(n)
+```
+
+The spec for both is in [pyshdl.md §6](/specs/pyshdl#6-stepping-settle-and-step_settle).
+
+## How `run_batch` marshals frames {/* #run-batch */}
+
+`Circuit.run_batch(frames, *, cycles=1, settle=False)` turns a list of dicts into two flat `uint64_t` buffers and makes one C call.
+
+1. **Preconditions.** It checks that the circuit is live, that it has metadata (`MetadataUnavailableError("run_batch() requires ...")` otherwise), and that `cycles` is valid.
+2. **Starting row.** It reads every input port's current value with the C `peek`. Reading an input never ticks, so this has no effect on the simulation.
+3. **Encoding.** For each frame, numbered from 0, and each key in it:
+   - it looks up the key's input slot; an unknown name raises `SignalNotFoundError("frame N: ...")`;
+   - it encodes the value with `_encode`;
+   - it overwrites that slot in the running row.
+
+   After each frame, the row is appended as a tuple. An input that a frame omits keeps its value from the previous frame, or from before the batch.
+4. **All or nothing.** Every frame is encoded before any C call. A bad frame raises before anything reaches the library, so the circuit's state is unchanged.
+5. **Marshalling.** `Sim.run_batch` flattens the rows in row-major order into `(c_uint64 * max(1, count * n_in))` and allocates a zeroed `(c_uint64 * max(1, count * n_out))` for the results. The `max(1, ...)` keeps `ctypes` from building a zero-length array when there are no frames or no ports. The C function doesn't dereference a buffer whose dimension is zero.
+6. **The C loop.** For each frame, the C code scatters every input port with poke semantics. That sets `dirty`, even for values that did not change. It then runs `step_settle_impl(cycles)` if `settle` is nonzero, otherwise `step_impl(cycles)`, and gathers every output port with peek semantics. If `cycles` is 0, the gather includes the lazy tick.
+7. **Results.** Python slices the output buffer into one tuple per frame and zips each tuple with the output names, giving one dict per frame.
+
+The Python rows and the C `in_ports[]` table agree on port order because both follow the order of the `ports` block in the metadata. After the batch, the inputs hold the last frame's values, exactly as if you had made the same `poke`, `step` and `peek` calls one by one.
+
+```python
+from SHDL import Circuit, PortValueError
+
+with Circuit("examples/adder8.shdl") as c:
+    c["B"] = 5
+    rows = c.run_batch([{"A": 1}, {"A": 2, "Cin": 1}, {}], cycles=17)
+    for row in rows:
+        print(row)
+    print(c["A"], c["B"], c["Cin"])
+    try:
+        c.run_batch([{"A": 9}, {"A": 300}])
+    except PortValueError as e:
+        print(e)
+    print(c["A"])  # the failed batch changed nothing
+    print(c.run_batch([{"A": 10}], cycles=0))  # one lazy tick per frame
+    print(c.run_batch([]))
+```
+
+```text title="Output"
+{'Sum': 6, 'Cout': 0}
+{'Sum': 8, 'Cout': 0}
+{'Sum': 8, 'Cout': 0}
+2 5 1
+value 300 does not fit 8-bit port 'A' (allowed -128..255); use strict=False for the ABI's masking semantics
+2
+[{'Sum': 8, 'Cout': 0}]
+[]
+```
+
+With `cycles=0`, the frame `{"A": 10}` gets a single lazy tick. `Sum` still shows 8, from the previous inputs, because the new sum has not propagated yet.
+
+`cycles` defaults to 1 even when `settle=True`. With `settle=True`, pass an upper bound large enough for your circuit, for example `cycles=1000`, and the early exit stops each frame as soon as the gates stop changing. The spec is [pyshdl.md §7](/specs/pyshdl#7-batch-simulation-with-run_batch), and the C side is [C ABI: run_batch](../tools/c-abi.mdx#run-batch).
+
+## Reset and the power-on state {/* #power-on */}
+
+`Circuit.reset()` calls the C `reset()` and does nothing else. The generated `reset()` does the following:
+
+1. It zeroes `inputs[]` and both gate buffers.
+2. It points `cur` and `nxt` back at their original buffers.
+3. It applies the `init` seeds to `cur[]` only.
+4. It clears `dirty`.
+5. It recomputes `out_vals[]`.
+
+Because the seeds go into `cur[]` and nothing is evaluated, `__VCC__` and `__GND__` gates still read 0 until the first tick. `reset()` is idempotent.
+
+PySHDL never calls `reset()` when it loads a library. The power-on state comes from a load-time constructor that `shdlc` emits at the end of every C file:
+
+```c
+/* Make init seeds live at load time, before any explicit reset(). */
+#ifdef __GNUC__
+__attribute__((constructor)) static void shdlc_ctor(void)
+{
+    reset();
+}
+#endif
+```
+
+GCC and Clang define `__GNUC__`, so with them every freshly loaded copy starts in the seeded power-on state. This is the other reason for [one copy per instance](#fresh-copy): the constructor runs only when a library is actually loaded, which a second `dlopen` of the same path would skip. If you build with a compiler that does not define `__GNUC__`, the constructor is compiled out. The static arrays then start all zero, without the `init` seeds, until you call `reset()`.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/srLatch.shdl") as c:
+    print(dict(c.info.init))
+    print(c["Q"], c["Qn"])  # seeded at load time
+    c["S"] = 1
+    c.step(4)
+    print(c["Q"], c["Qn"])
+    c.reset()
+    print(c["Q"], c["Qn"], c["S"])
+```
+
+```text title="Output"
+{'o1.O': 1, 'Q': 0, 'o2.O': 0, 'Qn': 1}
+0 1
+1 0
+0 1 0
+```
+
+See [reset](../concepts/simulation-model.mdx#reset) and [shdlc_goals.md §2.4](/specs/shdlc_goals#24-reset-semantics).
+
+## Lifecycle {/* #lifecycle */}
+
+```text
+                    construction fails
+   (constructing) ───────────────────────▶ exception; an owned directory is removed;
+         │                                  no object is returned
+         │ _attach succeeds: _closed = False
+         ▼
+       live ──── close(), __exit__ or __del__ ────▶ closed ──── close() ────▶ closed (no-op)
+```
+
+- **Class-level default.** `Circuit` declares `_closed = True` as a class attribute. An object whose construction failed, such as one created by `cls.__new__` in `from_base` or `from_library`, reads as closed, so its `__del__` does nothing.
+- **`_live()`** guards every simulation method (`poke`, `peek`, `c[...]`, `step`, `step_settle`, `settle`, `reset`, `run_batch`) and raises `ClosedCircuitError("circuit 'X' has been closed")` after `close()`.
+- **`close()`** is idempotent. It sets `_closed`, drops the `Sim` object, and removes the directory with `shutil.rmtree(..., ignore_errors=True)` if the circuit owns it and `keep_artifacts` is false. The library stays mapped; see [one copy per instance](#fresh-copy).
+- **After `close()`,** the metadata is still there. `name`, `strict`, `closed`, `build_dir`, `info`, `timing`, `inputs`, `outputs`, `in` and `repr` keep working, and `repr` shows `(closed)`.
+- **`__exit__`** calls `close()` and does not suppress exceptions. **`__del__`** calls `close()` inside `contextlib.suppress(Exception)`.
+
+The spec is [pyshdl.md §11](/specs/pyshdl#11-lifecycle-and-build-artifacts).
+
+## The metadata model {/* #metadata-model */}
+
+Everything `Circuit` knows beyond the six C functions comes from the `meta` JSON of the Base SHDL text. `info_from_meta(name, meta)` reads it once, at load time, into frozen dataclasses:
+
+| Field | Source | Notes |
+|---|---|---|
+| `CircuitInfo.inputs`, `.outputs` | `meta["ports"]["inputs"]`, `meta["ports"]["outputs"]` | One `PortInfo(name, direction, wires)` per entry, in the JSON object's order. |
+| `CircuitInfo.timing` | `meta["timing"]` | `None` unless the block is an object with both `max_depth` and `has_feedback`. `is_combinational` defaults to `not has_feedback` when absent. |
+| `CircuitInfo.init` | `meta["init"]` | A read-only `MappingProxyType` copy; empty if absent. |
+| `CircuitInfo.stats` | `meta["stats"]` | A read-only `MappingProxyType` copy; empty if absent. |
+| `CircuitInfo.description` | `meta["doc"]["description"]` | `None` if absent. |
+| `CircuitInfo.name` | the component name | from the Base SHDL header, not from the metadata |
+
+How each field is used:
+
+- **`ports`** drives nearly everything: the name tables behind `poke` and `peek`, value encoding, `repr`, `inputs`, `outputs` and the `run_batch` layout.
+- **`timing`** is used only by `settle()`.
+- **`init`** is informational. The C library applies the seeds itself, in `reset()` and the load-time constructor.
+- **`stats`** and **`description`** are informational only.
+
+When the `ports` block is missing entirely, as in handwritten Base SHDL, `_validated_parse` fills it in with `identity_ports`: each input and output wire becomes a 1-bit port of the same name. The rest of the API then works unchanged, except `settle()`, which needs `timing`:
+
+```python
+from SHDL import Circuit, MetadataUnavailableError
+
+BASE = """
+component Nand(A, B) -> (O) {
+    g: AND;
+    n: NOT;
+    connect {
+        A -> g.A;
+        B -> g.B;
+        g.O -> n.A;
+        n.O -> O;
+    }
+}
+"""
+
+with Circuit.from_base(BASE) as c:
+    print(c)
+    print(c.info.inputs[0])
+    print(c.timing, dict(c.info.init), dict(c.info.stats), c.info.description)
+    try:
+        c.settle()
+    except MetadataUnavailableError as e:
+        print(e)
+    c["A"] = 1
+    c["B"] = 1
+    print(c.step_settle(10), c["O"])
+```
+
+```text title="Output"
+<SHDL.Circuit 'Nand' (A, B) -> (O)>
+PortInfo(name='A', direction='input', wires=('A',))
+None {} {} None
+settle() requires timing metadata, which this circuit's Base SHDL lacks
+3 0
+```
+
+A flattened circuit has all of these blocks:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/adder8.shdl") as c:
+    info = c.info
+    print(info.name, c.inputs, c.outputs)
+    print(dict(info.stats))
+    print(info.has_init)
+    try:
+        info.stats["total_gates"] = 0
+    except TypeError as e:
+        print(e)
+```
+
+```text title="Output"
+Adder8 ('A', 'B', 'Cin') ('Sum', 'Cout')
+{'total_gates': 40, 'total_connections': 89, 'total_ports': 26, 'by_type': {'XOR': 16, 'AND': 16, 'OR': 8}}
+False
+'mappingproxy' object does not support item assignment
+```
+
+`TimingInfo` keeps three of the flattener's five `timing` keys; `output_depths` and `critical_path` are not exposed. `CircuitInfo` does not expose the `version`, `hierarchy`, `source_map`, `constants` or `monitors` blocks. They stay in the Base SHDL text, which you can keep with `keep_artifacts=True` and parse with `shdlc.baseshdl.parse_base(text).meta`. The blocks themselves are described in [Base SHDL](./base-shdl.mdx) and [base_shdl.md §5](/specs/base_shdl#5-how-each-consumer-uses-the-metadata).
+
+## The exception hierarchy {/* #errors */}
+
+Every exception that PySHDL raises on purpose derives from `PySHDLError`. The tree, printed from the live classes:
+
+```python
+import SHDL
+
+def tree(cls, depth=0):
+    extra = [b.__name__ for b in cls.__bases__[1:]]
+    print("    " * depth + cls.__name__ + (f"  (also {', '.join(extra)})" if extra else ""))
+    for sub in sorted(cls.__subclasses__(), key=lambda c: c.__name__):
+        tree(sub, depth + 1)
+
+tree(SHDL.PySHDLError)
+```
+
+```text title="Output"
+PySHDLError
+    CompilationError
+        BuildError
+        CompileError
+        FlattenError
+    SimulationError
+        ClosedCircuitError
+        MetadataUnavailableError
+        PortValueError  (also ValueError)
+        SettleRefusedError
+        SignalNotFoundError  (also KeyError)
+```
+
+How the tree is built:
+
+- **Two branches.** `CompilationError` covers the path from source to a loaded library, and `SimulationError` covers driving it.
+- **The original error is kept.** Each compilation error is raised `from` the tool's own exception, so `__cause__` holds the original. It is `SHDLError` for `FlattenError`, `BaseParseError` or `ModelError` for `CompileError`, and `CCError` for `BuildError`. The structured parts are copied onto the new exception as well: `FlattenError.diagnostic`, `BuildError.argv` and `BuildError.stderr`.
+- **Dict-style errors.** `SignalNotFoundError` is also a `KeyError`, so `c["typo"]` behaves like a mapping lookup. It sets `__str__ = Exception.__str__` so that its message is not shown in quotes, as a plain `KeyError` message would be.
+- **`PortValueError`** is also a `ValueError`.
+
+Some failures are not wrapped and reach you as standard Python exceptions:
+
+| Exception | Where it comes from |
+|---|---|
+| `TypeError`, `ValueError` | argument checks: a non-`int` poke value or `cycles`, `cycles` out of range, an invalid `from_source` name, a `base` that is neither `str` nor `os.PathLike` |
+| `FileNotFoundError` | `from_library` with a path that is not a file |
+| `OSError`, `UnicodeDecodeError` | reading a `base` path; creating the artifact directory or writing files into it |
+| `OSError` | `ctypes.CDLL` on a file that is not a loadable shared library |
+| `AttributeError` | a library that lacks one of the six ABI symbols |
+
+The user-facing table of which method raises what is in [exceptions](../tools/python-api.mdx#exceptions), and the spec is [pyshdl.md §12](/specs/pyshdl#12-error-handling).
+
+## How `shdl_cli` uses `Circuit` {/* #how-shdl_cli-uses-circuit */}
+
+The [`shdl` CLI](../tools/shdl-cli.mdx) builds circuits in two ways. `shdl build` produces a library file and does **not** use `Circuit`. `shdl test`, `shdl run` and `shdl verify-package` simulate, and they create `Circuit` objects. The other commands (`new`, `init`, `add`, `remove`, `install`, `search`, `info`, `publish`) never build a circuit.
+
+| Command | Code path | `Circuit` arguments |
+|---|---|---|
+| `shdl build` | `builder.build`: `flatten_program(entry, include_dirs or None, top).text`, then `shdlc.compile.build_library(text, out, cc=cc, cflags=...)`. Writes `build/<project name><ext>`, or the `-o` path. `--emit-base` also writes `build/<project name>.base.shdl`. Errors become a `CliError`. | none |
+| `shdl test` | `run_cases(lambda comp: builder.open_circuit(...), cases)`: one new `Circuit` per test case, closed after the case | `top=` the case's `component` |
+| `shdl run` | one `builder.open_circuit(...)` for the whole session, closed in a `finally` | `top=` `--top`, or the project's `top` |
+| `shdl verify-package` | `Circuit(str(pkg_dir / manifest["module"]), top=comp, include_dirs=include)` for each export: built, then closed at once. Then `run_cases` with the same opener. | defaults only: strict, `-O2`, no `cc` |
+
+`builder.open_circuit(project, include_dirs, top, *, dev, cc)` is the shared opener for `test` and `run`. It calls:
+
+```python fragment
+Circuit(
+    str(entry),
+    top=top or project.top,
+    include_dirs=include_dirs,
+    cc=cc,
+    cflags=DEV_CFLAGS if dev else None,
+)
+```
+
+It converts any `PySHDLError` into a `CliError` with the same message. The arguments come from:
+
+- **`entry`** is the project's main module, unless `top` names a component defined in a different project module. In that case `_entry_module` scans the `.shdl` files under the main module's directory and `src/`, skipping `shdl_modules/` and `build/`, and uses the single module that defines it. If two modules define it, the command fails.
+- **`include_dirs`** is the sorted list of vendored `shdl_modules/<package>` directories, followed by the sorted directories of path dependencies.
+- **`--dev`** selects `DEV_CFLAGS`, which is the default flag list with `-O0` in place of `-O2`.
+- **`strict`** is never overridden, so test values that don't fit a port fail the case with a `PortValueError`.
+
+How each command drives the circuit:
+
+- **`shdl test`, vector cases.** For each vector, `reset()`, `poke` every input, `step(steps)` (`steps` defaults to 64), then `peek` and compare every expected output.
+- **`shdl test`, op cases.** The case's `reset`, `poke`, `step` (`cycles` defaults to 1) and `expect` operations are replayed in order.
+- **`shdl test`, failures.** A build failure or any exception inside a case is reported as a `FAIL` line for that case. The command continues with the next case.
+- **`shdl run`.** Each REPL command maps to one method: `poke` to `c.poke`, `peek` to `c.peek`, `step [N]` to `c.step`, `settle` to `c.settle()`, `reset` to `c.reset()` and `info` to `c.inputs` and `c.outputs`. Exceptions are printed as `error: ...` and the session continues. `settle` prints `settled after N cycle(s)`, where `N` is `max_depth`. Like `Circuit.settle()`, it doesn't detect stability and it is refused for circuits with feedback.
+
+The test file format is in [testing](../tools/testing.mdx), and the package checks are in [packages](../tools/packages.mdx).
+
+## See also
+
+- [Python API](../tools/python-api.mdx): the user-facing reference for everything on this page.
+- [C ABI](../tools/c-abi.mdx): the six functions `Sim` binds, and how to call them from C.
+- [Compiler internals](./compiler-internals.mdx): how `shdlc` generates the C that `Circuit` loads.
+- [Simulation model](../concepts/simulation-model.mdx): cycles, lazy peek, settle and feedback.
+- [pyshdl.md](/specs/pyshdl#1-what-pyshdl-is): the normative PySHDL specification, including [loading circuits](/specs/pyshdl#3-loading-circuits), [bare libraries](/specs/pyshdl#8-bare-libraries-without-metadata) and [introspection](/specs/pyshdl#9-introspection).

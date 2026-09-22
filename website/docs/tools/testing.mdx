@@ -1,0 +1,400 @@
+---
+title: Testing with tests.json
+sidebar_label: Testing
+description: How shdl test finds and runs tests/*.tests.json files, the vector-table and op-sequence case formats, value rules, failure messages, and exit codes.
+---
+
+`shdl test` checks your circuits against test vectors that you write as JSON. This page covers the whole format: where test files live, the two kinds of case (vector tables for combinational logic, op sequences for sequential logic), how each case is executed step by step, which values are accepted, every failure message, and how the format relates to the Circuit Circus package tests. For the command's flags, see [`shdl test`](./shdl-cli.mdx#shdl-test).
+
+## Running the tests
+
+```text
+shdl test [COMPONENT...] [--dev] [--cc CC]
+```
+
+`shdl test` runs these steps:
+
+1. Find the project (the nearest `shdl.toml` at or above the current directory) and run the [preflight checks](./shdl-cli.mdx#preflight): a fresh lock and a vendored tree that matches it. It never touches the network.
+2. Collect `tests/*.tests.json`: the files directly inside `tests/` whose names end in `.tests.json`, sorted by file name. Subdirectories of `tests/` are not searched.
+3. For each file: parse it, keep only the cases for the components named on the command line (if any), print `[<file name>]`, and run each case.
+4. Print a blank line and `<passed>/<total> cases green`.
+
+Every project that `shdl new` creates has a passing test:
+
+```console check
+$ shdl new logic
+created project logic in logic/
+  shdl.toml
+  src/logic.shdl
+  tests/logic.tests.json
+  .gitignore
+  README.md
+  shdl.lock
+next: cd logic && shdl build && shdl test
+$ cd logic
+$ cat tests/logic.tests.json
+{
+  "test_format": 1,
+  "package": "logic",
+  "cases": [
+    {
+      "component": "Main",
+      "steps": 8,
+      "vectors": [
+        {"in": {"A": 0}, "out": {"Y": 1}},
+        {"in": {"A": 1}, "out": {"Y": 0}}
+      ]
+    }
+  ]
+}
+$ shdl test; echo "exit status: $?"
+[logic.tests.json]
+  ok    Main
+
+1/1 cases green
+exit status: 0
+```
+
+### Output
+
+| Line | Meaning |
+|---|---|
+| `[name.tests.json]` | The cases that follow come from this file. A file with no cases to run (after filtering) prints nothing. |
+| `  ok    Comp` | The case for component `Comp` passed. |
+| `  FAIL  Comp: <detail>` | The case failed. See [Failure messages](#failure-messages). |
+| `  FAIL  cases[i]: missing 'component'` | Case number `i` (counting from 0) has no `component`. |
+| `p/t cases green` | `p` of the `t` cases that ran passed. It is printed after a blank line. |
+
+Each case is one line, whatever the number of vectors or ops it contains. The totals count cases, not vectors.
+
+### Exit status
+
+| Status | When |
+|---|---|
+| `0` | Every case passed. |
+| `1` | At least one case failed. The full report is printed first. |
+| `1` | A file-level error, printed as `shdl: error: <message>` (see [File-level errors](#file-level-errors)). |
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `COMPONENT...` | Run only the cases whose `component` is one of these names. See [Selecting components](#selecting-components). |
+| `--dev` | Compile each circuit with `-O0`. The C compiles faster and the simulation runs slower, which usually wins for tests. |
+| `--cc CC` | The C compiler to use. The default is `$CC`, then the first of `cc`, `clang` and `gcc` on `PATH`. |
+
+The project's `top` key plays no part in `shdl test`, because every case names its own component. `shdl test` writes nothing to `build/`: each circuit is compiled in a temporary directory that is removed when the case ends.
+
+## Test files
+
+A test file is a JSON object:
+
+```json title="tests/logic.tests.json"
+{
+  "test_format": 1,
+  "package": "logic",
+  "cases": [
+    { "component": "FullAdder", "steps": 4, "vectors": [ ... ] },
+    { "component": "DLatch", "ops": [ ... ] }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `test_format` | no | The format version, `1`. `shdl test` does not read it. Circuit Circus packages must set it. |
+| `package` | no | The package or project name. `shdl test` does not read it. Circuit Circus packages must set it. |
+| `cases` | no | An array of cases. A file without `cases` contributes no cases. |
+
+Keep `test_format` and `package` in project files anyway: the same file then works unchanged if you later publish the project as a package. Other top-level keys are ignored. The top level must be an object: an array makes `shdl test` stop with a Python traceback instead of an error message.
+
+A project can have any number of test files. A common layout is one file per module or per area of the design, all named `*.tests.json`, in `tests/`.
+
+### Cases
+
+Every case names one component and is either a vector table or an op sequence:
+
+| Field | Applies to | Required | Meaning |
+|---|---|---|---|
+| `component` | both | yes | The component to compile and test. See [Which components a case can test](#which-components). |
+| `ops` | op sequence | yes, for an op sequence | The ops to replay. If a case has `ops`, it is an op sequence and any `vectors` or `steps` are ignored. |
+| `vectors` | vector table | yes, for a vector table | The input and output rows. A case without `ops` must have `vectors`. |
+| `steps` | vector table | no, default `64` | The cycles to advance after poking each row's inputs. |
+
+Other keys in a case are ignored, so you can add your own notes, for example a `"comment"`.
+
+Each case, including two cases for the same component, runs on its own freshly compiled circuit. `shdl test` flattens the module, generates C, compiles a shared library and loads it, then closes the circuit and deletes the library when the case ends. A new circuit starts in its power-on state: every signal is 0 except the `init` seeds of feedback gates. Put related vectors in one case: each case costs a compile.
+
+## Vector tables
+
+A vector table suits combinational logic. You list input values and the output values you expect after the circuit settles.
+
+For each vector, in order, `shdl test` does exactly this:
+
+1. `reset()`: back to the power-on state.
+2. `poke()` each input in `in`, in the order written.
+3. `step(steps)`: advance `steps` unit-delay cycles.
+4. `peek()` each signal in `out`, in the order written, and compare it with the expected value.
+
+A mismatch is recorded and the case carries on with the next output and the next vector, so one run reports every failing vector (up to [the display limit](#failure-messages)). The case passes only if every comparison matched.
+
+| Vector field | Required | Meaning |
+|---|---|---|
+| `in` | yes | An object mapping input port names to values. Inputs you leave out stay at 0, because each vector starts with a reset. |
+| `out` | yes | An object mapping port names to expected values. Only the ports listed are checked. It may also list input ports, which read back the value poked. It cannot list internal signals. |
+
+`steps` must be at least the circuit's propagation depth, the longest chain of gates from an input to an output. Otherwise an output is read before the change reaches it. The default of 64 covers most small circuits. Deeper circuits need more. The exact depth of a combinational circuit is its `max_depth`, which `Circuit.settle()` and the REPL's `settle` command use. See [Settle](./python-api.mdx#settle) and the [simulation model](../concepts/simulation-model.mdx). Setting `steps` exactly lets a test pin down the timing, too.
+
+`steps` must be an integer from 0 to 2147483647.
+
+This project copies three modules from the repository's `examples/` and adds a vector table for the full adder:
+
+```console check continue
+$ cp ../examples/fullAdder.shdl ../examples/dLatch.shdl ../examples/srLatch.shdl src/
+$ echo '{"test_format": 1, "package": "logic", "cases": [{"component": "FullAdder", "steps": 4, "vectors": [{"in": {"A": 0, "B": 0, "Cin": 0}, "out": {"Sum": 0, "Cout": 0}}, {"in": {"A": 1, "B": 1, "Cin": 0}, "out": {"Sum": 0, "Cout": 1}}, {"in": {"A": 1, "B": 1, "Cin": 1}, "out": {"Sum": 1, "Cout": 1}}]}]}' > tests/adder.tests.json
+$ shdl test
+[adder.tests.json]
+  ok    FullAdder
+[logic.tests.json]
+  ok    Main
+
+2/2 cases green
+```
+
+## Op sequences
+
+An op sequence suits sequential logic: latches, flip-flops, counters, anything with feedback, where what matters is the order of events and how long you wait. It is a list of ops that `shdl test` replays in order on one circuit, with no implicit resets between them.
+
+| Op | Fields | Action |
+|---|---|---|
+| `reset` | `{"op": "reset"}` | `reset()`: back to the power-on state. |
+| `poke` | `{"op": "poke", "signal": S, "value": V}` | `poke(S, V)`: drive input port `S`. |
+| `step` | `{"op": "step", "cycles": N}` | `step(N)`: advance `N` cycles. `cycles` is optional and defaults to `1`. |
+| `expect` | `{"op": "expect", "signal": S, "value": V}` | `peek(S)` and compare with `V`. A mismatch is recorded and the replay continues. |
+
+Any other `op` value is recorded as `unknown op 'x'` and the replay continues. A missing field (`signal` or `value`, or `op` itself) is an error that ends the case, as described in [Failure messages](#failure-messages). Extra fields in an op are ignored.
+
+The case starts from a fresh circuit, so a leading `reset` is not needed. Write one anyway: it makes the sequence self-contained, and Circuit Circus package tests and conformance traces start that way.
+
+`expect` uses the same lazy-peek rule as the Python API: reading an output right after a `poke`, with no `step` in between, first evaluates one pending cycle. See [peek](./python-api.mdx#peek).
+
+This case checks that the D latch follows `D` while `EN` is high and holds its value once `EN` drops:
+
+```console check continue
+$ echo '{"test_format": 1, "package": "logic", "cases": [{"component": "DLatch", "ops": [{"op": "reset"}, {"op": "poke", "signal": "EN", "value": 1}, {"op": "poke", "signal": "D", "value": 1}, {"op": "step", "cycles": 6}, {"op": "expect", "signal": "Q", "value": 1}, {"op": "poke", "signal": "EN", "value": 0}, {"op": "poke", "signal": "D", "value": 0}, {"op": "step", "cycles": 6}, {"op": "expect", "signal": "Q", "value": 1}]}]}' > tests/latch.tests.json
+$ shdl test
+[adder.tests.json]
+  ok    FullAdder
+[latch.tests.json]
+  ok    DLatch
+[logic.tests.json]
+  ok    Main
+
+3/3 cases green
+```
+
+The same file, pretty-printed:
+
+```json title="tests/latch.tests.json"
+{
+  "test_format": 1,
+  "package": "logic",
+  "cases": [
+    {
+      "component": "DLatch",
+      "ops": [
+        {"op": "reset"},
+        {"op": "poke", "signal": "EN", "value": 1},
+        {"op": "poke", "signal": "D", "value": 1},
+        {"op": "step", "cycles": 6},
+        {"op": "expect", "signal": "Q", "value": 1},
+        {"op": "poke", "signal": "EN", "value": 0},
+        {"op": "poke", "signal": "D", "value": 0},
+        {"op": "step", "cycles": 6},
+        {"op": "expect", "signal": "Q", "value": 1}
+      ]
+    }
+  ]
+}
+```
+
+For a larger real example, see the `Cell` op sequences in [examples/GameOfLife/tests/gameoflife.tests.json](https://github.com/rafa-rrayes/SHDL/blob/master/examples/GameOfLife/tests/gameoflife.tests.json).
+
+## Values
+
+Values in `in`, `out`, `poke` and `expect` are JSON integers. Bit 0 of the value is bit 0 of the port (its least significant bit), so `{"A": 5}` on a 4-bit port `A` sets `A[1]` and `A[3]`. Each value goes through the same checks as a [`Circuit.poke`](./python-api.mdx#poke) in the default strict mode:
+
+| Value | Poked into a `w`-bit input | Compared with a `peek` result |
+|---|---|---|
+| `0` to `2^w - 1` | Accepted. | Matches the unsigned value read back. |
+| `-(2^(w-1))` to `-1` | Accepted, and stored as two's complement: `-1` on a 4-bit port is `15`. | Never matches: `peek` always returns the unsigned, zero-extended value. |
+| Anything outside `-(2^(w-1))` to `2^w - 1` | `PortValueError: value V does not fit w-bit port 'P' (allowed …)`. | Never matches. |
+| `true`, `false` | Accepted as `1` and `0`. | Match `1` and `0`. |
+| A string such as `"0x1"`, or a float | `TypeError: port 'P' value must be an int, got str`. | Never matches. |
+
+JSON has no hexadecimal or binary literals, so write values in decimal. Write expected values as unsigned numbers.
+
+A name that is not an input port cannot be poked, and `out` and `expect` can read only the component's input and output ports:
+
+```console check continue
+$ echo '{"cases": [{"component": "FullAdder", "steps": 4, "vectors": [{"in": {"A": -1, "B": true, "Cin": 0}, "out": {"Sum": 0, "Cout": true, "A": 1}}]}, {"component": "FullAdder", "steps": 4, "vectors": [{"in": {"A": 1, "B": 0, "Cin": 0}, "out": {"Sum": -1}}]}, {"component": "FullAdder", "steps": 4, "vectors": [{"in": {"A": "0x1"}, "out": {}}]}, {"component": "FullAdder", "steps": 4, "vectors": [{"in": {"Sum": 1}, "out": {}}]}, {"component": "FullAdder", "steps": 4, "vectors": [{"in": {"A": 1}, "out": {"ha1.Sum": 0}}]}, {"component": "FullAdder", "steps": -1, "vectors": [{"in": {"A": 1}, "out": {}}]}]}' > tests/values.tests.json
+$ shdl test FullAdder
+[adder.tests.json]
+  ok    FullAdder
+[values.tests.json]
+  ok    FullAdder
+  FAIL  FullAdder: in={'A': 1, 'B': 0, 'Cin': 0} Sum=1 (want -1)
+  FAIL  FullAdder: TypeError: port 'A' value must be an int, got str
+  FAIL  FullAdder: SignalNotFoundError: 'Sum' is an output port and cannot be poked; inputs: A, B, Cin
+  FAIL  FullAdder: SignalNotFoundError: unknown signal 'ha1.Sum'; inputs: A, B, Cin; outputs: Sum, Cout
+  FAIL  FullAdder: ValueError: cycles must be in 0..2147483647, got -1
+
+2/7 cases green
+$ rm tests/values.tests.json
+```
+
+The first case passes: `-1` on the 1-bit input `A` is stored as `1`, `true` is `1`, and `A` reads back as `1`.
+
+## Failure messages {/* #failure-messages */}
+
+A failing case prints `  FAIL  <component>: ` followed by the details below. When a case has several failures, they are joined with `; ` and only the first six are shown, with no count of the rest.
+
+| Detail | Cause |
+|---|---|
+| `in={'A': 1, 'B': 1} Sig=got (want w)` | A vector table output did not match. The `in` object of the failing vector is shown in Python notation. |
+| `Sig=got (want w)` | An `expect` op did not match. |
+| `unknown op 'x'` | An op sequence used an op other than `reset`, `poke`, `step` and `expect`. |
+| `Type: message` | An exception while running the case, for example `PortValueError`, `TypeError`, `ValueError` or `SignalNotFoundError` from the circuit, or `KeyError: 'vectors'` for a case with neither `ops` nor `vectors`. The case stops at the exception. |
+| `build error: <message>` | The component could not be compiled. The message is the flattener's diagnostic (with its `error[E0xxx]` code) or the compiler's error. See [Errors](../language-reference/errors.mdx). |
+
+When an exception stops a vector table, the mismatches recorded before it are still shown, followed by the exception. When an exception stops an op sequence, only the exception is shown: the `expect` mismatches before it are lost.
+
+This file collects the common mistakes:
+
+```console check continue
+$ echo '{"cases": [{"component": "FullAdder", "steps": 1, "vectors": [{"in": {"A": 1, "B": 1, "Cin": 1}, "out": {"Sum": 1, "Cout": 1}}]}, {"component": "FullAdder", "vectors": [{"in": {"A": 2}, "out": {}}]}, {"component": "FullAdder", "vectors": [{"in": {"A": "1"}, "out": {}}]}, {"component": "FullAdder"}, {"component": "DLatch", "ops": [{"op": "poke", "signal": "D", "value": 1}, {"op": "expect", "signal": "Q", "value": 1}, {"op": "wiggle"}]}, {"component": "DLatch", "ops": [{"op": "expect", "signal": "Q", "value": 1}, {"op": "poke", "signal": "Nope", "value": 1}]}, {"component": "Adder"}, {"steps": 8}]}' > tests/broken.tests.json
+$ shdl test 2>&1; echo "exit status: $?"
+[adder.tests.json]
+  ok    FullAdder
+[broken.tests.json]
+  FAIL  FullAdder: in={'A': 1, 'B': 1, 'Cin': 1} Cout=0 (want 1)
+  FAIL  FullAdder: PortValueError: value 2 does not fit 1-bit port 'A' (allowed -1..1); use strict=False for the ABI's masking semantics
+  FAIL  FullAdder: TypeError: port 'A' value must be an int, got str
+  FAIL  FullAdder: KeyError: 'vectors'
+  FAIL  DLatch: Q=0 (want 1); unknown op 'wiggle'
+  FAIL  DLatch: SignalNotFoundError: unknown input port 'Nope'; inputs: D, EN
+  FAIL  Adder: build error: logic.shdl:1:1: error[E0001]: --top component 'Adder' not found in module 'logic' (has: Main)
+  FAIL  cases[7]: missing 'component'
+[latch.tests.json]
+  ok    DLatch
+[logic.tests.json]
+  ok    Main
+
+3/11 cases green
+exit status: 1
+```
+
+Line by line:
+
+| Case | What went wrong |
+|---|---|
+| 0 | One step is not enough for the carry to reach `Cout` (see [Vector tables](#vector-tables)). `Sum` was already right, so only `Cout` is reported. |
+| 1 | `2` does not fit the 1-bit input `A`. |
+| 2 | `"1"` is a string, not an integer. |
+| 3 | Neither `ops` nor `vectors`. |
+| 4 | `EN` is never raised, so the latch ignores `D` and `Q` stays 0. The replay continues and reports the unknown op too. |
+| 5 | The `expect` failure (`Q` is 0) is lost, because the next op raised an exception. |
+| 6 | No project module defines `Adder`, so the case falls back to the main module and the flattener reports E0001. |
+| 7 | No `component`. |
+
+### File-level errors {/* #file-level-errors */}
+
+These stop `shdl test` with `shdl: error: <message>` and exit status `1`:
+
+| Message | Cause |
+|---|---|
+| `no test files (tests/*.tests.json) under <project root>` | `tests/` is missing or holds no `*.tests.json` file. |
+| `<file>: invalid JSON: <detail>` | A test file is not valid JSON, for example `invalid JSON: Expecting value: line 2 column 1 (char 12)`. Files are read one at a time, so the files sorted before it have already run and printed their results. No later file runs and no summary is printed. |
+| `test files exist but contain no cases` | No file had any cases to run. |
+| `no test cases for component(s): X, Y` | A component named on the command line has no case in any file. It is reported after the other cases run, instead of the summary line. |
+
+The preflight errors of [`shdl build`](./shdl-cli.mdx#preflight) (a missing or stale lock, a package not vendored) and the `shdl.toml` errors on [Project manifest and lockfile](./project-manifest.mdx#shdl-toml) apply as well.
+
+```console check continue
+$ rm tests/broken.tests.json && mv tests tests.off
+$ shdl test 2>&1; echo "exit status: $?"
+shdl: error: no test files (tests/*.tests.json) under <scratch>/logic
+exit status: 1
+$ mv tests.off tests
+```
+
+## Selecting components {/* #selecting-components */}
+
+Name one or more components to run only their cases. Files without a matching case are skipped silently, header included:
+
+```console check continue
+$ shdl test DLatch
+[latch.tests.json]
+  ok    DLatch
+
+1/1 cases green
+$ shdl test DLatch Nope
+[latch.tests.json]
+  ok    DLatch
+shdl: error: no test cases for component(s): Nope
+```
+
+The second command exits with status `1`. The match is on the case's `component` field, exact and case-sensitive.
+
+## Which components a case can test {/* #which-components */}
+
+A case can test any component defined in your project, not just the main module's top component. For a case's `component`, `shdl test` picks the module to compile like this:
+
+1. If the main module defines the component, use the main module.
+2. Otherwise, search every other `*.shdl` file under the main module's directory and under `src/`, skipping `shdl_modules/` and `build/`, for a line that starts with `component <name>` or `top component <name>`. Use the file that defines it.
+3. If more than one file defines it, the case fails with `build error: component 'X' is defined in more than one project module: <files>`.
+4. If none does, compile the main module anyway, and let the flattener report that the component is not found.
+
+It then compiles that module with the component as the top. The component's module is compiled with the full include path, so its own `use` statements work as they do in a build.
+
+That is why the cases above can test `FullAdder`, `DLatch`, and even `HalfAdder`, a component that is not marked `top` in `src/fullAdder.shdl`:
+
+```console check continue
+$ echo '{"cases": [{"component": "HalfAdder", "steps": 2, "vectors": [{"in": {"A": 1, "B": 1}, "out": {"Sum": 0, "Carry": 1}}]}]}' > tests/half.tests.json
+$ shdl test HalfAdder
+[half.tests.json]
+  ok    HalfAdder
+
+1/1 cases green
+$ cp src/fullAdder.shdl src/adders.shdl
+$ shdl test HalfAdder
+[half.tests.json]
+  FAIL  HalfAdder: build error: component 'HalfAdder' is defined in more than one project module: <scratch>/logic/src/adders.shdl, <scratch>/logic/src/fullAdder.shdl
+
+0/1 cases green
+$ rm src/adders.shdl tests/half.tests.json
+```
+
+A component that exists only in a dependency, whether a registry package or a path dependency, cannot be tested directly. The case falls back to the main module and fails with `--top component 'X' not found in module '<main>'`. To test it, instantiate it in a component of your own and test that. Packages carry their own tests, which [`shdl verify-package`](./packages.mdx) runs.
+
+## Relationship to Circuit Circus package tests {/* #circuit-circus */}
+
+The format is the test format of Circuit Circus packages, defined in [MANIFEST_FORMAT.md §3](https://github.com/rafa-rrayes/CCircus/blob/main/MANIFEST_FORMAT.md). One runner implements it for both `shdl test` and [`shdl verify-package`](./packages.mdx), so a project's tests keep working when the project becomes a package. The runner is more lenient than the spec's wording in a few places:
+
+| MANIFEST_FORMAT §3 says | What the runner does |
+|---|---|
+| Top-level `test_format: 1` and `package`. | Neither is read or checked. |
+| Vector table: "Reset, poke all inputs, advance `steps`…". | Pokes only the inputs listed in `in`. The others stay at 0 after the reset. |
+| "…then check every output". | Checks only the ports listed in `out`. It may also list input ports. An empty `out`, or an empty `vectors` array, passes. |
+| `steps` defaults to 64. | The same. |
+| Op sequence: `reset`, `poke`, `step`, `expect`, "the same op vocabulary as the conformance suite's traces". | The same four ops. Unlike a [conformance trace](./conformance.mdx), `step` may omit `cycles` (default 1), the first op need not be `reset`, extra keys are allowed, and an unknown op is a test failure rather than a schema error. |
+| "Values are unsigned integers, bit 0 = the port's LSB. Outputs read back zero-extended." | Pokes accept unsigned values up to `2^w - 1`, and also negative values down to `-(2^(w-1))` (two's complement) and `true`/`false`. A value that does not fit is an error, where conformance traces instead mask it. Expected values must be unsigned. |
+
+## See also
+
+- [`shdl test`](./shdl-cli.mdx#shdl-test) in the command reference.
+- [Python API](./python-api.mdx): `poke`, `peek`, `step`, `reset` and `settle`, which the runner calls.
+- [Simulation model](../concepts/simulation-model.mdx): unit delays, propagation depth, and why `steps` matters.
+- [Sequential logic](../language-reference/sequential-logic.mdx): feedback and `init`, the things op sequences test.
+- [Packages and Circuit Circus](./packages.mdx): package tests and `shdl verify-package`.
+- [shdl_cli.md, Testing](/specs/shdl_cli#testing): the spec's summary.

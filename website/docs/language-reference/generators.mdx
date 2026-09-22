@@ -1,0 +1,466 @@
+---
+title: Generators and conditionals
+sidebar_label: Generators
+description: Compile-time loops that repeat structure, the range forms they iterate over, name templates, integer arithmetic, and when/else conditionals.
+---
+
+A generator is a loop that runs while the design is flattened: it writes its body out once for each value in a range, with the loop variable replaced by that value. A `when` conditional is its companion: it keeps or drops a group of items depending on a compile-time condition. Neither produces gates or runtime behavior of its own; they only produce more instances and connections. This page covers the generator syntax, the range forms, name templates, the arithmetic available in expressions, the two contexts a generator can appear in, and `when`/`else`. Normative text: [shdl.md §7](/specs/shdl#7-generators).
+
+## Syntax
+
+```ebnf
+Generator   = ">" IDENT "[" RangeList "]" "{" { Item } "}" ;
+RangeList   = RangeItem { "," RangeItem } ;
+RangeItem   = Arith                  (* a count, or a single value in a list *)
+            | Arith ":" Arith        (* a to b *)
+            | ":" Arith              (* 1 to b *)
+            | Arith ":" ;            (* a to the governing signal's width *)
+
+Conditional = "when" "{" BoolExpr "}" "{" { Item } "}"
+              [ "else" "{" { Item } "}" ] ;
+```
+
+`>` at the start of an item begins a generator, and the identifier after it is the loop variable. `Item` depends on where the generator is written: declarations in the component body, connections inside `connect` ([below](#contexts)).
+
+## A first generator
+
+The usual pattern is one generator in the body that declares a row of instances, and a matching generator in `connect` that wires them:
+
+```shdl title="invert4.shdl"
+component Invert4(A[4]) -> (Y[4]) {
+    >i[4]{ n{i}: NOT; }                  # declares n1, n2, n3, n4
+
+    connect {
+        >i[4]{
+            A[i]   -> n{i}.A;
+            n{i}.O -> Y[i];
+        }
+    }
+}
+```
+
+The flattened result is exactly what you would have written by hand:
+
+```console check
+$ shdl-flatten invert4.shdl -o invert4.base.shdl
+$ sed -n '1,/^}/p' invert4.base.shdl
+component Invert4(A_1_, A_2_, A_3_, A_4_) -> (Y_1_, Y_2_, Y_3_, Y_4_) {
+    n1: NOT;
+    n2: NOT;
+    n3: NOT;
+    n4: NOT;
+
+    connect {
+        A_1_ -> n1.A;
+        n1.O -> Y_1_;
+        A_2_ -> n2.A;
+        n2.O -> Y_2_;
+        A_3_ -> n3.A;
+        n3.O -> Y_3_;
+        A_4_ -> n4.A;
+        n4.O -> Y_4_;
+    }
+}
+```
+
+Two different syntaxes use the loop variable here. In `n{i}` the braces splice the value into a name (a [name template](#name-templates)); in `A[i]` the variable is simply an index expression. The two generators are independent loops that happen to share a variable name.
+
+## Ranges {/* #ranges */}
+
+| Range | Values | Rule |
+|---|---|---|
+| `[N]` | 1, 2, …, N | A count. Only when it is the only item; needs N ≥ 1 |
+| `[a:b]` | a, a + 1, …, b | Both ends included; needs 0 ≤ a ≤ b |
+| `[:b]` | 1, 2, …, b | Needs b ≥ 1 |
+| `[a:]` | a, …, W | W is the width of the signals the body indexes ([open-ended ranges](#open-ended-ranges)) |
+| `[1:2, 4, 5]` | 1, 2, 4, 5 | A list: items run left to right. Here a bare number is one value, not a count, and may be 0 |
+
+Every bound is an [arithmetic expression](#arithmetic) over literals, the component's parameters and the variables of enclosing generators, so `>i[N]`, `>i[2:N]`, `>i[N / 2 + 1:N]` and `>j[i]` are all valid. The bounds are evaluated before the loop variable exists, in the enclosing scope.
+
+A list is useful for skipping a bit. Here bits 1, 2, 4 and 5 pass straight through and bit 3 is inverted:
+
+```shdl title="flipBit3.shdl"
+component FlipBit3(A[5]) -> (Y[5]) {
+    n: NOT;
+    connect {
+        >i[1:2, 4, 5]{ A[i] -> Y[i]; }
+        A[3] -> n.A;
+        n.O  -> Y[3];
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("flipBit3.shdl") as c:
+    c["A"] = 0b00000
+    c.settle()
+    print(f"{c['Y']:05b}")
+```
+
+```text title="Output"
+00100
+```
+
+### Range errors
+
+All range errors are `E0601`, except the open-ended ones described in the next section:
+
+| Range | Message |
+|---|---|
+| `[0]` | `range [0] is empty; a count range needs N >= 1` |
+| `[:0]` | `range [:0] is empty; the bound must be >= 1` |
+| `[4:1]` | `range [4:1] is empty or ill-ordered` |
+| `[0 - 1:2]` | `range bound -1 is negative` |
+| `[2000000]` | `count range [2000000] would iterate 2000000 times, exceeding the 1000000 instance-count cap; narrow the range` |
+
+Each item of a range may produce at most 1,000,000 values. The same cap applies to [replication counts](./signals.mdx#replication).
+
+A list is iterated exactly as written, **without removing duplicates**. `>i[1:4, 2:6]` runs the body for 2, 3 and 4 twice. There is no special check for this; the ordinary rules catch the result, typically as `E0501 'Y[2]' is driven more than once` ([Connections](./connections.mdx#single-driver)) or as an `E0301` duplicate instance name. Keep the items of a list disjoint.
+
+### Open-ended ranges {/* #open-ended-ranges */}
+
+A range item `[a:]` has no upper bound of its own. The flattener takes it from the signals in the body: every signal whose index mentions the loop variable is a *governing signal*, and the bound is its full width. A shift is the classic use:
+
+```shdl title="shiftLeft1.shdl"
+# Y = A << 1: bit 8 of A is dropped, bit 1 of Y is 0.
+component ShiftLeft1(A[8]) -> (Y[8]) {
+    ZERO = 0;
+    connect {
+        ZERO -> Y[1];
+        >i[2:]{ A[i - 1] -> Y[i]; }      # i runs 2..8, the width of A and Y
+    }
+}
+```
+
+```console check
+$ shdl-flatten shiftLeft1.shdl -o shiftLeft1.base.shdl
+$ sed -n '/^    connect/,/^    }/p' shiftLeft1.base.shdl
+    connect {
+        ZERO_bit1.O -> Y_1_;
+        A_1_ -> Y_2_;
+        A_2_ -> Y_3_;
+        A_3_ -> Y_4_;
+        A_4_ -> Y_5_;
+        A_5_ -> Y_6_;
+        A_6_ -> Y_7_;
+        A_7_ -> Y_8_;
+    }
+```
+
+The rules:
+
+- **Offsets do not move the bound.** The bound is the width of the signal, not the largest value that keeps the index in range. Above, `A[i - 1]` would still be in range at `i = 9`, but the loop stops at 8 because `A` and `Y` are 8 bits wide.
+- **All governing signals must have the same width.** Several signals of one width are fine. Different widths are `E0602 ambiguous open-ended range bound: signals of widths [4, 8] are indexed by 'i'; give an explicit bound`. A 1-bit signal indexed by the variable counts as width 1.
+- **Both branches of a `when` are scanned**, before any condition is evaluated, so a signal in a branch that will be dropped can still make the bound ambiguous. So are nested generators, unless they reuse the same variable name.
+- **There must be a governing signal.** A body that indexes nothing with the variable is `E0602 cannot resolve open-ended range bound: no signal in the generator body is indexed by 'i'`. In the component body, where there are only declarations, an open range is always `E0602 open-ended range '[a:]' has no governing signal in declaration context; give an explicit bound`.
+- **The lower bound may be an expression**, and must not be past the width: `>i[3:]` over 2-bit signals is `E0601 open-ended range resolves to [3:2], which is empty`.
+- An open item may appear anywhere in a list: `[1, 3:, 2]` over 6-bit signals runs 1, 3, 4, 5, 6, 2.
+
+A common way to hit the width rule is to write into a narrower output:
+
+```shdl error=E0602 title="upperHalf.shdl"
+component UpperHalf<N = 8>(A[N]) -> (Y[N / 2]) {
+    connect { >i[N / 2 + 1:]{ A[i] -> Y[i - N / 2]; } }
+}
+```
+
+```console check
+$ shdl-flatten upperHalf.shdl
+upperHalf.shdl:2:18: error[E0602]: ambiguous open-ended range bound: signals of widths [4, 8] are indexed by 'i'; give an explicit bound
+```
+
+`A` is 8 bits and `Y` is 4, so write the bound: `>i[N / 2 + 1:N]`. Inside a parameterized component an explicit bound over the parameter is usually clearer anyway.
+
+## Name templates {/* #name-templates */}
+
+Braces inside a name splice in the value of an expression, written in decimal. A template can hold several substitutions separated by ordinary name characters:
+
+| Template | With | Name |
+|---|---|---|
+| `n{i}` | `i = 3` | `n3` |
+| `fa{i - 1}` | `i = 3` | `fa2` |
+| `pp{i}_{j}` | `i = 2`, `j = 3` | `pp2_3` |
+| `c{i}x{j}` | `i = 1`, `j = 2` | `c1x2` |
+| `o{ {i + 1} / 2 }` | `i = 5` | `o3` |
+| `fa{N}` | parameter `N = 4` | `fa4` |
+
+Templates work in instance declarations, in instance references on either side of `->` (`fa{i}.Cout`), and in port names (`Y{i}`, `t.O{i}` for ports named `Y1`, `O2`, ...). Parameters can be substituted anywhere in a component, not only inside a generator. A template cannot name a component type (`s{i}: Stage{i};` is `E0201 expected ';', found '{'`), a constant (`E0201 a constant name must be a plain identifier (no substitutions)`), a parameter or a loop variable.
+
+Nested generators produce two-dimensional structure. The inner loop runs fully for each value of the outer one:
+
+```shdl title="partialProducts.shdl"
+# Every pairwise AND of two 3-bit operands: the partial products of a multiplier.
+component PartialProducts(A[3], B[3]) -> (P[9]) {
+    >i[3]{ >j[3]{ pp{i}_{j}: AND; } }
+
+    connect {
+        >i[3]{
+            >j[3]{
+                A[i] -> pp{i}_{j}.A;
+                B[j] -> pp{i}_{j}.B;
+                pp{i}_{j}.O -> P[3 * i + j - 3];
+            }
+        }
+    }
+}
+```
+
+```console check
+$ shdl-flatten partialProducts.shdl -o partialProducts.base.shdl
+$ grep ': AND' partialProducts.base.shdl
+    pp1_1: AND;
+    pp1_2: AND;
+    pp1_3: AND;
+    pp2_1: AND;
+    pp2_2: AND;
+    pp2_3: AND;
+    pp3_1: AND;
+    pp3_2: AND;
+    pp3_3: AND;
+```
+
+Rules for templates:
+
+- A template starts with an ordinary identifier. After each `}` it may continue with letters, digits and underscores, but the continuation must itself start with a letter or underscore: `g{i}1` is `E0201 expected ':' (instance) or '=' (constant) after name, found '1'`. Write `g{i}_1`.
+- Put a separator between two substitutions. `g{i}{j}` is legal, but `i = 1, j = 11` and `i = 11, j = 1` both give `g111`, which is `E0301`. `g{i}_{j}` cannot collide.
+- The [reserved-name rules](./lexical-elements.mdx#reserved-names) are checked after substitution, so `g_{i}_` fails with `E0304` (`g_1_` looks like a bus bit).
+- A generated name must not collide with any other name in the component (`E0301 duplicate name 'g1' in component 'G'`, reported without a second position).
+
+:::warning[Keep template values non-negative]
+
+A substitution that evaluates to a negative number puts a minus sign in the name: `g{i - 2}` over `>i[2]` produces `g-1` and `g0`. `shdl-flatten` does not reject this, but the output is not valid Base SHDL, so `shdlc` and `Circuit` refuse it (`expected ':' (instance) or '=' (constant) after name, found '-'` from `shdlc`, `CompileError: invalid Base SHDL: expected ':', got '-'` from `Circuit`). Shift the range instead, for example `g{i}` over `>i[0:1]`.
+
+:::
+
+## Arithmetic {/* #arithmetic */}
+
+The same integer expression language is used everywhere SHDL needs a compile-time number: in name templates, indices and slice bounds, range bounds, port and constant widths, instance arguments, replication counts, and the two sides of a `when` comparison.
+
+| Element | Details |
+|---|---|
+| Operands | Numeric literals (`8`, `0xFF`, `0b101`), parameters in scope, generator variables in scope |
+| Operators | `+`, `-`, `*`, `/` |
+| Precedence | `*` and `/` bind tighter than `+` and `-`; all four are left-associative: `2 + 3 * 2 - 8 / 4 / 2` is 7 |
+| Division | Integer division that truncates toward zero, as in C: `{0 - 7} / 2` is -3 |
+| Grouping | Braces: `{ {i + 1} * 2 }`. Parentheses are not accepted |
+| Negative values | Allowed in intermediate results, but there is no unary minus; write `0 - k` |
+
+What is missing matters as much:
+
+- No unary minus: `-1 + N` is `E0201 expected a number, identifier, or '{expr}', found '-'`.
+- No parentheses for grouping: `A[(N)]` is `E0201` ([Signals](./signals.mdx#index-expressions)).
+- No `%`, and no bitwise or logical operators outside `when` (`E0101 unexpected character '%'`). For "i is odd", write `i - i / 2 * 2 == 1`.
+- A name that is not a parameter or generator variable in scope is `E0603 'k' is not a parameter or generator variable in scope`. Ports and constants are not numbers and cannot appear in expressions.
+- Division by zero is `E0605 division by zero`.
+
+In an index, braces around the whole expression are optional: `Y[{2 * i}]` and `Y[2 * i]` are the same. In a name they are the substitution itself, so `n{i}` needs them.
+
+Arithmetic in indices lets one loop address two bits per iteration. This interleaves two 4-bit buses:
+
+```shdl title="interleave.shdl"
+component Interleave(A[4], B[4]) -> (Y[8]) {
+    connect {
+        >i[4]{
+            A[i] -> Y[2 * i - 1];     # odd bits 1, 3, 5, 7
+            B[i] -> Y[2 * i];         # even bits 2, 4, 6, 8
+        }
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("interleave.shdl") as c:
+    c["A"], c["B"] = 0b1111, 0b0000
+    print(f"{c['Y']:08b}")
+```
+
+```text title="Output"
+01010101
+```
+
+## Declaration context and connect context {/* #contexts */}
+
+Where a generator or `when` is written decides what its body may hold:
+
+| Written in | Body may hold | Anything else |
+|---|---|---|
+| The component body | Instance declarations, nested generators, `when` | A connection is `E0201`, for example `expected '=', found '->'` |
+| The `connect` block | Connections, nested generators, `when` | A declaration is `E0201 expected '->', found ':'` |
+| The `init` block | Not allowed | `E0201 expected identifier, found '>'` |
+
+A constant declaration is also allowed in the body context, but its name cannot be a template, so a generator that runs more than once declares the same constant twice (`E0301`). Declare constants outside generators.
+
+## Scope and shadowing
+
+- The loop variable exists only inside the generator's body. Using it after the closing brace is `E0603`.
+- Inner generators see the variables of outer ones, and may use them in their own range: `>i[3]{ >j[i]{ g{i}_{j}: NOT; } }` declares 1 + 2 + 3 = 6 gates.
+- A loop variable may reuse the name of a parameter or of an outer loop variable. Inside the body the new variable hides the old one, but the range itself is evaluated before the new variable exists: in `>N[N]{ ... }` the range uses the parameter `N` and the body sees the loop variable. This is legal but hard to read.
+- Loop variable names follow the reserved-name rules: `>i_1_[2]` is `E0304 generator variable 'i_1_' matches the reserved bus-expansion pattern '..._<digits>_'`.
+
+## Conditionals {/* #conditionals */}
+
+`when {condition} { ... }` keeps its body if the condition is true and drops it otherwise. An optional `else { ... }` is kept when the condition is false. Like a generator, it works in the component body (to choose which instances exist) and in `connect` (to choose connections), and the two nest freely.
+
+The most common use is to handle the first or last iteration of a loop inside the loop. In this ripple-carry adder, stage 1 takes the external carry-in and every other stage takes the carry-out of the stage before it:
+
+```shdl title="adder.shdl"
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  x2: XOR;
+    a1: AND;  a2: AND;
+    o1: OR;
+    connect {
+        A -> x1.A;     B -> x1.B;
+        x1.O -> x2.A;  Cin -> x2.B;   x2.O -> Sum;
+        A -> a1.A;     B -> a1.B;
+        x1.O -> a2.A;  Cin -> a2.B;
+        a1.O -> o1.A;  a2.O -> o1.B;  o1.O -> Cout;
+    }
+}
+
+top component Adder<N = 4>(A[N], B[N], Cin) -> (Sum[N], Cout) {
+    >i[N]{ fa{i}: FullAdder; }
+
+    connect {
+        >i[N]{
+            A[i] -> fa{i}.A;
+            B[i] -> fa{i}.B;
+            fa{i}.Sum -> Sum[i];
+            when {i == 1} { Cin          -> fa{i}.Cin; }    # first stage
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }    # every other stage
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("adder.shdl") as c:
+    for a, b, cin in [(9, 7, 0), (5, 6, 1), (15, 15, 1)]:
+        c["A"], c["B"], c["Cin"] = a, b, cin
+        c.settle()
+        print(f"{a} + {b} + {cin} -> Sum={c['Sum']} Cout={c['Cout']}")
+```
+
+```text title="Output"
+9 + 7 + 0 -> Sum=0 Cout=1
+5 + 6 + 1 -> Sum=12 Cout=0
+15 + 15 + 1 -> Sum=15 Cout=1
+```
+
+For a conditional in the component body driven by a parameter, see [Parameters that select structure](./parameters.mdx#parameters-that-select-structure).
+
+### Conditions
+
+```ebnf
+BoolExpr = AndExpr { "||" AndExpr } ;
+AndExpr  = CmpExpr { "&&" CmpExpr } ;
+CmpExpr  = Arith RelOp Arith | "(" BoolExpr ")" ;
+RelOp    = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
+```
+
+A condition is one or more comparisons between two [arithmetic expressions](#arithmetic), joined with `&&` and `||`. `&&` binds tighter than `||`, and both stop evaluating as soon as the result is known, so `K != 0 && N / K > 2` never divides by zero. Parentheses group whole comparisons: `(N > 1 && N != 2) || N == 0`. These operators exist only inside `when` conditions and never become gates.
+
+| You might write | Result | Write instead |
+|---|---|---|
+| `when {N}` | `E0201 expected a relational operator, found '}'` | `when {N != 0}` |
+| `when {1 < N < 5}` | `E0201 expected '}', found '<'` | `when {1 < N && N < 5}` |
+| `when {(i) == 1}` | `E0201 expected a relational operator, found ')'` | `when {i == 1}`; parentheses enclose comparisons, not operands |
+| `when {!(N == 1)}` | `E0101 unexpected character '!'` | `when {N != 1}` |
+| `when {i % 2 == 1}` | `E0101 unexpected character '%'` | `when {i - i / 2 * 2 == 1}` |
+| `else when {...}` | `E0201 expected '{', found 'when'` | Nest: `else { when {...} {...} else {...} }` |
+
+There is no `else when`; a chain of cases is a `when` nested in an `else`:
+
+```shdl title="shifter.shdl"
+# MODE 0 passes A through, MODE 1 shifts left by one, any other MODE shifts right by one.
+component Shift<N = 4, MODE = 0>(A[N]) -> (Y[N]) {
+    ZERO = 0;
+    connect {
+        when {MODE == 0} { A -> Y; }
+        else {
+            when {MODE == 1} { {A[:N - 1], ZERO} -> Y; }
+            else             { {ZERO, A[2:]}     -> Y; }
+        }
+    }
+}
+
+top component Shifter(A[4]) -> (Same[4], Left[4], Right[4]) {
+    s0: Shift;  s1: Shift<MODE = 1>;  s2: Shift<MODE = 2>;
+    connect {
+        A -> s0.A;     A -> s1.A;      A -> s2.A;
+        s0.Y -> Same;  s1.Y -> Left;   s2.Y -> Right;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("shifter.shdl") as c:
+    c["A"] = 0b0110
+    c.settle()
+    print(f"Same={c['Same']:04b} Left={c['Left']:04b} Right={c['Right']:04b}")
+```
+
+```text title="Output"
+Same=0110 Left=1100 Right=0011
+```
+
+### What an untaken branch still has to satisfy
+
+Only the chosen branch is expanded. The other branch creates no instances, its connections are never checked (they may name instances that do not exist in this specialization, or be out of range), and instances in it are not specialized, so `p: Pass<M - 1>;` in an untaken branch cannot cause `E0906`. Three checks, however, look at the source of both branches regardless of the condition:
+
+- **Names.** Both branches declare into the same component namespace. Declaring `g` in the `when` branch and `g` again in the `else` branch is `E0301`, even though only one of them can ever exist. Give them different names.
+- **Instance types.** Every type name must exist: an unknown type in an untaken branch is still `E0306 unknown component type 'NOSUCH'`.
+- **Open-ended ranges.** Signals in both branches take part in the governing-width scan ([above](#open-ended-ranges)).
+
+```shdl error=E0301 title="whenNames.shdl"
+component Pick<INVERT = 0>(A) -> (Y) {
+    when {INVERT == 1} { g: NOT; }
+    else               { g: AND; }
+    connect {
+        A -> g.A;  g.O -> Y;
+        when {INVERT == 0} { A -> g.B; }
+    }
+}
+```
+
+```console check
+$ shdl-flatten whenNames.shdl
+whenNames.shdl:3:26: error[E0301]: duplicate name 'g' in component 'Pick' (first declared at whenNames.shdl:2:26)
+```
+
+## Generators and slices
+
+A slice and a generator can often express the same wiring. `A[2:5] -> Y[1:4];` and `>i[2:5]{ A[i] -> Y[i - 1]; }` produce identical connections. Use slices for contiguous ranges and generators for everything else:
+
+| Need | Slice `A[a:b]` | Generator `>i[...]` |
+|---|---|---|
+| Contiguous bits in a connection | Yes | Yes |
+| Create instances | No | Yes |
+| Per-bit arithmetic such as `Y[2 * i]` | No | Yes |
+| Non-contiguous bits, such as `[1:2, 4, 5]` | No | Yes |
+| Nesting, per-bit conditions | No | Yes |
+
+Generators are fully unrolled when the design is flattened, so a large generator makes a large netlist. Each range item is capped at 1,000,000 values to stop a mistyped bound from exhausting memory.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0101` | `!` or `%` in an expression or condition |
+| `E0201` | A malformed range, template or condition; an item in the wrong context; a generator in `init` |
+| `E0301` | Two generated names that collide, a constant declared in a repeating generator, or the same name in both branches of a `when` |
+| `E0304` | A generated name or loop variable that matches the reserved `_<digits>_` pattern |
+| `E0306` | An unknown instance type, in either branch of a `when` |
+| `E0501` | Overlapping list items that drive the same bit twice |
+| `E0601` | An empty, ill-ordered or negative range, or one with more than 1,000,000 values |
+| `E0602` | An open-ended range with no governing signal, with governing signals of different widths, or in the component body |
+| `E0603` | A name in an expression that is not a parameter or loop variable in scope |
+| `E0605` | Division by zero in an expression |

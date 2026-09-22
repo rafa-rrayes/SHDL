@@ -1,0 +1,348 @@
+---
+title: ALU
+sidebar_label: ALU
+description: A parameterized 8-bit ALU that combines bitwise lanes, an adder, a 4-way mux and a Zero-flag reduction chain, with an exhaustive check of all four operations and a trace of the Zero flag settling.
+---
+
+An arithmetic-logic unit (ALU) computes one of several operations on two
+operands, chosen by an opcode. `ALU<N>` in `examples/` is the capstone of the
+small examples: it reuses the [adder](./8-bit-adder.mdx) and the
+[multiplexer](./multiplexer.mdx), declares its logic lanes with generators, and
+computes a `Zero` flag with the same reduction chain as the
+[comparator](./comparator.mdx).
+
+## What it computes
+
+The operations, from the docstring of the source:
+
+| `Op` | `R` |
+|---|---|
+| `0b00` | `A AND B` |
+| `0b01` | `A OR B` |
+| `0b10` | `A XOR B` |
+| `0b11` | `A + B` (modulo 2<sup>N</sup>) |
+
+Two flags come with the result:
+
+- `Cout` is the adder's carry out. It is computed for every `Op`, but it is only
+  meaningful when `Op = 0b11`.
+- `Zero` is 1 when `R` is 0, for every `Op`.
+
+## Source
+
+[`examples/alu.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/alu.shdl):
+
+```shdl title="alu.shdl"
+"""
+15 -- ALU: a parameterized arithmetic-logic unit (capstone).
+
+Combines most of the language in one design: imports, a parameter
+passed down the hierarchy, generators for the bitwise lanes, a
+constant for the adder carry-in, a 4-way mux on the result, `when`
+boundary folding, and an OR-reduction for the Zero flag.
+
+    Op = 0b00  ->  R = A AND B
+    Op = 0b01  ->  R = A OR  B
+    Op = 0b10  ->  R = A XOR B
+    Op = 0b11  ->  R = A +   B
+
+Cout is the adder's carry and is meaningful only when Op = 0b11.
+Requires N >= 2 (the Zero-flag reduction chain).
+"""
+
+use adderN::{AdderN};
+use muxN::{Mux4N};
+
+top component ALU<N = 8>(A[N], B[N], Op[2]) -> (R[N], Cout, Zero) {
+    ZERO = 0;
+
+    "Bitwise lanes: one AND, OR, XOR cell per bit."
+    >i[N]{ lAnd{i}: AND;  lOr{i}: OR;  lXor{i}: XOR; }
+
+    add: AdderN<N>;       # arithmetic lane
+    sel: Mux4N<N>;        # result select
+
+    >i[2:N]{ red{i}: OR; }     # OR-reduction chain for the Zero flag
+    zInv: NOT;
+
+    connect {
+        # --- bitwise lanes ---
+        >i[N]{
+            A[{i}] -> lAnd{i}.A;   B[{i}] -> lAnd{i}.B;
+            A[{i}] -> lOr{i}.A;    B[{i}] -> lOr{i}.B;
+            A[{i}] -> lXor{i}.A;   B[{i}] -> lXor{i}.B;
+
+            lAnd{i}.O -> sel.D0[{i}];
+            lOr{i}.O  -> sel.D1[{i}];
+            lXor{i}.O -> sel.D2[{i}];
+        }
+
+        # --- arithmetic lane ---
+        A    -> add.A;
+        B    -> add.B;
+        ZERO -> add.Cin;
+        add.Sum  -> sel.D3;
+        add.Cout -> Cout;
+
+        # --- result select ---
+        Op    -> sel.S;
+        sel.O -> R;
+
+        # --- Zero flag: NOT(OR-reduce over the result) ---
+        >i[2:N]{
+            when {i == 2} { sel.O[1]   -> red{i}.A; }
+            else          { red{i-1}.O -> red{i}.A; }
+            sel.O[{i}] -> red{i}.B;
+        }
+        red{N}.O -> zInv.A;
+        zInv.O   -> Zero;
+    }
+}
+```
+
+Line by line:
+
+- **`use adderN::{AdderN};`** and **`use muxN::{Mux4N};`** import two
+  parameterized components from sibling files. See
+  [Imports](../language-reference/imports.mdx).
+- **`ZERO = 0;`** declares a constant. Driving `add.Cin` from it ties the
+  adder's carry-in low. The flattener turns it into one `__GND__` power pin,
+  `ZERO_bit1`. See [Constants](../language-reference/constants.mdx).
+- **`"Bitwise lanes: ..."`** is a string on a line of its own. SHDL has no
+  string values, so a string that stands alone is a comment. See
+  [Lexical elements](../language-reference/lexical-elements.mdx).
+- **`>i[N]{ lAnd{i}: AND;  lOr{i}: OR;  lXor{i}: XOR; }`** declares the three
+  bitwise lanes, one gate of each kind per bit. All three are always
+  computing; the mux only chooses which result reaches `R`. See
+  [Generators](../language-reference/generators.mdx).
+- **`add: AdderN<N>;`** and **`sel: Mux4N<N>;`** pass the ALU's own parameter
+  down to its children, so one `N` sets the width of the whole design. See
+  [Parameters](../language-reference/parameters.mdx) and
+  [shdl.md §5.3](/specs/shdl#53-parameter-arguments).
+- **`lAnd{i}.O -> sel.D0[{i}];`** drives one bit of the mux's `D0` bus per
+  iteration. The lane that feeds `D0` answers `Op = 0b00`, and so on, which is
+  how the opcode table above comes out of the `Mux4N` select order.
+- **`add.Sum -> sel.D3;`** connects a whole bus in one statement.
+- **`>i[2:N]{ when {i == 2} { ... } else { ... } ... }`** is the reduction
+  chain: `redK` holds the OR of `R[1]` to `R[K]`, and `zInv` inverts the last
+  link, so `Zero = NOT (R[1] OR ... OR R[N])`. The `when` folds the head of the
+  chain into the loop, as in the comparator. See
+  [shdl.md §7.7.1](/specs/shdl#771-folding-boundary-cases-into-a-loop).
+
+The docstring says `N` must be at least 2: with `N = 1` the chain's range
+`[2:1]` is empty, and flattening fails with E0601. The
+[comparator](./comparator.mdx) page shows that error.
+
+## Size and timing
+
+`shdl-flatten` inlines every child, so the gate count is the sum of the parts:
+
+| Part | Gates |
+|---|---|
+| Bitwise lanes | 24 (8 AND, 8 OR, 8 XOR) |
+| `AdderN<8>` | 40 (16 XOR, 16 AND, 8 OR) |
+| `Mux4N<8>` | 75 (48 AND, 24 OR, 3 NOT) |
+| Zero chain and `zInv` | 8 (7 OR, 1 NOT) |
+| `ZERO` constant | 1 `__GND__` |
+| **Total** | **148** (72 AND, 47 OR, 24 XOR, 4 NOT, 1 `__GND__`) |
+
+| Property | Value |
+|---|---|
+| Connections | 300 |
+| `max_depth` | 22 |
+| Output depths | `R[1]` 6, `R[2]` 8, ... `R[8]` 20 (2 more per bit), `Cout` 17, `Zero` 22 |
+| Critical path | `A[1]`, the carry chain through `add_fa1` to `add_fa8_ha2_x1`, `sel_mHigh_gB8`, `sel_mHigh_o8`, `sel_mOut_gB8`, `sel_mOut_o8`, `red8`, `zInv`, `Zero` |
+
+The adder's ripple carry dominates. The carry reaches bit 8 of the sum after
+16 levels, and the result then passes two levels of `mHigh` and two of `mOut`
+to reach `R[8]` at depth 20. The bitwise lanes are only 5 levels deep, but
+`settle()` has to wait for the slowest operation whatever `Op` is.
+
+The Zero chain costs only 2 levels on top of that. `R[K]` arrives 2 levels
+after `R[K-1]`, and it enters the chain at link `redK`, so each result bit
+arrives just as the running OR of the bits below it does. A balanced tree
+would not help here.
+
+## Simulate it
+
+The sessions on this page run from the root of a checkout of the repository.
+Run each operation on a pair of operands:
+
+```python
+from SHDL import Circuit
+
+OPS = ["AND", "OR", "XOR", "ADD"]
+
+with Circuit("examples/alu.shdl") as c:
+    print(c)
+    print(c.timing)
+    for a, b in [(0xCA, 0x5F), (0xFF, 0x01), (0x0F, 0xF0)]:
+        for op, name in enumerate(OPS):
+            c["A"], c["B"], c["Op"] = a, b, op
+            c.settle()
+            print(f"{a:#04x} {name:<3} {b:#04x} = {c['R']:#04x}"
+                  f"  Cout={c['Cout']} Zero={c['Zero']}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'ALU' (A[8], B[8], Op[2]) -> (R[8], Cout, Zero)>
+TimingInfo(max_depth=22, is_combinational=True, has_feedback=False)
+0xca AND 0x5f = 0x4a  Cout=1 Zero=0
+0xca OR  0x5f = 0xdf  Cout=1 Zero=0
+0xca XOR 0x5f = 0x95  Cout=1 Zero=0
+0xca ADD 0x5f = 0x29  Cout=1 Zero=0
+0xff AND 0x01 = 0x01  Cout=1 Zero=0
+0xff OR  0x01 = 0xff  Cout=1 Zero=0
+0xff XOR 0x01 = 0xfe  Cout=1 Zero=0
+0xff ADD 0x01 = 0x00  Cout=1 Zero=1
+0x0f AND 0xf0 = 0x00  Cout=0 Zero=1
+0x0f OR  0xf0 = 0xff  Cout=0 Zero=0
+0x0f XOR 0xf0 = 0xff  Cout=0 Zero=0
+0x0f ADD 0xf0 = 0xff  Cout=0 Zero=0
+```
+
+`0xff + 0x01` wraps to `0x00` with `Cout = 1`, and `Zero` is 1. `0x0f AND 0xf0`
+is also zero: the flag reads the selected result, not the adder. `Cout` is 1
+for every `Op` when `A = 0xff` and `B = 0x01`, because the adder runs all the
+time; the docstring's advice is to ignore it unless `Op = 0b11`.
+
+### All 262,144 cases
+
+Four operations on every pair of 8-bit operands is 262,144 cases, which
+`run_batch` evaluates in one call into the compiled library, in about a second:
+
+```python
+from SHDL import Circuit
+
+REF = [
+    lambda a, b: a & b,
+    lambda a, b: a | b,
+    lambda a, b: a ^ b,
+    lambda a, b: (a + b) & 0xFF,
+]
+
+with Circuit("examples/alu.shdl") as c:
+    frames = [{"A": a, "B": b, "Op": op}
+              for op in range(4) for a in range(256) for b in range(256)]
+    rows = c.run_batch(frames, cycles=c.timing.max_depth)
+    bad = 0
+    for f, row in zip(frames, rows):
+        r = REF[f["Op"]](f["A"], f["B"])
+        bad += row["R"] != r or row["Zero"] != (r == 0)
+        if f["Op"] == 3:
+            bad += row["Cout"] != (f["A"] + f["B"] > 0xFF)
+    print(f"{len(frames)} cases, {bad} mismatches")
+```
+
+```text title="Output"
+262144 cases, 0 mismatches
+```
+
+### Watching the flags settle
+
+`Zero` is the last output to become valid. Add `0xff + 0x01` starting from
+`0x00 + 0x00`, step one cycle at a time, and print the outputs whenever they
+change:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/alu.shdl") as c:
+    c["Op"] = 0b11
+    c.settle()
+    last = (c["R"], c["Cout"], c["Zero"])
+    print(f"start:     R={last[0]:08b} Cout={last[1]} Zero={last[2]}")
+    c["A"], c["B"] = 0xFF, 0x01
+    for cycle in range(1, c.timing.max_depth + 3):
+        c.step(1)
+        now = (c["R"], c["Cout"], c["Zero"])
+        if now != last:
+            print(f"cycle {cycle:2}:  R={now[0]:08b} Cout={now[1]} Zero={now[2]}")
+            last = now
+```
+
+```text title="Output"
+start:     R=00000000 Cout=0 Zero=1
+cycle  6:  R=11111110 Cout=0 Zero=1
+cycle  7:  R=11111100 Cout=0 Zero=1
+cycle  8:  R=11111100 Cout=0 Zero=0
+cycle  9:  R=11111000 Cout=0 Zero=0
+cycle 11:  R=11110000 Cout=0 Zero=0
+cycle 13:  R=11100000 Cout=0 Zero=0
+cycle 15:  R=11000000 Cout=0 Zero=0
+cycle 16:  R=11000000 Cout=1 Zero=0
+cycle 17:  R=10000000 Cout=1 Zero=0
+cycle 19:  R=00000000 Cout=1 Zero=0
+cycle 21:  R=00000000 Cout=1 Zero=1
+```
+
+On cycle 6 the sum bits arrive through the mux before any carry has: bits 2 to
+8 read `A XOR B = 1`. The carry out of bit 1 then clears bit 2 on cycle 7 and
+ripples up one bit every 2 cycles, clearing bit 8 on cycle 19. `Zero` falls on
+cycle 8, when the spurious 1 in `R[8]` reaches the end of the chain, and only
+returns to 1 on cycle 21, two levels after the last bit clears. `Cout` rises
+on cycle 16.
+
+Both flags settle one cycle before their worst case here (22 and 17), because
+this carry starts in the 2-level generate path of bit 1 (`A[1] AND B[1]`)
+rather than the 3-level propagate path on the critical path. A caller cannot
+know which path the next operands will take, so `settle()` always waits the
+full `max_depth`. A register that sampled `Zero` any earlier would capture the
+wrong flag, which is why a clocked design must not run faster than its slowest
+path. The [Simulation model](../concepts/simulation-model.mdx) page covers
+settling in general.
+
+## Other widths
+
+Pass a different `N` from an enclosing component. A 16-bit ALU has a longer
+carry chain:
+
+```shdl title="alu16.shdl"
+use alu::{ALU};
+
+top component Alu16(A[16], B[16], Op[2]) -> (R[16], Cout, Zero) {
+    u: ALU<16>;
+
+    connect {
+        A -> u.A;  B -> u.B;  Op -> u.Op;
+        u.R -> R;  u.Cout -> Cout;  u.Zero -> Zero;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("alu16.shdl", include_dirs=["examples"]) as c:
+    print(c)
+    print(c.info.stats["total_gates"], "gates, max_depth", c.timing.max_depth)
+    c["A"], c["B"], c["Op"] = 0x1234, 0xEDCC, 0b11
+    c.settle()
+    print(f"0x1234 + 0xedcc = {c['R']:#06x} Cout={c['Cout']} Zero={c['Zero']}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Alu16' (A[16], B[16], Op[2]) -> (R[16], Cout, Zero)>
+292 gates, max_depth 38
+0x1234 + 0xedcc = 0x0000 Cout=1 Zero=1
+```
+
+Doubling `N` roughly doubles the gates (148 to 292) and adds 16 levels: 2 per
+extra bit of carry chain. The Zero chain stays 2 levels behind `R[16]`.
+
+## The SR16 CPU's ALU
+
+The [SR16 CPU](./sr16-cpu.mdx) does not use this ALU. It has its own 16-bit
+ALU in
+[`examples/CPU/alu.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/CPU/alu.shdl),
+built on the same ideas at a larger scale: a 4-bit internal opcode decoded by a
+`Dec4`, 13 operations (`ADD`, `SUB`, `ADC`, `AND`, `OR`, `XOR`, `MOV`, `NOT` and
+five shifts and rotates wired straight into the result mux), a `Mux16N` result
+select, and four flags `Z`, `N`, `C` and `V`. It flattens to 967 gates with a
+`max_depth` of 50.
+
+## Next
+
+The [ring oscillator](./ring-oscillator.mdx) turns feedback into a clock. The
+[SR16 CPU](./sr16-cpu.mdx) puts an ALU, registers and control logic together
+into a computer.

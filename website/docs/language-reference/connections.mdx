@@ -1,0 +1,284 @@
+---
+title: Connections
+description: The connect block, how a connection pairs bits, which signals can be sources and destinations, and the driver, width and feedback rules.
+---
+
+Connections are the wires of a design. Each one, written `source -> destination;` inside a component's `connect` block, ties every bit of the source to the matching bit of the destination. This page covers the `connect` block, how bits are paired, the width rule, which signals may be sources or destinations, the rules every component must satisfy (single driver, no floating inputs, every output driven), and feedback. The forms a signal can take are on the [Signals](./signals.mdx) page. Normative text: [shdl.md §6](/specs/shdl#6-signals-and-connections) and [§6.4](/specs/shdl#64-connection-rules).
+
+## Syntax
+
+```ebnf
+ConnectBlock = "connect" "{" { ConnItem } "}" ;
+ConnItem     = Connection | Generator | Conditional ;
+Connection   = Signal "->" Signal ";" ;
+```
+
+Every component has exactly one `connect` block ([Components](./components.mdx#the-body)). Inside it you may write plain connections, generators that produce connections, and `when` conditionals that choose between groups of connections ([Generators](./generators.mdx)). Declarations are not allowed inside `connect`.
+
+## Connections are declarative
+
+A connection is a permanent wire, not a statement that runs. All connections of a component hold at the same time, so their order has no effect, and a signal may be used before or after the connection that drives it:
+
+```shdl title="choose.shdl"
+component Choose(A, B, S) -> (Y) {
+    ns: NOT;  a1: AND;  a2: AND;  o: OR;
+
+    connect {
+        o.O -> Y;                       # order does not matter
+        a1.O -> o.A;   a2.O -> o.B;
+        A -> a1.A;     ns.O -> a1.B;    # A when S = 0
+        B -> a2.A;     S -> a2.B;       # B when S = 1
+        S -> ns.A;                      # S fans out to ns and a2
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("choose.shdl") as c:
+    print("A B S | Y")
+    for s in (0, 1):
+        for a, b in [(0, 1), (1, 0)]:
+            c["A"], c["B"], c["S"] = a, b, s
+            c.settle()
+            print(f"{a} {b} {s} | {c['Y']}")
+```
+
+```text title="Output"
+A B S | Y
+0 1 0 | 0
+1 0 0 | 1
+0 1 1 | 1
+1 0 1 | 0
+```
+
+Timing comes from the gates, not from the connections: a wire has no delay, and each gate takes one cycle ([the simulation model](../concepts/simulation-model.mdx)).
+
+## Widths must match {/* #widths */}
+
+Both sides of a connection are flattened to lists of bits, ordered from least to most significant, and paired by position: bit 1 of the source drives bit 1 of the destination, and so on. The two sides must have **exactly** the same width. There is no implicit truncation, zero-extension or sign-extension:
+
+```shdl error=E0401 title="widen.shdl"
+component Widen(A[4]) -> (Y[8]) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten widen.shdl
+widen.shdl:2:15: error[E0401]: connection width mismatch: source has 4 bit(s), destination has 8
+```
+
+Say what you mean with a slice or a concatenation instead. A constant `0` replicated into the high bits zero-extends, and a slice truncates:
+
+```shdl title="resize.shdl"
+component Resize(A[4]) -> (Wide[6], Narrow[2]) {
+    ZERO = 0;
+    connect {
+        {2{ZERO}, A} -> Wide;      # zero-extend: pad the high bits
+        A[:2]        -> Narrow;    # truncate: keep the low bits
+    }
+}
+```
+
+Flattening turns each connection into one line per bit, from the most significant bit down, and turns the constant into a single `__GND__` gate that feeds both padding bits:
+
+```console check
+$ shdl-flatten resize.shdl -o resize.base.shdl
+$ sed -n '1,/^}/p' resize.base.shdl
+component Resize(A_1_, A_2_, A_3_, A_4_) -> (Wide_1_, Wide_2_, Wide_3_, Wide_4_, Wide_5_, Wide_6_, Narrow_1_, Narrow_2_) {
+    ZERO_bit1: __GND__;
+
+    connect {
+        ZERO_bit1.O -> Wide_6_;
+        ZERO_bit1.O -> Wide_5_;
+        A_4_ -> Wide_4_;
+        A_3_ -> Wide_3_;
+        A_2_ -> Wide_2_;
+        A_1_ -> Wide_1_;
+        A_2_ -> Narrow_2_;
+        A_1_ -> Narrow_1_;
+    }
+}
+```
+
+For sign extension, replicate the top bit: `{4{A[4]}, A}` ([Signals](./signals.mdx#concatenation)).
+
+## Sources and destinations {/* #roles */}
+
+Every end of a connection plays a role. Seen from inside a component, its **input ports** carry values in, so they can only be read; its **output ports** carry values out, so they can only be driven. For an instance it is the other way round: you drive its inputs and read its outputs.
+
+| Signal | As a source | As a destination |
+|---|---|---|
+| Input port of this component, `A` | Yes | `E0505 input port 'A' cannot be a connection destination` |
+| Output port of this component, `Y` | `E0505 output port 'Y' cannot be a connection source` | Yes |
+| Instance input, `n.A` | `E0505 'n.A' is an instance input and cannot be a connection source` | Yes |
+| Instance output, `n.O` | Yes | `E0505 'n.O' is an instance output and cannot be a connection destination` |
+| Constant, `K` | Yes | `E0505 constant 'K' cannot be a connection destination` |
+| Replication, `{4{S}}` | Yes | `E0505 replication cannot appear in a connection destination` |
+| Concatenation | Yes, if every item may be a source | Yes, if every item may be a destination |
+
+Roles are checked before widths, and a concatenation's items are checked one by one.
+
+A consequence that often surprises newcomers: **a component cannot read its own output port.** To use a value both as an output and internally, read it from the instance output that drives the port:
+
+```shdl error=E0505 title="readback.shdl"
+component ReadBack(A) -> (B, C) {
+    connect { A -> B; B -> C; }
+}
+```
+
+```console check
+$ shdl-flatten readback.shdl
+readback.shdl:2:23: error[E0505]: output port 'B' cannot be a connection source
+```
+
+Here, `A -> B; A -> C;` is the fix. With a gate in between you would write `g.O -> B; g.O -> C;`.
+
+Connecting an input port straight to an output port, as in `A -> B`, is legal and creates no gate: the output becomes another name for the input. Such pass-through ports are resolved away when the design is flattened.
+
+## Rules every component must satisfy
+
+After a component's generators and conditionals are expanded, its connections are checked bit by bit.
+
+| Rule | Error if broken |
+|---|---|
+| Each destination bit has **exactly one** driver | `E0501 'O[1]' is driven more than once (first driver at file:line:col)` |
+| Every input bit of every instance is connected | `E0502 input 'B' of instance 'g' (AND) is never connected` |
+| Every bit of every output port is driven | `E0503 output port 'O[2]' of 'Undriven' is never driven` |
+| A loop of connections passes through at least one gate | `E0506 connection cycle with no gate through 'w1.X[1]'` |
+
+For a multi-bit port, the `E0502` and `E0503` messages name the missing bit, as in `input 'X[2]' of instance 'p' (Pass)`; for a 1-bit port they give the plain name. `E0501` is reported at the second driver, `E0502` at the instance declaration, and `E0503` at the component header.
+
+Two things are allowed and produce no warning:
+
+- **Fan-out.** One source may drive any number of destinations, as `S` does in the example above.
+- **Unused signals.** An input port you never read, and an instance output you never use, are fine.
+
+### Single driver {/* #single-driver */}
+
+A wire can have only one source, even if both drivers are the same signal:
+
+```shdl error=E0501 title="twice.shdl"
+component Twice(A) -> (O) {
+    connect { A -> O; A -> O; }
+}
+```
+
+```console check
+$ shdl-flatten twice.shdl
+twice.shdl:2:23: error[E0501]: 'O[1]' is driven more than once (first driver at twice.shdl:2:15)
+```
+
+The message names the bit (`'O[1]'`) because the check is per bit: `A -> O[1]; B -> O[2];` drives the two bits of a 2-bit `O` separately and is fine. There is no wired-OR and no tri-state: to combine several sources, use gates or a multiplexer. Overlapping generator ranges are a common way to hit this error by accident ([Generators](./generators.mdx#ranges)).
+
+### Every input connected, every output driven
+
+A floating input would have no defined value, so every input of every instance must be driven, bit by bit:
+
+```shdl error=E0502 title="floating.shdl"
+component Floating(A) -> (Y) {
+    g: AND;
+    connect { A -> g.A;  g.O -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten floating.shdl
+floating.shdl:2:5: error[E0502]: input 'B' of instance 'g' (AND) is never connected
+```
+
+To tie an input to a fixed level, drive it from a constant (`K = 1; K -> g.B;`) or from `__VCC__`/`__GND__` ([Constants](./constants.mdx), [Standard gates](./standard-gates.mdx#power-primitives)).
+
+Likewise, each bit of each output port needs a driver:
+
+```shdl error=E0503 title="undriven.shdl"
+component Undriven(A) -> (O[2]) {
+    connect { A -> O[1]; }
+}
+```
+
+```console check
+$ shdl-flatten undriven.shdl
+undriven.shdl:1:1: error[E0503]: output port 'O[2]' of 'Undriven' is never driven
+```
+
+### Self-connections
+
+The specification lists a separate code, `E0504`, for a signal that drives itself. The role rules already reject every such connection first (`A -> A` is `E0505 input port 'A' cannot be a connection destination`), so `E0504` is never reported in practice ([Errors](./errors.mdx#e0504)).
+
+## Feedback {/* #feedback */}
+
+A connection may lead back to where it came from, as long as the loop passes through at least one gate. This is how latches, registers and oscillators are built. Here an `OR` gate holds its own output high once `S` has been 1 for a cycle:
+
+```shdl title="sticky.shdl"
+component Sticky(S) -> (Q) {
+    o: OR;
+    connect {
+        S -> o.A;
+        o.O -> o.B;      # feedback through the OR gate
+        o.O -> Q;
+    }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("sticky.shdl") as c:
+    trace = []
+    for s in [0, 0, 1, 0, 0]:
+        c["S"] = s
+        c.step()
+        trace.append(c["Q"])
+    print(trace)
+    print(c.info.timing.max_depth, c.info.timing.has_feedback)
+```
+
+```text title="Output"
+[0, 0, 1, 1, 1]
+1 True
+```
+
+A circuit with feedback cannot be settled with `settle()`; you advance it with `step()`. Initial values and the timing of feedback loops are covered in [Sequential logic](./sequential-logic.mdx).
+
+A loop made only of wires, with no gate in it, has no defined value and is rejected. This can only happen through pass-through components, since a component cannot read its own outputs:
+
+```shdl error=E0506 title="ring.shdl"
+component Wire(X) -> (Y) {
+    connect { X -> Y; }
+}
+
+top component Ring(A) -> (O) {
+    w1: Wire;  w2: Wire;
+    connect {
+        w1.Y -> w2.X;
+        w2.Y -> w1.X;       # a loop with no gate in it
+        A -> O;
+    }
+}
+```
+
+```console check
+$ shdl-flatten ring.shdl
+ring.shdl:1:1: error[E0506]: connection cycle with no gate through 'w1.X[1]'
+```
+
+`E0506` is detected while flattening the whole design, after the per-component checks.
+
+## Errors on this page
+
+| Code | Cause |
+|---|---|
+| `E0201` | A declaration inside `connect`, for example `n: NOT;` gives `expected '->', found ':'` |
+| `E0401` | The two sides of a connection have different widths |
+| `E0501` | A destination bit with more than one driver |
+| `E0502` | An instance input bit that is never connected |
+| `E0503` | An output port bit that is never driven |
+| `E0504` | Reserved for self-connection; never reported |
+| `E0505` | A signal used in a role it cannot play |
+| `E0506` | A loop of connections with no gate in it |
+| `E0604` | A connection that starts with a token no signal can start with, for example a number |
+
+Signal-level errors, such as unknown names and out-of-range indices, are listed on the [Signals](./signals.mdx#errors-on-this-page) page.

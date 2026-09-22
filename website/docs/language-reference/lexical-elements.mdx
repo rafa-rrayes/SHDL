@@ -1,0 +1,217 @@
+---
+title: Lexical elements
+description: Characters, whitespace, comments, the doc comment, identifiers and reserved names, keywords, numeric literals and operators in SHDL source.
+---
+
+This page covers how the flattener splits a source file into tokens: the character set, whitespace, the three comment forms and the doc comment, identifiers and the names you may not use, keywords, numeric literals, and the operator and punctuation tokens. Every lexical error is `E0101`; the reserved-name errors `E0303` to `E0305` are listed here too because they are about the spelling of names. The normative text is [shdl.md §2](/specs/shdl#2-lexical-structure); the implementation is [`flattener/lexer.py`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/lexer.py).
+
+## Encoding and character set
+
+Source files are UTF-8. A file that is not valid UTF-8 is rejected before lexing, with the byte offset of the first bad byte:
+
+```text
+bad.shdl:1:1: error[E0101]: source is not valid UTF-8: invalid start byte at byte 0
+```
+
+Outside comments, only ASCII is meaningful. Any character that does not start a token, including non-ASCII letters, is an error:
+
+```shdl error=E0101 title="cafe.shdl"
+component Café(A) -> (Y) {
+    connect { A -> Y; }
+}
+```
+
+```console check
+$ shdl-flatten cafe.shdl
+cafe.shdl:1:14: error[E0101]: unexpected character 'é'
+```
+
+Comments may contain any UTF-8 text.
+
+### Whitespace
+
+The only whitespace characters are space, tab, carriage return and line feed. They separate tokens and are otherwise ignored; SHDL is not indentation- or line-sensitive. Other space-like characters, such as a non-breaking space or a form feed, are `unexpected character` errors.
+
+## Comments
+
+All three comment forms are removed by the lexer and may appear anywhere between two tokens.
+
+| Form | Extent | Restrictions |
+|---|---|---|
+| `# text` | From `#` to the end of the line | None |
+| `"text"` | Between the two quotes, on one line | Must close on the same line and cannot contain `"`, else `unterminated string comment` |
+| `"""text"""` | Between the triple quotes; may span lines | Must be closed before the end of the file, else `unterminated triple-quoted comment` |
+
+Because a string comment can sit between any two tokens, you can annotate inside a statement as well as after it:
+
+```shdl title="comments.shdl"
+# A hash comment may come before the doc comment.
+"""
+Two inverters in series: Y follows A, two cycles later.
+Only the outer whitespace of a doc comment is stripped.
+"""
+
+component Buffer(A) -> (Y) {
+    n1: NOT;  n2: NOT;          # hash comment after code
+    connect {
+        A -> n1.A;
+        n1.O -> n2.A;  "a string comment between two statements"
+        n2.O """ even between tokens of one statement """ -> Y;
+    }
+}
+```
+
+### The doc comment {/* #doc-comment */}
+
+The first `"""..."""` comment that appears **before any token** of a file is that module's doc comment. `#` and `"..."` comments may precede it; a triple-quoted comment after the first token is an ordinary comment. The flattener strips leading and trailing whitespace from the text and keeps everything else, including line breaks and inner indentation.
+
+Only the doc comment of the main module (the file you flatten) is used. It is recorded as `doc.description` in the Base SHDL metadata, which PySHDL exposes as `Circuit.info.description`:
+
+```python
+from SHDL import Circuit
+
+with Circuit("comments.shdl") as c:
+    print(c.info.description)
+```
+
+```text title="Output"
+Two inverters in series: Y follows A, two cycles later.
+Only the outer whitespace of a doc comment is stripped.
+```
+
+A module without a doc comment has no `doc.description` entry in its metadata.
+
+## Identifiers
+
+An identifier is an ASCII letter or underscore followed by any number of ASCII letters, digits and underscores: `[A-Za-z_][A-Za-z0-9_]*`. Identifiers are case-sensitive, so `sum`, `Sum` and `SUM` are three different names. A single leading underscore is allowed (`_tmp`).
+
+Identifiers name components, parameters, ports, instances, constants, generator variables and modules. A module name is a file name without `.shdl`, so a file you import must have a name that is a valid identifier ([Imports](./imports.mdx)).
+
+### Reserved names {/* #reserved-names */}
+
+The flattener generates names of its own when it flattens a design, so two identifier shapes are reserved, and the six primitive type names cannot be redefined:
+
+| Rule | Example | Code | Message |
+|---|---|---|---|
+| No name may start with `__` | `__n: NOT;` | `E0303` | `instance name '__n' uses the reserved '__' prefix` |
+| No name may end in `_<digits>_`, the bus-expansion pattern used for `A_3_` | `n_1_: NOT;` | `E0304` | `instance name 'n_1_' matches the reserved bus-expansion pattern '..._<digits>_'` |
+| No component may be named after a primitive | `component AND(...)` | `E0305` | `component 'AND' redefines a primitive type` |
+
+The first two rules apply to every name you declare: component names, parameter names, port names, instance names, constant names and generator variables. The word in the message (`port name`, `generator variable`, ...) tells you which. Instance names built from templates such as `g_{i}_` are checked after substitution, so they fail too (`g_1_` matches the pattern). `E0305` applies to `AND`, `OR`, `NOT`, `XOR`, `__VCC__` and `__GND__`; for `component __VCC__` it takes precedence over `E0303`.
+
+The rules restrict *declaring* names, not *using* them: you may instantiate the power primitives directly, as in `v: __VCC__;` (see [Standard gates](./standard-gates.mdx#power-primitives)).
+
+Two other kinds of generated names can collide with yours after flattening, which is reported as `E0308`: the path names of inlined gates (`a_b` for gate `b` inside instance `a`) and constant pins (`K_bit1`). See [Errors](./errors.mdx#e0308).
+
+## Keywords
+
+There are exactly seven keywords. None of them can be used as a name.
+
+| Keyword | Use | Page |
+|---|---|---|
+| `component` | Starts a component definition | [Components](./components.mdx) |
+| `top` | Marks the default top component: `top component ...` | [Components](./components.mdx#top-selection) |
+| `use` | Imports components from another module | [Imports](./imports.mdx) |
+| `connect` | The block of connections in a component body | [Connections](./connections.mdx) |
+| `init` | The block of initial-state seeds | [Sequential logic](./sequential-logic.mdx) |
+| `when` | A compile-time conditional | [Generators](./generators.mdx#conditionals) |
+| `else` | The alternative branch of a `when` | [Generators](./generators.mdx#conditionals) |
+
+Using a keyword as a name is a syntax error, for example `E0201 expected port name, found 'top'`.
+
+`meta` is **not** a keyword. It is recognized only as the trailing `meta { ... }` block after the last component, so `meta` is an ordinary identifier everywhere else. The primitive type names `AND`, `OR`, `NOT`, `XOR`, `__VCC__` and `__GND__` are not keywords either: they are identifiers bound to predefined types.
+
+## Numeric literals {/* #numeric-literals */}
+
+| Form | Syntax | Examples |
+|---|---|---|
+| Decimal | `[0-9]+` | `0`, `8`, `255`, `007` (leading zeros are allowed and do not mean octal) |
+| Hexadecimal | `0x` or `0X`, then hex digits in either case | `0xFF`, `0Xa5` |
+| Binary | `0b` or `0B`, then `0` and `1` digits | `0b1010`, `0B1` |
+
+Literals are non-negative integers of unlimited size. There is no sign: `-` is always the subtraction operator, and there is no unary minus. There are no digit separators, no octal prefix and no suffixes; a literal must not be followed directly by a letter, digit or underscore that cannot continue it.
+
+The four constants below have the same value:
+
+```shdl title="numbers.shdl"
+component Numbers() -> (Dec[4], Hex[4], Bin[4], Lead[4]) {
+    D = 10;  H = 0xA;  B = 0b1010;  L = 0010;
+    connect { D -> Dec;  H -> Hex;  B -> Bin;  L -> Lead; }
+}
+```
+
+```python
+from SHDL import Circuit
+
+with Circuit("numbers.shdl") as c:
+    c.step()        # constant sources need one cycle to drive their outputs
+    print(c["Dec"], c["Hex"], c["Bin"], c["Lead"])
+```
+
+```text title="Output"
+10 10 10 10
+```
+
+Malformed literals are `E0101`:
+
+| Source | Message |
+|---|---|
+| `1_000` | `invalid character '_' in numeric literal` |
+| `0o17` | `invalid character 'o' in numeric literal` |
+| `8bit` | `invalid character 'b' in numeric literal` |
+| `0b102` | `invalid character '2' in numeric literal` |
+| `0x` with no digits | `hexadecimal literal has no digits` |
+| `0b` with no digits | `binary literal has no digits` |
+
+```shdl error=E0101 title="e0101.shdl"
+component Wide(A) -> (O[1_000]) {
+    connect { A -> O[1]; }
+}
+```
+
+```console check
+$ shdl-flatten e0101.shdl
+e0101.shdl:1:25: error[E0101]: invalid character '_' in numeric literal
+```
+
+Where a literal is required (a parameter default, a constant value, an `init` value), writing `-1` is a syntax error (`E0201`), because the `-` cannot start a literal.
+
+## Operators and punctuation
+
+These are all the tokens besides identifiers, keywords and numbers. The two-character tokens are recognized first, so `->` is never `-` followed by `>`.
+
+| Token | Uses |
+|---|---|
+| `->` | Separates a component's input and output port lists; the connection operator `src -> dst` |
+| `::` | Module separator in `use module::{...}` |
+| `.` | Instance port access: `g.O`, `fa1.Cout` |
+| `:` | Instance declaration `g: AND;`; slices `A[2:5]`; generator ranges `[1:N]` |
+| `;` | Ends imports, declarations, connections and `init` entries |
+| `,` | Separates ports, parameters, arguments, range items, concatenation items and imported names |
+| `=` | Parameter defaults `<N = 8>`, named arguments `R<N = 16>`, constants `K = 5`, `init` seeds |
+| `{` `}` | Component bodies and the `connect`, `init`, generator, `when` and `else` blocks; import lists; concatenation `{Hi, Lo}` and replication `4{S}`; arithmetic grouping `{i - 1}`; name templates `fa{i}`; `when` conditions |
+| `[` `]` | Port widths `A[8]`, indices `A[3]`, slices `A[2:5]`, generator ranges `>i[1:N]` |
+| `(` `)` | Port lists; grouping inside a `when` condition |
+| `<` `>` | Parameter lists `<N, K = 1>` and argument lists `<8>`; the less-than and greater-than comparisons |
+| `>` | At the start of an item, begins a generator: `>i[N]{ ... }` |
+| `+` `-` `*` `/` | Compile-time integer arithmetic ([Generators](./generators.mdx#arithmetic)) |
+| `==` `!=` `<` `<=` `>` `>=` | Comparisons in `when` conditions |
+| `&&` `\|\|` | Logical AND and OR in `when` conditions |
+
+There are no other operators. In particular there are no bitwise operators (`&`, `|`, `^`, `~`), no `!`, and no `%`: logic is expressed with gates, and compile-time arithmetic has only the four operations above. Any of these characters is `E0101 unexpected character`.
+
+## Nesting limit
+
+Blocks, generators, conditionals, concatenations, replications, `{expr}` groups and parenthesized conditions may nest at most 200 levels deep. Deeper input fails with `E0201 input nests deeper than the 200-level limit`. The limit only guards the parser against runaway input; real designs come nowhere near it.
+
+## Lexical and naming errors
+
+| Code | Cause |
+|---|---|
+| `E0101` | A character that starts no token, an unterminated `"..."` or `"""..."""` comment, a malformed number, or a file that is not valid UTF-8 |
+| `E0201` | A keyword where a name is expected, a sign on a literal, or nesting beyond 200 levels (all syntax errors are `E0201`) |
+| `E0303` | A declared name starting with `__` |
+| `E0304` | A declared or generated name ending in `_<digits>_` |
+| `E0305` | A component named `AND`, `OR`, `NOT`, `XOR`, `__VCC__` or `__GND__` |
+
+Examples of each are in the [error catalog](./errors.mdx).

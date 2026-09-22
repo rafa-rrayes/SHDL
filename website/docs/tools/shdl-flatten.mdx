@@ -1,0 +1,515 @@
+---
+title: shdl-flatten
+sidebar_label: shdl-flatten
+description: The SHDL-to-Base SHDL flattener, covering command-line options, module search, top-component selection, reproducible timestamps, diagnostics and its Python API.
+---
+
+`shdl-flatten` is the front end of the SHDL toolchain. It reads an SHDL module and every module it imports, and picks the top component. It then lowers that component to **Base SHDL**: a flat netlist of single-bit primitive gates, followed by a JSON `meta` object that records ports, hierarchy, source locations, timing and initial state. `shdlc`, the `Circuit` class and the `shdl` CLI all run this same flattener in-process. Run `shdl-flatten` yourself when you want to see what a design lowers to, or to hand Base SHDL to another tool. This page covers every option, the module search and top-selection rules, reproducible output, the diagnostics and the Python API.
+
+## Usage
+
+```console check
+$ shdl-flatten --help
+usage: shdl-flatten [-h] [--top NAME] [-I DIR] [-o FILE] [--timestamp TS] file
+
+Flatten SHDL to Base SHDL (a single-bit primitive netlist).
+
+positional arguments:
+  file               main .shdl source file
+
+options:
+  -h, --help         show this help message and exit
+  --top NAME         top component (default: the unique 'top'-marked
+                     component, or the sole component of the main module)
+  -I, --include DIR  additional directory to search for imported modules (may
+                     be repeated)
+  -o, --output FILE  write the Base SHDL here instead of stdout
+  --timestamp TS     pin doc.flattened_at to this string (SOURCE_DATE_EPOCH is
+                     also honored); default is the current UTC time
+```
+
+`python -m flattener` runs the same command-line tool.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `file` | required | The main SHDL source file. Its base name without the extension is the main module's name. |
+| `--top NAME` | see [top selection](#top-selection) | Flatten component `NAME` of the main module. |
+| `-I DIR`, `--include DIR` | none | Extra directory to search for imported modules. You can repeat the option; directories are searched in the order given, after the importing file's own directory ([module search](#module-search)). |
+| `-o FILE`, `--output FILE` | stdout | Write the Base SHDL to `FILE` (UTF-8). |
+| `--timestamp TS` | `SOURCE_DATE_EPOCH`, else the current time | The exact string to store in `meta.doc.flattened_at` ([timestamps](#timestamp)). |
+
+## A first flatten {/* #example */}
+
+Here is a half adder in its own module:
+
+```shdl title="halfAdder.shdl"
+"""A half adder: adds two bits."""
+
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;
+    a1: AND;
+
+    connect {
+        A -> x1.A;  B -> x1.B;  x1.O -> Sum;
+        A -> a1.A;  B -> a1.B;  a1.O -> Carry;
+    }
+}
+```
+
+`HalfAdder` is the module's only component, so `shdl-flatten` selects it without a `top` marker or `--top`. The timestamp is pinned so that the output is reproducible:
+
+```console check
+$ shdl-flatten halfAdder.shdl --timestamp 2026-01-01T00:00:00Z
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;
+    a1: AND;
+
+    connect {
+        A -> x1.A;
+        B -> x1.B;
+        x1.O -> Sum;
+        A -> a1.A;
+        B -> a1.B;
+        a1.O -> Carry;
+    }
+}
+
+meta {
+  "version": "2.0",
+  "ports": {
+    "inputs": {
+      "A": [
+        "A"
+      ],
+      "B": [
+        "B"
+      ]
+    },
+    "outputs": {
+      "Sum": [
+        "Sum"
+      ],
+      "Carry": [
+        "Carry"
+      ]
+    }
+  },
+  "hierarchy": {
+    "HalfAdder": {
+      "source_file": "halfAdder.shdl",
+      "source_line": 3,
+      "instances": {
+        "x1": {
+          "type": "XOR",
+          "gate": "x1"
+        },
+        "a1": {
+          "type": "AND",
+          "gate": "a1"
+        }
+      }
+    }
+  },
+  "source_map": {
+    "gates": {
+      "x1": {
+        "file": "halfAdder.shdl",
+        "line": 4,
+        "column": 5
+      },
+      "a1": {
+        "file": "halfAdder.shdl",
+        "line": 5,
+        "column": 5
+      }
+    },
+    "lines": {
+      "halfAdder.shdl": {
+        "4": [
+          "x1"
+        ],
+        "5": [
+          "a1"
+        ]
+      }
+    }
+  },
+  "constants": {},
+  "timing": {
+    "max_depth": 1,
+    "output_depths": {
+      "Sum": 1,
+      "Carry": 1
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "x1",
+      "Sum"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 2,
+    "total_connections": 6,
+    "total_ports": 4,
+    "by_type": {
+      "XOR": 1,
+      "AND": 1
+    }
+  },
+  "doc": {
+    "description": "A half adder: adds two bits.",
+    "source": "halfAdder.shdl",
+    "flattened_at": "2026-01-01T00:00:00Z"
+  },
+  "init": {}
+}
+```
+
+The output has two parts. The **structural core** is a single `component` with the top's name. It contains one line per primitive gate instance and one line per single-bit connection. Hierarchy is gone: in a design with subcomponents, gate names are the instance path joined with `_`. For example, the full adder's gate `x1` inside instance `ha1` becomes `ha1_x1`. The **`meta` object** carries everything the netlist alone cannot express. Every key is always present:
+
+| Key | Holds | Spec |
+|---|---|---|
+| `version` | Metadata format version, `"2.0"` | [base_shdl.md §4](/specs/base_shdl#4-metadata-section) |
+| `ports` | Each user-facing port and its single-bit wires, LSB first. This is what `poke` and `peek` use. | [§4.3](/specs/base_shdl#43-ports--port-grouping) |
+| `hierarchy` | The source component tree: instances, their types and the flat gate each primitive became | [§4.4](/specs/base_shdl#44-hierarchy--component-hierarchy-map) |
+| `source_map` | Source file, line and column of every gate, plus a per-line index | [§4.5](/specs/base_shdl#45-source_map--source-location-mapping) |
+| `constants` | Which `__VCC__` and `__GND__` gates came from which constant | [§4.6](/specs/base_shdl#46-constants--constant-origin-tracking) |
+| `timing` | `max_depth`, per-output depths, `is_combinational`, `has_feedback` and the critical path | [§4.7](/specs/base_shdl#47-timing--circuit-depth-and-propagation) |
+| `monitors` | Reserved for debugger watch configuration; always `{}` in 1.1.0 | [§4.8](/specs/base_shdl#48-monitors--debugger-watch-configuration) |
+| `stats` | Gate, connection and port counts, and gates by type | [§4.9](/specs/base_shdl#49-stats--circuit-statistics) |
+| `doc` | The main module's doc comment (omitted if the module has none), the source file name and `flattened_at` | [§4.10](/specs/base_shdl#410-doc--documentation-and-provenance) |
+| `init` | Cycle-0 values of seeded gates, from `init` blocks | [§4.11](/specs/base_shdl#411-init--initial-state) |
+
+Multi-bit ports are expanded to single-bit wires named `NAME_i_`, where `i` counts from 1 at the LSB ([base_shdl.md §3.4](/specs/base_shdl#34-port-naming-convention-for-expanded-ports)). The 8-bit adder's header shows this:
+
+```console check
+$ shdl-flatten examples/adder8.shdl --timestamp 2026-01-01T00:00:00Z | head -n 1
+component Adder8(A_1_, A_2_, A_3_, A_4_, A_5_, A_6_, A_7_, A_8_, B_1_, B_2_, B_3_, B_4_, B_5_, B_6_, B_7_, B_8_, Cin) -> (Sum_1_, Sum_2_, Sum_3_, Sum_4_, Sum_5_, Sum_6_, Sum_7_, Sum_8_, Cout) {
+```
+
+The [Base SHDL](../architecture/base-shdl.mdx) page explains the format in depth, and [the flattening pipeline](../architecture/flattening-pipeline.mdx) describes how the flattener produces it.
+
+## Choosing the top component {/* #top-selection */}
+
+A module can define several components. The flattener lowers exactly one, the **top**, together with everything it instantiates. The top is chosen from the components **defined in the main module**, in this order:
+
+1. **`--top NAME`**, if given. `NAME` must be a component defined in the main file. An imported name is not accepted, and neither is a name that does not exist (E0001). `--top` overrides a `top` marker, so it can select any component of the module.
+2. Otherwise, the component marked **`top`** (`top component Name ...`). A module may mark at most one component; marking two is E0310.
+3. Otherwise, the module's **only component**, if it has exactly one.
+4. Otherwise it fails with E0001 and asks for `--top`.
+
+The top is instantiated with its default parameter values. A generic top whose parameters all have defaults works (`examples/adderN.shdl` flattens `AdderN<N = 8>` as `AdderN`). A top with a parameter that has no default is E0902. The `Circuit` class, `shdlc --top` and the `shdl` CLI all use the same rules, because they all call the same function.
+
+This module has two components and no marker:
+
+```shdl lib title="pair.shdl"
+component Inv(A) -> (O) {
+    n: NOT;
+
+    connect {
+        A -> n.A;
+        n.O -> O;
+    }
+}
+
+component Buf(A) -> (O) {
+    n1: NOT;
+    n2: NOT;
+
+    connect {
+        A -> n1.A;
+        n1.O -> n2.A;
+        n2.O -> O;
+    }
+}
+```
+
+```console check
+$ shdl-flatten pair.shdl 2>&1; echo "exit $?"
+pair.shdl:1:1: error[E0001]: cannot determine the top component of module 'pair': no 'top' marker and 2 components (Inv, Buf); use --top
+exit 1
+$ shdl-flatten pair.shdl --top Buf --timestamp 2026-01-01T00:00:00Z | head -n 1
+component Buf(A) -> (O) {
+$ shdl-flatten pair.shdl --top Nand 2>&1; echo "exit $?"
+pair.shdl:1:1: error[E0001]: --top component 'Nand' not found in module 'pair' (has: Inv, Buf)
+exit 1
+$ shdl-flatten examples/fullAdder.shdl --top HalfAdder --timestamp 2026-01-01T00:00:00Z | head -n 1
+component HalfAdder(A, B) -> (Sum, Carry) {
+$ shdl-flatten examples/add100.shdl --top AdderN 2>&1; echo "exit $?"
+add100.shdl:1:1: error[E0001]: --top component 'AdderN' not found in module 'add100' (has: Add100)
+exit 1
+```
+
+The last command fails because `add100.shdl` only imports `AdderN`: `use adderN::{AdderN};`. To flatten `AdderN` itself, run the flattener on `adderN.shdl`. The two other top-selection errors look like this:
+
+```shdl error=E0310
+top component A(X) -> (Y) {
+    n: NOT;
+
+    connect { X -> n.A; n.O -> Y; }
+}
+
+top component B(X) -> (Y) {
+    n: NOT;
+
+    connect { X -> n.A; n.O -> Y; }
+}
+```
+
+```shdl error=E0902
+top component Wire<N>(A[N]) -> (O[N]) {
+    connect { A -> O; }
+}
+```
+
+## Module search {/* #module-search */}
+
+`use name::{A, B};` loads the module `name` from the file `name.shdl`. The file is found like this ([shdl.md §9.1](/specs/shdl#91-resolution)):
+
+1. **The importing file's own directory.** This is the directory of the file that contains the `use`, not the main file's directory and not the current directory. A module imported from `lib/` therefore finds its own neighbours in `lib/`.
+2. **Each `-I` directory, in the order given.** Relative `-I` paths are relative to the current working directory.
+3. **The first match wins.** If no directory has the file, the result is E0701, and the message lists the directory it searched and how many include directories it tried.
+
+Five more rules apply:
+
+- **The current working directory is not searched** unless it happens to be the importing file's directory, or you pass it with `-I .`.
+- **Names are case-sensitive on every platform.** `use HalfAdder` does not load `halfAdder.shdl`, even on case-insensitive filesystems. On a case-sensitive filesystem the file is simply not found. On a case-insensitive filesystem, such as the macOS default, the flattener sees the file and reports the mismatch: `module 'HalfAdder' not found: the file on disk is 'halfAdder.shdl' (case mismatch with 'HalfAdder.shdl')`. Both are E0701.
+- **A module name means one file per program.** Each module loads once, however many files import it. If the same name resolves to two different files from two importers, the result is E0701: `module 'common' resolves to two different files: already loaded <path>, now <path>`.
+- **Only defined names can be imported.** A `use` can only name components that the target module itself defines. There are no re-exports: a name the target merely imported is E0703 (`module 'm' does not define component 'X'`). An imported name that clashes with a local component or an earlier import is E0301. The primitives (`AND`, `OR`, `XOR`, `NOT`, `__VCC__`, `__GND__`) are built in and need no import.
+- **No circular imports** (E0702). This includes a module that imports itself.
+
+There is no built-in standard library path. `stdgates` (`NAND`, `NOR`, `XNOR`) is an ordinary module shipped as [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl). Copy it next to your design, or point `-I` at its directory ([shdl.md §9.2](/specs/shdl#92-the-standard-library)). Inside a project, the [`shdl` CLI](./shdl-cli.mdx) passes the directories of your [installed packages](./packages.mdx) as include directories for you.
+
+Here a full adder in `app/` imports the half adder from `lib/`:
+
+```shdl title="fa.shdl"
+use halfAdder::{HalfAdder};
+
+top component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    h1: HalfAdder;
+    h2: HalfAdder;
+    o: OR;
+
+    connect {
+        A -> h1.A;  B -> h1.B;
+        h1.Sum -> h2.A;  Cin -> h2.B;  h2.Sum -> Sum;
+        h1.Carry -> o.A;  h2.Carry -> o.B;  o.O -> Cout;
+    }
+}
+```
+
+```console check
+$ mkdir app lib && mv fa.shdl app/ && cp halfAdder.shdl lib/
+$ shdl-flatten app/fa.shdl 2>&1; echo "exit $?"
+fa.shdl:1:5: error[E0701]: module 'halfAdder' not found (searched <scratch>/app and 0 include dir(s))
+exit 1
+$ shdl-flatten app/fa.shdl -I lib -o fa.base.shdl; echo "exit $?"
+exit 0
+$ head -n 1 fa.base.shdl
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+$ cd app && shdl-flatten fa.shdl -I ../lib --timestamp 2026-01-01T00:00:00Z | head -n 1
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+```
+
+The first run fails even though `halfAdder.shdl` sits in the current directory, because the current directory is not on the search path. The diagnostic points at line 1, column 5 of `fa.shdl`, where the module name `halfAdder` is written.
+
+A circular import is reported where the cycle closes:
+
+```shdl error=E0702 title="loop.shdl"
+use loop::{Inv};
+
+top component Inv(A) -> (O) {
+    n: NOT;
+
+    connect {
+        A -> n.A;
+        n.O -> O;
+    }
+}
+```
+
+```console check
+$ shdl-flatten loop.shdl 2>&1
+loop.shdl:1:5: error[E0702]: circular import: loop -> loop
+```
+
+With two modules, the message traces the whole cycle, for example `circular import: a -> b -> a`.
+
+## Output {/* #output */}
+
+- **Where it goes.** Without `-o`, the Base SHDL goes to stdout. It is always written as UTF-8, whatever the locale's encoding. With `-o FILE`, it goes to `FILE` in UTF-8 with `\n` line endings on every platform. The text ends with a newline.
+- **Nothing on failure.** The whole design is flattened in memory before anything is written. If flattening fails, stdout stays empty and the `-o` file is neither created nor modified.
+- **Deterministic.** The same sources and the same `flattened_at` value give byte-identical output. Everything is emitted in a fixed order: source declaration order, and JSON objects in insertion order.
+- **Not checked by the flattener.** The two limits of compiled libraries are a port width of at most 64 bits and at most 65535 single-bit input wires. They are enforced by [`shdlc`](./shdlc.mdx), not here. `shdl-flatten` emits Base SHDL for a design that exceeds them, and compiling that Base SHDL then fails ([shdl.md §14.2](/specs/shdl#142-documented-limits)).
+
+```console check
+$ shdl-flatten halfAdder.shdl --timestamp T -o one.base.shdl
+$ shdl-flatten halfAdder.shdl --timestamp T -o two.base.shdl
+$ cmp one.base.shdl two.base.shdl && echo identical
+identical
+```
+
+## Timestamps and reproducible builds {/* #timestamp */}
+
+`meta.doc.flattened_at` is the only part of the output that depends on when the flattener runs. Its value comes from the first of these that applies ([base_shdl.md §4.10](/specs/base_shdl#410-doc--documentation-and-provenance)):
+
+| Source | Value stored |
+|---|---|
+| `--timestamp TS` | `TS`, exactly as given. It is not parsed or validated, so any string is accepted. |
+| `SOURCE_DATE_EPOCH` environment variable | That Unix time as UTC, formatted `YYYY-MM-DDTHH:MM:SSZ` |
+| Neither | The current UTC time, in the same format |
+
+`SOURCE_DATE_EPOCH` is the [reproducible-builds](https://reproducible-builds.org/specs/source-date-epoch/) convention. It is only read when `--timestamp` is absent. A value that is not an integer, or that is out of the platform's time range, is E0001 at the pseudo-position `<environment>:1:1`:
+
+```console check
+$ SOURCE_DATE_EPOCH=1767225600 shdl-flatten halfAdder.shdl | grep flattened_at
+    "flattened_at": "2026-01-01T00:00:00Z"
+$ SOURCE_DATE_EPOCH=1767225600 shdl-flatten halfAdder.shdl --timestamp "build 42" | grep flattened_at
+    "flattened_at": "build 42"
+$ SOURCE_DATE_EPOCH=abc shdl-flatten halfAdder.shdl 2>&1; echo "exit $?"
+<environment>:1:1: error[E0001]: invalid SOURCE_DATE_EPOCH 'abc': invalid literal for int() with base 10: 'abc'
+exit 1
+```
+
+`shdlc`, `Circuit` and the `shdl` CLI never pass a timestamp. The Base SHDL they produce therefore uses `SOURCE_DATE_EPOCH` or the current time. This only affects the `doc` metadata, never the simulation. The [conformance suite](./conformance.mdx) pins `2026-01-01T00:00:00Z` for all of its golden files.
+
+## Diagnostics and exit status {/* #diagnostics */}
+
+Every error in the source is reported as one line on stderr:
+
+```text
+FILE:LINE:COL: error[CODE]: MESSAGE
+```
+
+- `FILE` is the base name of the file that contains the error, which can be an imported module, not the main file. Directories are never shown here, although a message may contain a path. The one pseudo-file is `<environment>`, for a bad `SOURCE_DATE_EPOCH`.
+- `LINE` and `COL` are 1-based. Errors that concern a whole file, such as a missing file or no selectable top, point at `1:1`.
+- `CODE` is a stable code such as `E0401`. Codes are grouped by category: E00xx usage, E01xx lexical, E02xx syntax, E03xx names, E04xx widths, E05xx connections, E06xx generators, E07xx imports, E08xx constants, E09xx parameters and E0Axx initial state. The [error reference](../language-reference/errors.mdx) and [shdl.md §14.3](/specs/shdl#143-error-code-catalog) list every code.
+- **One diagnostic per run.** The flattener stops at the first error. There are no warnings and no "did you mean" hints ([shdl.md §14.1](/specs/shdl#141-diagnostics-reporting-v1-contract)).
+
+```shdl error=E0401 title="width.shdl"
+top component Widen(A[4]) -> (O[8]) {
+    connect {
+        A -> O;
+    }
+}
+```
+
+```console check
+$ shdl-flatten width.shdl 2>&1; echo "exit $?"
+width.shdl:3:9: error[E0401]: connection width mismatch: source has 4 bit(s), destination has 8
+exit 1
+$ shdl-flatten missing.shdl 2>&1; echo "exit $?"
+missing.shdl:1:1: error[E0701]: file not found: missing.shdl
+exit 1
+$ printf '\xff\n' > binary.shdl && shdl-flatten binary.shdl 2>&1; echo "exit $?"
+binary.shdl:1:1: error[E0101]: source is not valid UTF-8: invalid start byte at byte 0
+exit 1
+```
+
+A path that is a directory is also reported as `file not found`. Operating-system errors that are not about the source text, such as failing to write the `-o` file, are printed with a `shdl-flatten: error:` prefix. Command-line mistakes are reported by the argument parser:
+
+```console check
+$ shdl-flatten halfAdder.shdl -o no/such/dir/out.base.shdl 2>&1; echo "exit $?"
+shdl-flatten: error: [Errno 2] No such file or directory: 'no/such/dir/out.base.shdl'
+exit 1
+$ shdl-flatten 2>&1; echo "exit $?"
+usage: shdl-flatten [-h] [--top NAME] [-I DIR] [-o FILE] [--timestamp TS] file
+shdl-flatten: error: the following arguments are required: file
+exit 2
+```
+
+| Exit status | Meaning |
+|---|---|
+| 0 | Success. The Base SHDL was written to stdout or `-o`. |
+| 1 | A diagnostic (`error[E....]`), or an operating-system error while reading or writing (`shdl-flatten: error: ...`). Nothing is written. |
+| 2 | Invalid command line: a missing `file`, an unknown option, or an option without its value. |
+
+## What flattening does {/* #pipeline */}
+
+`flatten_program` runs these steps in order and stops at the first error. The [flattening pipeline](../architecture/flattening-pipeline.mdx) page covers each one in detail, and [shdl.md §12](/specs/shdl#12-lowering-to-base-shdl) is the normative description.
+
+1. **Load.** Read and parse the main file and, recursively, every imported module ([module search](#module-search)).
+2. **Validate** every loaded component: names, ports, `top` markers, `init` blocks and similar rules.
+3. **Select the top** ([top selection](#top-selection)).
+4. **Monomorphize.** Create one concrete copy of each generic component for each set of parameter values used, starting from the top with its defaults.
+5. **Expand** generators, conditionals and ranges, and split multi-bit ports into single-bit wires.
+6. **Lower connections** to single-bit connections, and turn constants into `__VCC__` and `__GND__` gates. Connection rules are checked here: width mismatches, multiple drivers, undriven pins.
+7. **Flatten** the hierarchy into one netlist, with gate names built from instance paths.
+8. **Compute timing**, which gives `max_depth`, per-output depths, feedback detection and the critical path.
+9. **Build and verify the metadata**, then emit the text.
+
+## Python API {/* #python-api */}
+
+The command-line tool is a thin wrapper around one function:
+
+```python fragment
+from flattener.pipeline import flatten_program
+
+flatten_program(main_path, include_dirs=None, top=None, timestamp=None) -> FlattenOutput
+```
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `main_path` | `str` | Path of the main `.shdl` file (the CLI's `file`). |
+| `include_dirs` | `list[str] \| None` | Extra module search directories, like repeated `-I`. |
+| `top` | `str \| None` | Like `--top`. |
+| `timestamp` | `str \| None` | Like `--timestamp`. When `None`, `SOURCE_DATE_EPOCH` or the current time is used. |
+
+It returns a `FlattenOutput` dataclass and raises `flattener.diagnostics.SHDLError` for every positioned error. `SHDLError.diagnostic` is a `Diagnostic(code, message, pos)`:
+
+- `code` is a member of the `ErrorCode` enum, and `code.value` is the string, such as `"E0001"`;
+- `pos` is a `Pos(file, line, col)`;
+- `str()` of the diagnostic, and of the exception, is the one-line format shown above.
+
+An `OSError` from reading a source file is not converted.
+
+| `FlattenOutput` field | Contents |
+|---|---|
+| `text` | The Base SHDL text, exactly what the CLI prints |
+| `meta` | The `meta` object as a Python `dict` (the same content as in `text`) |
+| `timing` | The `timing` dict (also `meta["timing"]`) |
+| `program` | The loaded program: every parsed module, keyed by module name (`program.modules`, `program.main`) |
+| `mono` | The monomorphized program. `mono.top_key` names the top, for example `"fullAdder::FullAdder"`. |
+| `expanded` | The expanded components (after step 5), keyed like `"fullAdder::HalfAdder"` |
+| `lowered` | The same components after step 6: single-bit connections and constant gates |
+| `flat` | The flattened netlist (`flat.netlist`) and the data used to build `hierarchy`, `source_map`, `constants` and `init` |
+
+Only `text`, `meta` and `timing` are meant for everyday use. The intermediate fields expose the flattener's internal data structures, which the test suite uses to check each phase. They may change between releases.
+
+```python
+from flattener.diagnostics import SHDLError
+from flattener.pipeline import flatten_program
+
+out = flatten_program("examples/fullAdder.shdl", timestamp="2026-01-01T00:00:00Z")
+print(out.text.splitlines()[0])
+print(out.timing["max_depth"], out.timing["output_depths"])
+print(out.meta["stats"]["total_gates"], list(out.meta["ports"]["inputs"]))
+print(out.mono.top_key, sorted(out.expanded))
+
+try:
+    flatten_program("pair.shdl")
+except SHDLError as e:
+    d = e.diagnostic
+    print(d.code.value, d.pos.file, d.pos.line, d.pos.col)
+```
+
+```text title="Output"
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+3 {'Sum': 2, 'Cout': 3}
+5 ['A', 'B', 'Cin']
+fullAdder::FullAdder ['fullAdder::FullAdder', 'fullAdder::HalfAdder']
+E0001 pair.shdl 1 1
+```
+
+`flattener.pipeline` also defines the two helpers the pipeline uses. `select_top(program, top)` applies the [top-selection rules](#top-selection) to a loaded program. `resolve_timestamp(explicit)` computes `flattened_at` as described [above](#timestamp). To load and check a program without choosing a top or flattening it, call `flattener.loader.load_program(main_path, include_dirs=None)` and then `flattener.validate.validate_program(program)`.
+
+## See also
+
+- [Base SHDL](../architecture/base-shdl.mdx) and [base_shdl.md](/specs/base_shdl): the output format.
+- [Flattening pipeline](../architecture/flattening-pipeline.mdx): the phases in depth.
+- [Imports](../language-reference/imports.mdx): `use` from the language side.
+- [Errors](../language-reference/errors.mdx): every diagnostic code with examples.
+- [`shdlc`](./shdlc.mdx): compiles the output (or a `.shdl` file directly) to a shared library.

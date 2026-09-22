@@ -1,0 +1,365 @@
+---
+title: Projects and packages
+description: Use the shdl command to create an SHDL project, build and test it, drive it from a REPL, and add packages from the Circuit Circus index.
+---
+
+This page walks through the `shdl` command from an empty directory to a working project that uses a package from **Circuit Circus**, the SHDL package index. It covers creating a project, the files it contains, building, testing, the interactive REPL, adding a package, keeping dependencies in sync, and loading the project from Python. The [shdl CLI reference](../tools/shdl-cli.mdx) documents every command and flag.
+
+`shdl` is installed with PySHDL (see [Installation](./installation.mdx)). It is a thin layer over the same pipeline as `Circuit`: it adds a manifest (`shdl.toml`), a pinned dependency list (`shdl.lock`), a directory of downloaded packages (`shdl_modules/`), and one command each for build, test and run. Only the package commands (`add`, `remove`, `install`, `search`, `info` and `publish`) use the network. Building, testing and running work offline.
+
+## Create a project
+
+`shdl new` creates a directory with a project that already compiles and passes its tests:
+
+```console check
+$ shdl new calc
+created project calc in calc/
+  shdl.toml
+  src/calc.shdl
+  tests/calc.tests.json
+  .gitignore
+  README.md
+  shdl.lock
+next: cd calc && shdl build && shdl test
+```
+
+- The project name is the directory's last path component. It must match `[a-z][a-z0-9_]*`, so `shdl new My-Calc` fails with `shdl: error: project name 'My-Calc' must match [a-z][a-z0-9_]*`.
+- `--top NAME` names the generated top component. The default is `Main`.
+- `shdl new` refuses a directory that exists and is not empty. To turn an existing directory into a project, run `shdl init` inside it. It takes an optional name (default: the directory's name) and the same `--top`. If any file it would create already exists, it stops with `refusing to overwrite: ...` and writes nothing.
+
+## What is in a project
+
+```text
+calc/
+├── shdl.toml              the manifest
+├── shdl.lock              the pinned dependency resolution (commit it)
+├── src/calc.shdl          your SHDL; [project] main points here
+├── tests/calc.tests.json  test vectors for shdl test
+├── .gitignore             ignores shdl_modules/ and build/
+└── README.md
+```
+
+Every `shdl` command finds the project by looking for `shdl.toml` in the current directory and then in each parent, so you can run them from any subdirectory. The manifest is short:
+
+```console check continue
+$ cd calc
+$ cat shdl.toml
+[project]
+name = "calc"
+version = "0.1.0"
+main = "src/calc.shdl"
+top = "Main"
+shdl = ">=1.0.0"
+
+[dependencies]
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `name` | yes | The project name, `[a-z][a-z0-9_]*`. It also names the build output, such as `build/calc.so` on Linux. |
+| `version` | yes | The project's version, a non-empty string (`X.Y.Z` by convention). |
+| `main` | yes | The entry module, relative to the project root. |
+| `top` | no | The component that `shdl build` and `shdl run` use when you do not pass `--top`. Without it, the main module's own `top` marker decides. |
+| `shdl` | no | The PySHDL versions this project works with. `shdl` checks it against the installed PySHDL whenever it resolves dependencies (`add`, `remove`, and `install` with a stale lock). |
+
+`[dependencies]` lists the packages you add, and an optional `[registry]` table can point the project at a different package index. [Project manifest](../tools/project-manifest.mdx) documents every key, including local path dependencies.
+
+The generated module is a single inverter, so the project has something to build and test straight away:
+
+```console check continue
+$ cat src/calc.shdl
+"""calc — an SHDL project."""
+
+top component Main(A) -> (Y) {
+    inv: NOT;
+    connect {
+        A -> inv.A;
+        inv.O -> Y;
+    }
+}
+```
+
+## Build
+
+`shdl build` flattens the main module, generates C, and compiles it into a shared library under `build/`:
+
+```console check continue
+$ shdl build
+...
+```
+
+It prints the library's absolute path, for example `built /home/you/calc/build/calc.so`. The file is named after the project, with the platform's suffix: `.so` on Linux, `.dylib` on macOS, `.dll` on Windows. Every build starts from scratch; there is no incremental cache to go stale.
+
+| Option | Effect |
+|---|---|
+| `--top NAME` | Build a different component. It can be defined in the main module or in any other `.shdl` file of the project (under `src/` or the main module's directory). |
+| `-o`, `--output LIB` | Write the library somewhere else. |
+| `--emit-base` | Also write the flattened Base SHDL to `build/<name>.base.shdl`. |
+| `--dev` | Compile with `-O0` instead of `-O2`: much faster compilation for large circuits, slower simulation. |
+| `--cc CC` | Use this C compiler (default: `$CC`, then `cc`, `clang`, `gcc`). |
+
+```console check continue
+$ shdl build --emit-base -o build/calc.so
+built build/calc.so
+$ head -n 5 build/calc.base.shdl
+component Main(A) -> (Y) {
+    inv: NOT;
+
+    connect {
+        A -> inv.A;
+```
+
+A flattener error is printed exactly as `shdl-flatten` would print it, prefixed with `shdl: error:`, and the command exits with status 1.
+
+## Test
+
+`shdl test` runs every `tests/*.tests.json` file:
+
+```console check continue
+$ shdl test
+[calc.tests.json]
+  ok    Main
+
+1/1 cases green
+```
+
+The generated test file holds one **case** with two **vectors**:
+
+```console check continue
+$ cat tests/calc.tests.json
+{
+  "test_format": 1,
+  "package": "calc",
+  "cases": [
+    {
+      "component": "Main",
+      "steps": 8,
+      "vectors": [
+        {"in": {"A": 0}, "out": {"Y": 1}},
+        {"in": {"A": 1}, "out": {"Y": 0}}
+      ]
+    }
+  ]
+}
+```
+
+Each case builds its `component` and starts from a freshly loaded circuit. For every vector, `shdl test` resets the circuit, pokes each input in `in`, runs `steps` cycles (64 if you leave `steps` out), and compares each output in `out`. Set `steps` to at least the component's depth: a vector checked too early fails even when the logic is right. `shdl test` reads only `cases`; `test_format` and `package` are there for compatibility with the Circuit Circus package format.
+
+A failing vector shows the inputs, what the output was and what the test expected. The run then exits with status 1:
+
+```text
+[calc.tests.json]
+  FAIL  Main: in={'A': 1} Y=0 (want 1)
+
+0/1 cases green
+```
+
+For sequential circuits, where the order and timing of events matter, a case can list explicit `ops` instead of `vectors`. The case below checks the inverter at cycle 0, before the `NOT` gate has computed anything, and then one cycle after each change:
+
+```json
+{
+  "component": "Main",
+  "ops": [
+    {"op": "expect", "signal": "Y", "value": 0},
+    {"op": "step"},
+    {"op": "expect", "signal": "Y", "value": 1},
+    {"op": "poke", "signal": "A", "value": 1},
+    {"op": "step", "cycles": 1},
+    {"op": "expect", "signal": "Y", "value": 0}
+  ]
+}
+```
+
+An ops case does not reset between operations. Use `{"op": "reset"}` where you want one. `shdl test Main` runs only the cases for the components you name, and `--dev` and `--cc` work as for `shdl build`. [Testing](../tools/testing.mdx) covers the full format.
+
+## Drive the circuit from a REPL
+
+`shdl run` builds the top component and reads commands, one per line. When standard input is a terminal it prints a banner (`calc: top=Main — 'help' for commands`) and a `shdl> ` prompt. When input is piped it prints neither, so you can script it:
+
+```console check continue
+$ printf 'info\npeek Y\nstep\npeek Y\npoke A 1\npeek Y\nsettle\npoke Y 1\nfrobnicate\n' | shdl run
+inputs:  A
+outputs: Y
+0
+1
+0
+settled after 1 cycle(s)
+error: 'Y' is an output port and cannot be poked; inputs: A
+error: unknown command 'frobnicate' — 'help' lists them
+```
+
+`Y` reads 0 at first because no cycle has run yet, so the `NOT` gate has not computed anything. One `step` later it reads 1. After `poke A 1`, the `peek Y` itself runs the one pending cycle, which is the lazy-peek rule explained in [Simulation model](../concepts/simulation-model.mdx#peeking-is-lazy). A bad command prints `error: ...` and the REPL carries on. It exits with status 0 at the end of input. `shdl run` takes the same `--top`, `--dev` and `--cc` options as `shdl build`.
+
+| Command | Effect |
+|---|---|
+| `poke SIGNAL VALUE` | Set an input. `VALUE` can be written in decimal, `0x...`, `0b...` or `0o...`. Values are range-checked as in strict mode. |
+| `peek SIGNAL` | Print a port's value. |
+| `step [N]` | Run `N` cycles (default 1). |
+| `settle` | Run exactly the circuit's `max_depth` cycles and print how many ran. Circuits with feedback print `error: settle() is refused: ...`. |
+| `reset` | Return to the power-on state. |
+| `info` | List the input and output ports. |
+| `help` | List the commands. |
+| `quit`, `exit`, Ctrl-D | Leave. |
+
+:::note[`settle` in the built-in help]
+
+The REPL's `help` text describes `settle` as "step until stable, print how many cycles it took". It actually runs exactly `max_depth` cycles, like `Circuit.settle()`, whether or not the circuit stopped changing sooner.
+
+:::
+
+## Add a package
+
+Circuit Circus hosts reusable SHDL packages. Its index lives at [rafa-rrayes.github.io/CCircus](https://rafa-rrayes.github.io/CCircus/), and `shdl` uses it by default. Search it by name, summary or keyword:
+
+```bash
+shdl search adder
+```
+
+```text
+arith 0.1.0  Adders, subtractors, comparators, multiply/divide, and an ALU.
+```
+
+`shdl info arith` prints the package's description, license, the toolchain range it needs (`shdl: >=1.0.0`), its dependencies (`gates ^0.1.0`) and its 16 exported components, each with a one-line summary. One of them is `AddSub`: "Add when Sub=0, two's-complement subtract when Sub=1."
+
+Add it to the project:
+
+```bash
+shdl add arith
+```
+
+```text
+  fetched arith 0.1.0 (8.8 kB)
+  fetched gates 0.1.0 (2.3 kB)
+added arith ^0.1.0
+```
+
+This output reflects the index at the time of writing, and newer releases will change the versions and sizes. `shdl add` resolved the newest `arith` and found that it depends on `gates`. It downloaded both archives, checked each against the SHA-256 published in the index, and unpacked them into `shdl_modules/`. Only after all of that succeeded did it write `shdl.toml` and `shdl.lock`. Three things changed:
+
+| What | Change |
+|---|---|
+| `shdl.toml` | `arith = "^0.1.0"` added under `[dependencies]`. Only the package you asked for is listed, not `gates`. The caret range `^0.1.0` accepts any `0.1.x` release. Name a range yourself with `shdl add arith@RANGE`. |
+| `shdl.lock` | Pins every package in the resolution, `arith` and `gates`, with its exact version, archive `sha256`, source index, module file, dependencies and exported components. It also records a fingerprint of your dependencies and index URL. |
+| `shdl_modules/` | One directory per package, `shdl_modules/arith/` and `shdl_modules/gates/`, each holding the package's `.shdl` module, its `package.json` manifest, a `README.md` and its tests. |
+
+`shdl.toml` edits touch only the `[dependencies]` table and leave the rest of the file byte for byte as it was. `shdl remove arith` undoes an add and removes packages nothing needs any more. Removing `gates` directly is refused, because it is not a direct dependency: `shdl: error: gates is not a direct dependency — it is required by arith`.
+
+## Use the package
+
+A vendored package is imported like any module, by its package name. Replace `src/calc.shdl` with a 4-bit adder/subtractor built from `AddSub`, whose width parameter `N` defaults to 8:
+
+```shdl fragment title="src/calc.shdl"
+"""calc — a 4-bit adder/subtractor built from a Circuit Circus package."""
+
+use arith::{AddSub};
+
+top component Main(A[4], B[4], Sub) -> (R[4], Cout) {
+    unit: AddSub<4>;
+
+    connect {
+        A -> unit.A;
+        B -> unit.B;
+        Sub -> unit.Sub;
+        unit.R -> R;
+        unit.Cout -> Cout;
+    }
+}
+```
+
+The `arith` module itself imports `gates`, which is why `shdl add` fetched both. Replace the test file too. `5 - 3` is computed as `5 + ~3 + 1`, so a subtraction without a borrow sets `Cout`:
+
+```json title="tests/calc.tests.json"
+{
+  "test_format": 1,
+  "package": "calc",
+  "cases": [
+    {
+      "component": "Main",
+      "steps": 16,
+      "vectors": [
+        {"in": {"A": 5, "B": 3, "Sub": 0}, "out": {"R": 8, "Cout": 0}},
+        {"in": {"A": 9, "B": 9, "Sub": 0}, "out": {"R": 2, "Cout": 1}},
+        {"in": {"A": 5, "B": 3, "Sub": 1}, "out": {"R": 2, "Cout": 1}},
+        {"in": {"A": 3, "B": 5, "Sub": 1}, "out": {"R": 14, "Cout": 0}}
+      ]
+    }
+  ]
+}
+```
+
+```bash
+shdl test
+printf 'poke A 5\npoke B 3\npoke Sub 1\nsettle\npeek R\npeek Cout\npoke Sub 0\nstep 3\npeek R\nsettle\npeek R\n' | shdl run
+```
+
+```text
+[calc.tests.json]
+  ok    Main
+
+1/1 cases green
+settled after 10 cycle(s)
+2
+1
+14
+settled after 10 cycle(s)
+8
+```
+
+The circuit is 10 gate levels deep, so `settle` runs 10 cycles, and the tests' 16 steps are enough. Three cycles after `Sub` flips back to 0, `R` briefly reads 14 before it settles at 8. That in-between value is a glitch, and watching changes ripple through gates like this is what the unit-delay model is for.
+
+The module namespace is flat: `use arith::...` finds `shdl_modules/arith/arith.shdl` because `shdl` puts every vendored package directory on the import search path. To keep names unambiguous, dependency resolution fails if two packages provide the same module file name, if one of your own modules has the same name as a package module, or if two packages export a component with the same name.
+
+## Keep dependencies in sync
+
+Commit `shdl.toml` and `shdl.lock`. `shdl_modules/` and `build/` are generated, and the `.gitignore` from `shdl new` excludes them. After a fresh clone, `shdl install` downloads exactly what the lock pins:
+
+```bash
+shdl install
+```
+
+```text
+  fetched arith 0.1.0 (8.8 kB)
+  fetched gates 0.1.0 (2.3 kB)
+```
+
+When everything already matches, it prints `up to date (2 packages)`.
+
+`shdl build`, `test` and `run` never download anything. Before building they check that the lock matches `shdl.toml` and that `shdl_modules/` matches the lock. If not, they stop and tell you to run `shdl install`:
+
+```text
+shdl: error: vendored package arith is missing or does not match the lock (arith 0.1.0) — run 'shdl install'
+shdl: error: shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'
+```
+
+The first message appears when `shdl_modules/` was deleted or never installed. The second appears when you edit `[dependencies]` by hand. `shdl install` then re-resolves, rewrites the lock and syncs the tree. In CI, use `shdl install --frozen`, which fails instead of re-resolving when the lock is missing or stale. `--force` downloads every package again even if it looks current. A project with no dependencies builds even without a lock file.
+
+The index can be changed per command with `--index URL`, per shell with the `SHDL_INDEX_URL` environment variable, or per project with `[registry] url` in `shdl.toml`, in that order of precedence. [Packages](../tools/packages.mdx) covers resolution, path dependencies and publishing your own package to Circuit Circus.
+
+## Load the project from Python
+
+`shdl` computes the import search path for you. When you load the same source with `Circuit`, pass the package directories yourself, **including the packages your dependencies depend on**:
+
+```python fragment
+from SHDL import Circuit
+
+with Circuit("src/calc.shdl",
+             include_dirs=["shdl_modules/arith", "shdl_modules/gates"]) as calc:
+    print(calc, "depth", calc.timing.max_depth)
+    calc["A"], calc["B"], calc["Sub"] = 3, 5, 1
+    calc.settle()
+    print(calc["R"], calc["Cout"])
+```
+
+```text title="Output"
+<SHDL.Circuit 'Main' (A[4], B[4], Sub) -> (R[4], Cout)> depth 10
+14 0
+```
+
+`3 - 5` wraps around to 14, which is -2 in 4-bit two's complement, and `Cout` is 0 because the subtraction borrowed. With only `shdl_modules/arith` on the path, loading fails with `E0701`, `module 'gates' not found`. The `README.md` that `shdl new` generates shows a single package directory, so add the others when you follow it. [Using PySHDL](./using-pyshdl.mdx) covers the rest of the Python API.
+
+## Where next
+
+- [shdl CLI](../tools/shdl-cli.mdx): every command, flag, message and exit code.
+- [Project manifest](../tools/project-manifest.mdx): `shdl.toml` and `shdl.lock` in full.
+- [Testing](../tools/testing.mdx): the test-vector format, including `ops` cases.
+- [Packages](../tools/packages.mdx): version ranges, resolution, path dependencies and publishing.
+- [shdl_cli.md](/specs/shdl_cli#two-minutes-in): the specification of the `shdl` command.

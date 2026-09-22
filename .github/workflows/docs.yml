@@ -1,0 +1,97 @@
+# Docs — build the Docusaurus site (website/) and deploy it to GitHub Pages.
+#
+# Every PR that touches the site or the specs it renders (docs/*.md, served
+# under /specs) builds the site, so a broken link or anchor fails the check
+# (docusaurus.config.ts throws on both), and runs every code block on the site
+# against the real toolchain (website/scripts/check_snippets.py). Pushes to
+# master also deploy the build to https://rafa-rrayes.github.io/SHDL/.
+# Repository setting required once: Settings > Pages > Source = GitHub Actions.
+name: Docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "examples/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "examples/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# PR builds cancel superseded runs; a master deploy is never cut off mid-way.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  snippets:
+    name: Check code blocks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pin Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync the environment
+        run: uv sync --frozen
+
+      - name: Run every snippet on the site
+        run: uv run website/scripts/check_snippets.py
+
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: [snippets, build]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

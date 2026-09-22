@@ -1,0 +1,621 @@
+---
+title: Project manifest and lockfile
+sidebar_label: shdl.toml and shdl.lock
+description: The shdl.toml and shdl.lock formats, the version-range grammar, how shdl resolves dependencies, and how shdl_modules/ feeds the include path.
+---
+
+A `shdl` project is a directory with a `shdl.toml` at its root. This page covers every key of `shdl.toml` and how `shdl` validates it. It also covers the `shdl.lock` format and when a lock counts as stale, the version and range grammar, the resolution algorithm and every error it reports, path dependencies, and how the vendored `shdl_modules/` tree becomes the flattener's include path. For the commands that read and write these files, see [The shdl command](./shdl-cli.mdx). The normative summary is [shdl_cli.md](/specs/shdl_cli#the-project-layout).
+
+## The files of a project
+
+| Path | Written by | Commit it | Purpose |
+|---|---|---|---|
+| `shdl.toml` | you, `shdl new`/`init`, `shdl add`/`remove` | yes | The manifest: the entry module and the direct dependencies. |
+| `shdl.lock` | `shdl new`/`init`/`add`/`remove`/`install` | yes | The pinned resolution: every package's exact version and archive sha256. |
+| `shdl_modules/` | `shdl add`/`remove`/`install` | no (gitignored) | One directory per vendored registry package, rebuilt from the lock at any time. |
+| `build/` | `shdl build` | no (gitignored) | The compiled library and, with `--emit-base`, the Base SHDL text. |
+| `src/`, `tests/` | you | yes | Your modules and your [test files](./testing.mdx). |
+
+The scaffold's `.gitignore` lists `shdl_modules/` and `build/`. `build`, `test` and `run` never touch the network: they trust `shdl.lock` and the vendored tree, and tell you to run `shdl install` when either is out of date.
+
+## shdl.toml {/* #shdl-toml */}
+
+`shdl new` writes this file:
+
+```toml title="shdl.toml"
+[project]
+name = "demo"
+version = "0.1.0"
+main = "src/demo.shdl"
+top = "Main"
+shdl = ">=1.0.0"
+
+[dependencies]
+```
+
+`shdl` reads it with Python's `tomllib`, so any valid TOML 1.0 works. A fuller manifest looks like this:
+
+```toml title="shdl.toml"
+[project]
+name = "app"                  # required
+version = "0.1.0"             # required, not interpreted
+main = "src/app.shdl"         # required, relative to this file
+top = "Main"                  # optional
+shdl = ">=1.1.0"              # optional
+
+[dependencies]
+arith = "^0.1.0"              # a registry package and a version range
+mylib = { path = "../mylib" } # a local directory, never vendored
+
+[registry]
+url = "https://rafa-rrayes.github.io/CCircus"   # optional
+```
+
+### The `[project]` table
+
+| Key | Required | Type | Used for |
+|---|---|---|---|
+| `name` | yes | string matching `[a-z][a-z0-9_]*` | The default output name, `build/<name>.dylib` (`.so` on Linux, `.dll` on Windows), the `--emit-base` file `build/<name>.base.shdl`, and the `shdl run` banner. |
+| `version` | yes | non-empty string | Nothing. `shdl` checks only that it is a non-empty string. It is not parsed as `X.Y.Z` and no command reads it. |
+| `main` | yes | non-empty string, a path relative to the project root | The entry module handed to the flattener. `build`, `test` and `run` fail with `main module not found: <path>` if it does not exist. It does not have to live in `src/`. |
+| `top` | no | string | The default top component for `shdl build` and `shdl run` (`--top` overrides it). Without it, the flattener uses the module's `top component`. `shdl test` ignores it, because each test case names its component. |
+| `shdl` | no | string, a [version range](#version-ranges) | The PySHDL versions this project works with. It is checked against the installed PySHDL [only when dependencies are resolved](#toolchain-check). |
+
+### The `[dependencies]` table
+
+Each key is a package name and must match `[a-z][a-z0-9_]*`. Each value is one of two forms:
+
+| Form | Example | Meaning |
+|---|---|---|
+| A version range string | `arith = "^0.1.0"` | A registry package from the configured index. The range uses the [range grammar](#version-ranges). |
+| An inline table with exactly one key, `path` | `mylib = { path = "../mylib" }` | A [path dependency](#path-dependencies): a local directory, relative to the project root, that goes straight on the include path. |
+
+The table may be empty or absent. List only the packages you `use` directly. Their own dependencies are resolved and locked for you.
+
+Range strings are not parsed when `shdl.toml` is loaded. A bad range surfaces the next time dependencies are resolved (`add`, `remove`, or `install` with a stale lock). Until then, `build` reports the lock as stale, because the lock no longer matches the manifest.
+
+### The `[registry]` table
+
+| Key | Required | Type | Meaning |
+|---|---|---|---|
+| `url` | no | string | The package index for this project. It ranks third in [index precedence](./shdl-cli.mdx#choosing-the-index), after `--index` and `SHDL_INDEX_URL`. It must start with `http://`, `https://` or `file://`. |
+
+### Unknown keys
+
+`shdl` ignores keys and tables it does not know, both inside `[project]` and at the top level. It does not warn about them.
+
+### Validation
+
+`shdl` loads `shdl.toml` at the start of every project command. The first problem it finds is reported as `shdl: error: <absolute path to shdl.toml>: <message>`, with exit status `1`:
+
+```console check
+$ shdl new demo
+created project demo in demo/
+  shdl.toml
+  src/demo.shdl
+  tests/demo.tests.json
+  .gitignore
+  README.md
+  shdl.lock
+next: cd demo && shdl build && shdl test
+$ cd demo
+$ printf '[project]\nname = "Demo"\nversion = "0.1.0"\nmain = "src/demo.shdl"\n' > shdl.toml
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: <scratch>/demo/shdl.toml: project name 'Demo' must match [a-z][a-z0-9_]*
+exit status: 1
+$ printf '[project]\nname = "demo"\nmain = "src/demo.shdl"\n' > shdl.toml
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: <scratch>/demo/shdl.toml: [project] version is required (a non-empty string)
+exit status: 1
+$ printf '[project]\nname = "demo"\nversion = "0.1.0"\nmain = "src/demo.shdl"\n\n[dependencies]\narith = { version = "^0.1.0" }\n' > shdl.toml
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: <scratch>/demo/shdl.toml: dependency arith must be a version-range string or { path = "…" }, got {'version': '^0.1.0'}
+exit status: 1
+```
+
+A `version` that is not `X.Y.Z` and an unknown key are both accepted:
+
+```console check continue
+$ printf '[project]\nname = "demo"\nversion = "draft"\nmain = "src/demo.shdl"\nlicense = "MIT"\n' > shdl.toml
+$ shdl build -o build/demo 2>&1; echo "exit status: $?"
+built build/demo
+exit status: 0
+```
+
+A bad range is caught at resolution, not at load:
+
+```console check continue
+$ printf '[project]\nname = "demo"\nversion = "0.1.0"\nmain = "src/demo.shdl"\n\n[dependencies]\narith = "~0.1.0"\n' > shdl.toml
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'
+exit status: 1
+$ shdl install 2>&1; echo "exit status: $?"
+shdl: error: invalid version range '~0.1.0' (tilde ranges are not supported)
+exit status: 1
+```
+
+Every message `shdl.toml` loading can produce, in the order they are checked:
+
+| Message (after `<path>: `) | Cause |
+|---|---|
+| `invalid TOML: <parser message>` | The file is not valid TOML, for example `invalid TOML: Expected ']' at the end of a table declaration (at line 1, column 9)`. |
+| `missing [project] table` | No `[project]` table, or `project` is not a table. |
+| `[project] name is required (a non-empty string)` | `name` is missing, empty or not a string. The same message is used for `version` and `main`. |
+| `project name 'X' must match [a-z][a-z0-9_]*` | `name` has uppercase letters, a leading digit or underscore, a hyphen, and so on. |
+| `[project] top must be a string` | `top` is present but not a string. The same message is used for `shdl`. |
+| `[dependencies] must be a table` | For example, a top-level `dependencies = []`. |
+| `dependency name 'X' must match [a-z][a-z0-9_]*` | A dependency key is not a valid package name. |
+| `dependency X must be a version-range string or { path = "…" }, got <value>` | The value is not a string, or is a table with any key other than exactly `path`, or its `path` is not a string. |
+| `[registry] must be a table` | For example, a top-level `registry = "…"`. |
+| `[registry] url must be a string` | `url` is present but not a string. |
+
+Two related errors are not load errors. `no shdl.toml found in <dir> or any parent — run inside a project, or create one with 'shdl new'` comes from the upward search described in [Finding the project](./shdl-cli.mdx#finding-the-project). `main module not found: <path>` comes from `build`, `test` and `run`.
+
+### How `shdl add` and `shdl remove` edit the file {/* #editing */}
+
+`shdl add` and `shdl remove` edit `shdl.toml` as text. They never regenerate it, so your comments, key order, blank lines and other tables are kept byte for byte.
+
+- A new dependency is inserted after the last non-blank line of `[dependencies]`, in the form `name = "range"` or `name = { path = "dir" }`.
+- An existing key is rewritten in place. Re-adding a package changes its range.
+- A removed key's line is deleted.
+- If there is no `[dependencies]` table, `shdl add` appends a blank line, then `[dependencies]` and the new lines, to the end of the file.
+- Line endings follow the file: new lines use CRLF if the file already contains CRLF.
+- A path given to `add --path` is stored relative to the project root, with `/` separators, whatever directory you ran the command from.
+
+After patching, `shdl` re-parses the result and compares its dependency table with the one it intended. If they differ, it writes nothing and stops with `cannot safely edit <path> — its [dependencies] table has a shape the editor does not understand; edit shdl.toml by hand`. That happens, for example, when dependencies are written as dotted keys (`dependencies.arith = "^0.1.0"`). `shdl remove` on a file with no `[dependencies]` header fails with `<path>: no [dependencies] table to remove from`. The file is replaced atomically (a temporary file in the same directory, then a rename) and keeps its permission bits.
+
+`shdl add` edits `shdl.toml` only after resolution and vendoring succeed, so a failed `add` leaves both `shdl.toml` and `shdl.lock` untouched.
+
+## shdl.lock {/* #shdl-lock */}
+
+`shdl.lock` is JSON. It records the result of the last resolution: every package in the dependency graph (direct and transitive), its exact version, where it comes from, its dependency ranges, its module file, its exported component names, and, for registry packages, the sha256 of its archive. Commit it. With the lock, every checkout builds against the same bytes, and `build`, `test` and `run` work offline.
+
+`shdl new` and `shdl init` write an empty lock. `shdl add`, `shdl remove` and `shdl install` (when the lock is missing or stale) rewrite it. `build`, `test` and `run` only read it.
+
+### Format 1
+
+This example builds a path dependency, `mylib`, and adds it to a new project. The library is one module:
+
+```shdl lib title="mylib.shdl"
+"""mylib — a tiny local library."""
+
+component Invert4(A[4]) -> (Y[4]) {
+    >i[4]{
+        n{i}: NOT;
+    }
+    connect {
+        >i[4]{
+            A[{i}] -> n{i}.A;
+            n{i}.O -> Y[{i}];
+        }
+    }
+}
+```
+
+```console check
+$ mkdir mylib && cp mylib.shdl mylib/
+$ echo '{"name": "mylib", "version": "0.1.0", "module": "mylib.shdl", "dependencies": {}, "exports": [{"name": "Invert4"}]}' > mylib/package.json
+$ shdl new app
+created project app in app/
+...
+$ cd app
+$ shdl add --path ../mylib
+added mylib path ../mylib
+$ cat shdl.lock
+{
+  "lock_format": 1,
+  "manifest_fingerprint": "sha256:872815e40270b8868509c5de7068e271edcd4512ac9bbadd2c8ad2c3f0874827",
+  "packages": {
+    "mylib": {
+      "dependencies": {},
+      "exports": [
+        "Invert4"
+      ],
+      "module": "mylib.shdl",
+      "source": {
+        "path": "../mylib",
+        "type": "path"
+      },
+      "version": "0.1.0"
+    }
+  },
+  "registry": "https://rafa-rrayes.github.io/CCircus"
+}
+```
+
+Adding a registry package pulls in its dependencies too. `arith` depends on `gates`, so both are locked and vendored (this needs the network):
+
+```console check continue
+$ shdl add arith
+  fetched arith 0.1.0 (8.8 kB)
+  fetched gates 0.1.0 (2.3 kB)
+added arith ^0.1.0
+$ tail -3 shdl.toml
+[dependencies]
+mylib = { path = "../mylib" }
+arith = "^0.1.0"
+$ cat shdl.lock
+{
+  "lock_format": 1,
+  "manifest_fingerprint": "sha256:c53b4db780b3f41fcdd7670fb4024d35f0edaad934026049a23df70d6a6caca7",
+  "packages": {
+    "arith": {
+      "dependencies": {
+        "gates": "^0.1.0"
+      },
+      "exports": [
+        "HalfAdder",
+        "FullAdder",
+...
+        "Divider",
+        "ALU"
+      ],
+      "module": "arith.shdl",
+      "sha256": "3b447086d5a09ccc6a038da2c87ae3f9f037ac139d534bfe2aeaa00f5d4d797d",
+      "source": {
+        "type": "registry",
+        "url": "https://rafa-rrayes.github.io/CCircus"
+      },
+      "version": "0.1.0"
+    },
+    "gates": {
+      "dependencies": {},
+      "exports": [
+        "Nand",
+...
+        "Majority3"
+      ],
+      "module": "gates.shdl",
+      "sha256": "2ec8ac97a097996c7d53c8f6c16396db84b8a2c6559e821b70540bae8200e4f7",
+      "source": {
+        "type": "registry",
+        "url": "https://rafa-rrayes.github.io/CCircus"
+      },
+      "version": "0.1.0"
+    },
+    "mylib": {
+...
+    }
+  },
+  "registry": "https://rafa-rrayes.github.io/CCircus"
+}
+```
+
+The `...` lines stand for elided output. The file is written with two-space indentation, keys sorted at every level, and a trailing newline.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `lock_format` | integer | Always `1`. Any other value is rejected with `unsupported lock_format X (this toolchain writes 1)`. |
+| `manifest_fingerprint` | string | `sha256:` plus a hex digest of the inputs that produced this lock. See [Fingerprint](#fingerprint). |
+| `registry` | string | The effective index URL at resolution time, without a trailing slash. |
+| `packages` | object | One entry per package in the resolved graph, keyed by name. `{}` for a project with no dependencies. |
+| `packages.<name>.version` | string | The exact `X.Y.Z` version. For a path dependency, the `version` from its `package.json`. |
+| `packages.<name>.source` | object | `{"type": "registry", "url": "<index URL>"}` or `{"type": "path", "path": "<path as written in shdl.toml>"}`. |
+| `packages.<name>.dependencies` | object | The package's own dependency ranges, as published (or as in the path dependency's `package.json`). |
+| `packages.<name>.module` | string | The module file, from the index entry or the path dependency's manifest. For Circuit Circus packages it is always `<name>.shdl`. |
+| `packages.<name>.exports` | array of strings | The names of the exported components, in manifest order. Used for the [component collision check](#collision-checks). |
+| `packages.<name>.sha256` | string | Registry packages only: the sha256 of the `.tar.gz` archive, checked before every extraction. Omitted for path dependencies. |
+
+Read errors:
+
+| Message | Cause |
+|---|---|
+| `<path>: invalid JSON: <parser message>` | The file is not JSON. |
+| `<path>: unsupported lock_format X (this toolchain writes 1)` | `lock_format` is missing or not `1`. |
+| `<path>: malformed lock file (<detail>); delete it and re-run 'shdl install'` | A required field is missing, or a value has the wrong type. The detail is the Python exception text, for example `'manifest_fingerprint'` for a missing key. |
+
+### Fingerprint {/* #fingerprint */}
+
+The fingerprint ties a lock to the two inputs that decide a resolution: the `[dependencies]` table and the effective index URL. `shdl` builds a JSON object from them, serializes it with sorted keys and no whitespace, and hashes it with sha256. Range strings are used verbatim, so even a whitespace change in a range changes the fingerprint. `[project]` keys, including `shdl`, are not part of it. This recipe reproduces the three fingerprints on this page:
+
+```python
+import hashlib
+import json
+
+def fingerprint(dependencies, registry):
+    canon = {"dependencies": dependencies, "registry": registry}
+    text = json.dumps(canon, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+index = "https://rafa-rrayes.github.io/CCircus"
+print(fingerprint({}, index))
+print(fingerprint({"mylib": {"path": "../mylib"}}, index))
+print(fingerprint({"mylib": {"path": "../mylib"}, "arith": "^0.1.0"}, index))
+```
+
+```text title="Output"
+sha256:603ad67810c351b9bcb19c18808b145de3f4920805a0721b5ed67a70f3afb02c
+sha256:872815e40270b8868509c5de7068e271edcd4512ac9bbadd2c8ad2c3f0874827
+sha256:c53b4db780b3f41fcdd7670fb4024d35f0edaad934026049a23df70d6a6caca7
+```
+
+The first value is the fingerprint of every freshly scaffolded project, since `shdl new` locks an empty `[dependencies]` against the default index.
+
+### Freshness {/* #freshness */}
+
+A lock is fresh when its `manifest_fingerprint` equals the fingerprint of the current `shdl.toml` dependencies and the current effective index URL. Each command treats a missing or stale lock differently:
+
+| Command | Missing or stale lock |
+|---|---|
+| `shdl build`, `shdl test`, `shdl run` | Error: `no shdl.lock — run 'shdl install'` or `shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'`. A project with no dependencies is the exception: it builds with no lock, a stale lock, or even an unreadable one. |
+| `shdl install` | Re-resolves, writes a new lock, then syncs `shdl_modules/`. |
+| `shdl install --frozen` | Error: `shdl.lock is missing or stale and --frozen was given — run 'shdl install' without --frozen first`. Use it in CI to make sure the committed lock matches `shdl.toml`. |
+| `shdl add`, `shdl remove` | Always re-resolve from scratch. The old lock is not consulted, except that `remove` reads it to explain why a transitive package cannot be removed. |
+
+Editing `[dependencies]` by hand makes the lock stale:
+
+```console check continue
+$ echo 'code = "^0.1.0"' >> shdl.toml
+$ shdl build 2>&1; echo "exit status: $?"
+shdl: error: shdl.lock is stale (shdl.toml dependencies or registry changed) — run 'shdl install'
+exit status: 1
+$ shdl install --frozen 2>&1; echo "exit status: $?"
+shdl: error: shdl.lock is missing or stale and --frozen was given — run 'shdl install' without --frozen first
+exit status: 1
+$ shdl install
+  fetched code 0.1.0 (8.1 kB)
+$ shdl install
+up to date (3 packages)
+```
+
+The count in `up to date (N packages)` covers registry packages only (here `arith`, `code` and `gates`). Path dependencies are not vendored, so they are not counted.
+
+`build`, `test` and `run` have no `--index` flag. They compute the effective index URL from `SHDL_INDEX_URL`, then `[registry] url`, then the default. If you resolve with `shdl add --index URL` or `shdl install --index URL`, the lock records that URL, and the next `shdl build` reports it as stale unless `SHDL_INDEX_URL` or `[registry] url` names the same URL. For a project that always uses another index, set `[registry] url`.
+
+A fresh lock is not enough to build: the vendored tree must match it too. Before flattening, `build`, `test` and `run` check that each locked registry package has a directory `shdl_modules/<name>/` whose `package.json` has the locked `name` and `version`, and that each path dependency's module file exists. Otherwise they fail with `vendored package <name> is missing or does not match the lock (<name> <version>) — run 'shdl install'` or `path dependency <name>: module <file> not found in <dir>`. Only `name` and `version` are compared. A vendored file you edited by hand is not detected, so run `shdl install --force` to restore the archives' contents.
+
+## Version ranges {/* #version-ranges */}
+
+Versions and ranges follow the Circuit Circus grammar ([INDEX_FORMAT.md §6](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md)), with cargo-style semantics. The same grammar is used for `[dependencies]` ranges, the `shdl` key, the `@RANGE` of `shdl add`, and the `dependencies` and `shdl` fields of package manifests.
+
+### Versions
+
+A version is exactly `X.Y.Z`: three dot-separated non-negative decimal integers with no leading zeros (except `0` itself), and no `v` prefix, prerelease or build suffix. Leading and trailing whitespace is ignored. Versions are ordered by the integer triple `(X, Y, Z)`.
+
+### Ranges
+
+A range is one or more parts separated by commas. A version matches the range only if it matches every part. Whitespace around each part, and between an operator and its version, is ignored.
+
+| Part | Matches |
+|---|---|
+| `1.2.3` | exactly `1.2.3` |
+| `^1.2.3` | `>=1.2.3` and `<2.0.0` |
+| `^0.2.3` | `>=0.2.3` and `<0.3.0` |
+| `^0.0.3` | exactly `0.0.3` |
+| `>=1.2.3`, `>1.2.3`, `<=1.2.3`, `<1.2.3` | the comparison |
+| `>=0.1.0, <0.3.0` | both parts (comma means AND) |
+
+A caret range allows any change that keeps the leftmost non-zero component. For `0.y.z` packages the minor number is the breaking position, and `^0.0.z` allows nothing but `0.0.z`. `shdl add NAME` with no range records `^` plus the latest version, so `shdl add arith` writes `arith = "^0.1.0"`.
+
+Everything else is rejected with an error, never treated as "matches nothing". `shdl add` parses an explicit range before it contacts the index, so these errors need no network:
+
+```console check continue
+$ shdl add 'arith@~0.1.0' 2>&1
+shdl: error: invalid version range '~0.1.0' (tilde ranges are not supported)
+$ shdl add 'arith@1.*' 2>&1
+shdl: error: invalid version range '1.*' (wildcard ranges are not supported)
+$ shdl add 'arith@>=0.1.0 || <1.0.0' 2>&1
+shdl: error: invalid version range '>=0.1.0 || <1.0.0' ('||' alternatives are not supported)
+$ shdl add 'arith@0.1.0 - 0.2.0' 2>&1
+shdl: error: invalid version range '0.1.0 - 0.2.0' (hyphen ranges are not supported)
+$ shdl add 'arith@>=0.1.0,' 2>&1
+shdl: error: invalid version range '>=0.1.0,' (empty part)
+$ shdl add 'arith@0.1' 2>&1
+shdl: error: invalid version '0.1' (want X.Y.Z)
+$ shdl add 'arith@1.x' 2>&1
+shdl: error: invalid version '1.x' (want X.Y.Z)
+$ shdl add 'arith@01.0.0' 2>&1
+shdl: error: invalid version '01.0.0' (want X.Y.Z, no leading zeros)
+$ shdl add 'arith@0.1.0-beta' 2>&1
+shdl: error: invalid version '0.1.0-beta' (want X.Y.Z, no leading zeros)
+$ shdl add 'arith@=0.1.0' 2>&1
+shdl: error: invalid version '=0.1.0' (want X.Y.Z, no leading zeros)
+```
+
+| Rejected | Example | Message |
+|---|---|---|
+| Tilde | `~0.1.0` | `invalid version range '~0.1.0' (tilde ranges are not supported)` |
+| Wildcard `*` | `1.*` | `invalid version range '1.*' (wildcard ranges are not supported)` |
+| Hyphen range | `1.0.0 - 2.0.0` | `invalid version range '1.0.0 - 2.0.0' (hyphen ranges are not supported)` |
+| Empty part | `>=1.0.0,` | `invalid version range '>=1.0.0,' (empty part)` |
+| Empty or blank range | `" "` | `invalid version range ' '` |
+| Partial version or `x` | `1.2`, `1`, `1.x`, `^1.0` | `invalid version '1.2' (want X.Y.Z)` |
+| Leading zero | `01.0.0` | `invalid version '01.0.0' (want X.Y.Z, no leading zeros)` |
+| Prerelease, `v` prefix, explicit `=` | `1.0.0-beta`, `v1.0.0`, `=1.0.0` | `invalid version '…' (want X.Y.Z, no leading zeros)` |
+
+Alternatives joined with `||` are rejected with `invalid version range '…' ('||' alternatives are not supported)`. The last row's message mentions leading zeros even though the real problem is the suffix, prefix or operator. There is no `=` operator: write the bare version for an exact match.
+
+## Resolution {/* #resolution */}
+
+`shdl add`, `shdl remove`, and `shdl install` with a missing or stale lock resolve `shdl.toml` into a new lock. Resolution is flat: each package name gets exactly one version in the whole project, because the SHDL module namespace is flat.
+
+### The algorithm
+
+1. Load every path dependency's `package.json` (see [Path dependencies](#path-dependencies)).
+2. Seed the constraints. Each range string in `[dependencies]` becomes a constraint required by `shdl.toml`. Each dependency range in a path dependency's manifest becomes a constraint required by `<name> (path dependency)`.
+3. Repeat, at most 100 times:
+   1. For each constrained name, in alphabetical order, skipping path dependencies: fetch the package's version list from the index and pick the highest version that satisfies every constraint collected so far. If none does, stop with an error.
+   2. For each package picked so far, add its published dependency ranges as constraints required by `<name> <version>`.
+   3. Stop when a pass neither changes a pick nor adds a constraint.
+4. Check each path dependency's version against any constraints on its name.
+5. Run the [collision checks](#collision-checks) and the [toolchain check](#toolchain-check).
+6. Build the lock. `shdl` writes it and syncs `shdl_modules/` as described in [The shdl command](./shdl-cli.mdx#shdl-add).
+
+The constraint set only grows, so a pick can only move down, and the loop terminates. There is no backtracking: a conflict is reported as soon as one name has no satisfying version. The error lists the constraints known at that moment, so a range a package would contribute later in the same run may be missing from it.
+
+Resolution ignores the old lock. Each run picks the highest version that satisfies the current constraints, so `shdl add`, `shdl remove`, and `shdl install` after a manifest change can move packages you did not name to newer versions within their ranges. A lock that is still fresh is never re-resolved, which is what keeps `shdl install` reproducible.
+
+Network use: resolution reads `registry.json`, plus `index/<name>.json` for each package that picks up a constraint. The client caches every URL for the rest of the command, so each file is fetched once. `shdl add NAME` without a range takes the latest version from the same `registry.json`. Archives are downloaded only by the sync step that follows, and only for packages that are not already vendored at the locked version.
+
+### Resolution errors
+
+| Message | Cause |
+|---|---|
+| `no version of X satisfies every requirement:` followed by one `  <range> (required by <who>)` line per constraint and `  available: <versions, newest first>` | No published version of `X` satisfies all the constraints known so far. `<who>` is `shdl.toml`, `<name> (path dependency)` or `<name> <version>`. |
+| `package 'X' not found in the index (<registry.json URL>)` | A dependency, direct or transitive, is not in the index. |
+| `dependency resolution did not converge after 100 iterations` | A safety limit. The algorithm should always converge well before it. |
+| `path dependency X <version> does not satisfy <range> (required by <who>)` | Another package requires `X` with a range that the path dependency's own version does not satisfy. |
+| `invalid version range …`, `invalid version …` | A range in `shdl.toml`, in a path dependency's manifest, or in a published manifest does not parse. |
+| `index fetch failed: <url>: <reason>` | The index could not be reached. See [Packages](./packages.mdx). |
+
+In the project above, `gates` is already locked at `0.1.0`, the only published version:
+
+```console check continue
+$ shdl add 'gates@>=0.2.0' 2>&1; echo "exit status: $?"
+shdl: error: no version of gates satisfies every requirement:
+  >=0.2.0 (required by shdl.toml)
+  available: 0.1.0
+exit status: 1
+```
+
+A path dependency's own ranges are constraints too. This second library wants a `gates` that does not exist:
+
+```console check continue
+$ mkdir ../lib2 && cp ../mylib.shdl ../lib2/lib2.shdl
+$ echo '{"name": "lib2", "version": "0.1.0", "module": "lib2.shdl", "dependencies": {"gates": "^0.2.0"}, "exports": [{"name": "Invert4x"}]}' > ../lib2/package.json
+$ shdl add --path ../lib2 2>&1; echo "exit status: $?"
+shdl: error: no version of gates satisfies every requirement:
+  ^0.2.0 (required by lib2 (path dependency))
+  available: 0.1.0
+exit status: 1
+```
+
+### Collision checks {/* #collision-checks */}
+
+SHDL binds `use NAME::{…}` to a file named `NAME.shdl`, found by bare name, and components by bare name within a program. Two files with the same basename, or two packages exporting the same component name, would make an import ambiguous. After resolution, `shdl` refuses such a graph. All collisions found are reported together, one per line:
+
+| Message | Cause |
+|---|---|
+| `module name collision: packages A and B both provide M` | Two packages put a module with the same basename on the include path. A registry package provides its `module`. A path dependency provides its `module` and every other `*.shdl` file in its directory. |
+| `module name collision: the project's M shadows the one in package P (the SHDL module namespace is flat — rename the project module)` | One of your own modules has the same basename as a package's module. Your modules are the `*.shdl` files anywhere under the directory of `main` and under `src/`, plus `main` itself, excluding `shdl_modules/`, `build/` and path-dependency directories. If `main` sits at the project root, that is the whole project tree. |
+| `component name collision: 'C' is exported by both A and B` | Two packages list the same component in their `exports`. |
+
+```console check continue
+$ cp ../mylib/mylib.shdl src/gates.shdl
+$ shdl install 2>&1; echo "exit status: $?"
+up to date (3 packages)
+exit status: 0
+$ rm shdl.lock
+$ shdl install 2>&1; echo "exit status: $?"
+shdl: error: module name collision: the project's gates.shdl shadows the one in package gates (the SHDL module namespace is flat — rename the project module)
+exit status: 1
+$ rm src/gates.shdl
+$ shdl install
+up to date (3 packages)
+```
+
+The first `install` succeeds because the lock is still fresh, so nothing is resolved and the collision checks do not run. They run only when a command resolves. Deleting the lock forces a resolution, and the check catches the shadowing module.
+
+### Toolchain check {/* #toolchain-check */}
+
+After the collision checks, `shdl` compares the installed PySHDL version with every `shdl` range it knows: the project's `[project] shdl`, each chosen registry version's `shdl`, and each path dependency's `shdl` if its manifest has one. The first range that does not match stops resolution:
+
+```console check continue
+$ sed -i.bak 's/shdl = ">=1.0.0"/shdl = ">=2.0.0"/' shdl.toml
+$ rm shdl.lock
+$ shdl install 2>&1; echo "exit status: $?"
+shdl: error: installed pyshdl 1.1.0 does not satisfy the shdl range '>=2.0.0' required by the project (shdl.toml)
+exit status: 1
+$ mv shdl.toml.bak shdl.toml
+$ shdl install
+up to date (3 packages)
+```
+
+For a package the message ends with `required by arith 0.1.0` or `required by mylib (path dependency)`. If PySHDL is not installed as a distribution (for example, a source checkout run in place), or its version is not `X.Y.Z`, `shdl` prints a warning to stderr and skips this check:
+
+```text
+shdl: warning: pyshdl is not installed as a package (checkout dev mode?) — skipping toolchain-compatibility checks
+```
+
+Like the collision checks, the toolchain check runs only during resolution. A project with no dependencies and an unmatched `shdl` range still builds, because `build` never resolves.
+
+## Path dependencies {/* #path-dependencies */}
+
+A path dependency is a local directory that holds an SHDL library you develop alongside the project. `shdl` never copies it: the directory itself goes on the include path, so edits there are visible to the next build without reinstalling. Add one with `shdl add --path DIR`, which reads the package name from `DIR/package.json` and records `name = { path = "DIR" }` relative to the project root.
+
+The directory needs a `package.json`. During resolution `shdl` reads these fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | yes | Must equal the `shdl.toml` key, and must match `[a-z][a-z0-9_]*`. |
+| `version` | yes | An `X.Y.Z` version, recorded in the lock and checked against any constraint on this name. |
+| `module` | yes | The module file, relative to the directory. It must exist. |
+| `dependencies` | yes | Registry dependencies as a name-to-range object, `{}` if none. They join resolution like any other constraint. |
+| `exports` | yes | An array of objects, each with at least a `name`. Used for the component collision check. |
+| `shdl` | no | A toolchain range, used by the [toolchain check](#toolchain-check). |
+
+That is less than a full Circuit Circus manifest. To publish the library later, complete it as described on [Packages and Circuit Circus](./packages.mdx).
+
+| Message | Cause |
+|---|---|
+| `--path DIR: no package.json there` | `shdl add --path` found no manifest. |
+| `<file>: not a valid package manifest: <detail>` | `shdl add --path` could not parse the manifest or read its `name`. |
+| `<file>: package name 'X' must match [a-z][a-z0-9_]*` | `shdl add --path` read a `name` that cannot be a `shdl.toml` key. |
+| `path dependency X: no package.json at <file>` | The directory named in `shdl.toml` has no manifest. |
+| `<file>: invalid JSON: <detail>` | The manifest is not JSON. |
+| `<file>: manifest missing fields: <fields>` | One of the five required fields is absent. |
+| `path dependency X: manifest at <file> names the package 'Y' — the shdl.toml key must match` | The key in `shdl.toml` and the manifest's `name` differ. |
+| `path dependency X: module file M not found in <dir>` | The manifest's `module` does not exist. |
+
+A path dependency's version is recorded in the lock when you resolve, but its files are not hashed. The lock stays fresh however much the directory changes. Only a changed `path` in `shdl.toml` makes it stale.
+
+## shdl_modules/ and the include path {/* #include-path */}
+
+`shdl_modules/` holds one directory per locked registry package, named after the package, with exactly the files of its archive:
+
+```console check continue
+$ ls shdl_modules
+arith
+code
+gates
+$ ls shdl_modules/gates
+gates.shdl
+package.json
+README.md
+tests
+```
+
+The tree is disposable. `shdl install` deletes anything in it that is not a locked registry package (reporting each removed directory as `  removed NAME`, and removing stray files silently), and extracts any package that is missing or whose `package.json` has the wrong name or version. `shdl install --force` re-downloads and re-extracts every package. Path dependencies never appear here. How archives are verified and unpacked is described on [Packages and Circuit Circus](./packages.mdx#verification-and-unpacking).
+
+When `build`, `test` or `run` flatten your project, they pass these directories as the flattener's include path (the same list you would give `shdl-flatten` with `-I`):
+
+1. `shdl_modules/<name>` for each locked registry package, in alphabetical order;
+2. then each path dependency's resolved directory, in alphabetical order of the absolute path.
+
+For each `use NAME::{…}`, the flattener looks for `NAME.shdl` first in the directory of the file that contains the `use`, then in each include directory in order, and takes the first match. Files inside a package import their own dependencies the same way, which is why every package's module is named after the package and why the collision checks exist. If two imports of the same module name resolve to two different files anywhere in one program, flattening fails with E0701 (`module 'X' resolves to two different files`). See [Imports](../language-reference/imports.mdx).
+
+Your project's modules are not on the include path. The directory of `main` is searched because it holds the importing file. A module in another directory of your project is found only if it is imported from a file in that same directory.
+
+To see the include path in action, point the project's main module at the path dependency:
+
+```shdl title="app.shdl"
+use mylib::{Invert4};
+
+top component Main(A[4]) -> (Y[4]) {
+    inv: Invert4;
+    connect {
+        A -> inv.A;
+        inv.Y -> Y;
+    }
+}
+```
+
+```console check continue
+$ cp ../app.shdl src/app.shdl
+$ echo '{"test_format": 1, "package": "app", "cases": [{"component": "Main", "steps": 4, "vectors": [{"in": {"A": 5}, "out": {"Y": 10}}]}]}' > tests/app.tests.json
+$ shdl build -o build/app
+built build/app
+$ shdl test
+[app.tests.json]
+  ok    Main
+
+1/1 cases green
+```
+
+## See also
+
+- [The shdl command](./shdl-cli.mdx): `new`, `add`, `remove`, `install`, `build`, `test`, `run`.
+- [Testing](./testing.mdx): the `tests/*.tests.json` format.
+- [Packages and Circuit Circus](./packages.mdx): the index, archives, manifests and publishing.
+- [Projects](../getting-started/projects.mdx): a guided walk-through.
+- [shdl_cli.md](/specs/shdl_cli#how-resolution-works): the spec's summary of resolution.

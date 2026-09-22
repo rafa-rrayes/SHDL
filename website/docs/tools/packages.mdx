@@ -1,0 +1,754 @@
+---
+title: Packages and Circuit Circus
+sidebar_label: Packages
+description: How shdl finds, downloads, verifies and vendors packages from Circuit Circus, how a vendored package reaches your use statements, and how to make, verify and publish a package or run your own index.
+---
+
+A package is one SHDL module plus a `package.json` manifest and a test file. Circuit Circus is the public index of them. This page follows a package the whole way. It covers what `shdl add` downloads and checks, where the files land, and how `use pkg::{X}` finds them. It then shows how to write a package, verify it, use it as a path dependency, publish it to Circuit Circus, or serve it from a private index. It closes with the index file formats and every error message on the way. Each claim links to the code that implements it, in [PySHDL 1.1.0](https://github.com/rafa-rrayes/SHDL/tree/master/shdl_cli).
+
+For the command syntax, see [The shdl command](./shdl-cli.mdx). The `shdl.toml` and `shdl.lock` formats, the version-range grammar and the resolution algorithm are on [Project manifest and lockfile](./project-manifest.mdx). The normative summary is [shdl_cli.md](/specs/shdl_cli#publishing-to-circuit-circus). The index itself is specified in the Circuit Circus repository, in [INDEX_FORMAT.md](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md) and [MANIFEST_FORMAT.md](https://github.com/rafa-rrayes/CCircus/blob/main/MANIFEST_FORMAT.md).
+
+## Circuit Circus
+
+Circuit Circus is a static website built from the [CCircus](https://github.com/rafa-rrayes/CCircus) Git repository. Its URL is `https://rafa-rrayes.github.io/CCircus`, the default index of every `shdl` command ([`index_client.py:24`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L24)). There is no server-side logic: the index is three kinds of JSON and tar.gz files at fixed paths, so a directory on disk works as an index too (see [Running your own index](#running-your-own-index)).
+
+This script reads the live index with nothing but the standard library. It prints each package's latest version, the number of components it exports, its dependencies, and which exports are marked `stdlib_seed` (components promoted from the SHDL repository's `examples/`). The output below was captured on 2026-09-22. The index grows, so this block is not re-run by the docs checks:
+
+```python fragment
+import json
+import urllib.request
+
+INDEX = "https://rafa-rrayes.github.io/CCircus"
+
+def fetch(path):
+    with urllib.request.urlopen(f"{INDEX}/{path}") as resp:
+        return json.load(resp)
+
+for p in fetch("registry.json")["packages"]:
+    deps = ", ".join(f"{d} {r}" for d, r in p["dependencies"].items()) or "none"
+    latest = fetch(p["index"])["versions"][p["version"]]
+    seeds = [e["name"] for e in latest["exports"] if e.get("stdlib_seed")]
+    print(f"{p['name']:<6} {p['version']}  {p['circuits']:>2} circuits  deps: {deps}")
+    print(f"       seeds: {', '.join(seeds) or 'none'}")
+```
+
+```text title="Output (2026-09-22)"
+arith  0.1.0  16 circuits  deps: gates ^0.1.0
+       seeds: FullAdder, RippleAdder, EqComparator, MagComparator, ALU
+clock  0.1.0   8 circuits  deps: seq ^0.1.0
+       seeds: RingOscillator
+code   0.1.0  10 circuits  deps: gates ^0.1.0
+       seeds: none
+gates  0.1.0  12 circuits  deps: none
+       seeds: Nand, Nor, Xnor, BitAnd, BitOr, BitXor
+mux    0.1.0  13 circuits  deps: none
+       seeds: Mux2, BusMux2
+seq    0.1.0  18 circuits  deps: none
+       seeds: SrLatch, DLatch, RegisterEn
+shift  0.1.0   7 circuits  deps: mux ^0.1.0
+       seeds: none
+```
+
+To browse from the command line, use [`shdl search`](./shdl-cli.mdx#shdl-search) and [`shdl info`](./shdl-cli.mdx#shdl-info). `shdl search` matches the name, summary and keywords of each package's latest version ([`cli.py:346-363`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L346-L363)). `shdl info` prints one package's metadata and export list from `index/<name>.json` ([`cli.py:366-397`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L366-L397)).
+
+Every command that reads an index takes it from, in order: `--index URL`, the `SHDL_INDEX_URL` environment variable, `[registry] url` in `shdl.toml`, and then the default ([`index_client.py:29-31`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L29-L31)). The URL must start with `http://`, `https://` or `file://` ([`index_client.py:37-40`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L37-L40)). See [Choosing the index](./shdl-cli.mdx#choosing-the-index) for how the choice interacts with the lock.
+
+## How a package reaches your design
+
+Five steps take a package from the index to a `use` statement:
+
+1. **Declare.** `shdl add` writes a dependency into `shdl.toml`.
+2. **Resolve.** `shdl` picks one version of every package in the dependency graph and checks the result.
+3. **Lock.** The picks go into `shdl.lock` with each archive's sha256.
+4. **Vendor.** Each registry package is downloaded, verified and unpacked into `shdl_modules/<name>/`.
+5. **Include.** `shdl build`, `test` and `run` put those directories on the flattener's include path, where `use` finds them.
+
+### Dependency kinds
+
+A dependency in `shdl.toml` is one of two things ([`project.py:135-151`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/project.py#L135-L151)):
+
+```toml
+[dependencies]
+arith = "^0.1.0"                  # a registry package and a version range
+nibble = { path = "../nibble" }   # a path dependency: a local package directory
+```
+
+| Kind | Written as | Where the files come from | Pinned by |
+|---|---|---|---|
+| Registry | a range string | the archive `archives/<name>-<version>.tar.gz` of the configured index, unpacked into `shdl_modules/<name>/` | version and archive sha256 in `shdl.lock` |
+| Path | `{ path = "DIR" }`, relative to the project root | the directory itself, never copied | nothing: the lock records the version it saw, but not the files |
+
+Anything else is an error. A table with any key other than `path` gets the same error, `dependency NAME must be a version-range string or { path = "…" }` ([`project.py:146-150`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/project.py#L146-L150)). That includes the `git`, `version` and `registry` keys you may know from other package managers.
+
+:::note[Not in 1.1.0]
+
+There are no Git dependencies, no per-dependency index (one index serves the whole project), and no `shdl update` command. The subcommands are `new`, `init`, `add`, `remove`, `install`, `build`, `test`, `run`, `search`, `info`, `verify-package` and `publish` ([`cli.py:457-517`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L457-L517)). To upgrade, see [Upgrading](#upgrading).
+
+:::
+
+Package names match `[a-z][a-z0-9_]*` ([`project.py:27-32`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/project.py#L27-L32)). Ranges use cargo's caret semantics, described under [Version ranges](./project-manifest.mdx#version-ranges). `shdl add NAME` with no `@RANGE` records the caret of the latest version listed in `registry.json`, for example `^0.1.0` ([`cli.py:128-130`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L128-L130)).
+
+### What gets downloaded
+
+`shdl` fetches files with Python's `urllib`, with a 15-second timeout and no retries ([`index_client.py:26`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L26), [`index_client.py:45-56`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L45-L56)). Within one command each URL is fetched at most once. Nothing is cached between commands. A resolution reads:
+
+| File | When | Code |
+|---|---|---|
+| `registry.json` | Once per command that resolves, searches, looks up the latest version, or checks for an existing publish. It must say `"registry_format": 2`. | [`index_client.py:68-83`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L68-L83) |
+| `index/<name>.json` | For every package that picks up a version constraint, direct or transitive. Its URL is the `index` field of the package's `registry.json` entry, joined to the `registry.json` URL. It must say `"index_format": 2`. | [`index_client.py:85-100`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L85-L100), [`resolver.py:95`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/resolver.py#L95) |
+| `archives/<name>-<version>.tar.gz` | For every locked registry package that is missing from `shdl_modules/` or vendored at another version. | [`vendor.py:96-104`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L96-L104) |
+
+The archive URL is always `<index URL>/archives/<name>-<version>.tar.gz`. The `archive` fields in the index files are ignored ([`index_client.py:103-105`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L103-L105)). This is what lets `shdl install` rebuild `shdl_modules/` from a fresh lock without reading the index at all.
+
+So the first `shdl add arith` makes five requests: `registry.json`, `index/arith.json`, `index/gates.json` (arith depends on gates), and two archives. Which commands touch the network:
+
+| Command | Network use |
+|---|---|
+| `shdl add`, `shdl remove` | Always re-resolve the whole graph (`registry.json` plus one `index/<name>.json` per registry package), then download missing archives ([`cli.py:155-160`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L155-L160), [`cli.py:195-202`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L195-L202)). A project with only path dependencies makes no requests. |
+| `shdl install` | Re-resolves only when the lock is missing or [stale](./project-manifest.mdx#freshness), then downloads missing archives ([`cli.py:208-228`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L208-L228)). With a fresh lock and a complete `shdl_modules/`, none. |
+| `shdl build`, `test`, `run` | Never ([`cli.py:73-97`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L73-L97)). |
+| `shdl search`, `info` | Always: `registry.json`, and for `info` also `index/<name>.json`. |
+| `shdl publish` | `registry.json`, and `index/<name>.json` if the name is already listed ([`publish.py:153-165`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L153-L165)). |
+| `shdl verify-package` | Never. |
+
+The lock entry of each registry package copies its `module`, `dependencies`, `sha256` and the names of its `exports` from the version's entry in `index/<name>.json` ([`resolver.py:133-143`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/resolver.py#L133-L143)). Resolution, collision checks and the toolchain check are described under [Resolution](./project-manifest.mdx#resolution).
+
+### Verification and unpacking
+
+Each archive is checked before anything is written:
+
+1. The sha256 of the downloaded bytes must equal the sha256 in the lock, or the command fails with `sha256 mismatch … — refusing to unpack` ([`index_client.py:107-117`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L107-L117)).
+2. Every member of the archive must be a regular file under `<name>-<version>/` with no `..` path component. Directories, symlinks and anything outside that prefix are rejected with `contains an unexpected member` ([`vendor.py:57-67`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L57-L67)).
+3. The archive is extracted with `tarfile`'s `filter="data"` into `shdl_modules/.tmp-<name>/`. The `<name>-<version>/` directory is then renamed to `shdl_modules/<name>/`, replacing any previous copy, and the temporary directory is removed ([`vendor.py:50-78`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L50-L78)).
+
+`shdl add` and `shdl install` print `  fetched NAME VERSION (SIZE kB)` for each archive ([`vendor.py:104`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L104)). `shdl add` downloads and unpacks before it edits `shdl.toml` and `shdl.lock`, so a failed download leaves both files unchanged ([`cli.py:158-163`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L158-L163)). `shdl install` writes a re-resolved lock first and downloads second ([`cli.py:220-222`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L220-L222)).
+
+### The shdl_modules/ tree
+
+`shdl_modules/` holds exactly one directory per locked registry package, named after the package, containing the archive's files: `package.json`, the module, and `README.md` and `tests/` when the package has them. Path dependencies never appear there. `shdl add`, `remove` and `install` make the tree mirror the lock: anything else in it is deleted, printing `  removed NAME` for directories and nothing for stray files ([`vendor.py:81-106`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L81-L106)). The scaffold's `.gitignore` lists it. [shdl_modules/ and the include path](./project-manifest.mdx#include-path) shows a real listing.
+
+A vendored package counts as current when its `package.json` has the locked name and version. Nothing else is compared ([`vendor.py:35-37`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L35-L37)). If you edit a file under `shdl_modules/`, builds use your edit and `shdl install` keeps it. `shdl install --force` downloads and unpacks every package again.
+
+Before every `build`, `test` and `run`, `shdl` checks that the lock is fresh and that each locked registry package is current in `shdl_modules/`. If not, it stops with `vendored package NAME is missing or does not match the lock (NAME VERSION) — run 'shdl install'` ([`vendor.py:109-125`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L109-L125)). For a path dependency it checks only that the module file exists.
+
+### How use finds a package
+
+`build`, `test` and `run` hand the flattener an include path of ([`vendor.py:128-140`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L128-L140)):
+
+1. `shdl_modules/<name>` for every locked registry package, sorted by name;
+2. then the absolute directory of every path dependency, sorted.
+
+The project root is not on it, and neither is `src/`. For each `use NAME::{…}` the flattener looks for `NAME.shdl` in the directory of the file that contains the `use`, then in each include directory in order, and takes the first hit ([`loader.py:186-210`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/loader.py#L186-L210)). A vendored package's own `use` statements resolve the same way, which is how `arith` finds `gates`. This has some consequences:
+
+- **Every locked package is importable, including transitive ones.** With only `arith` in `shdl.toml`, `use gates::{Xnor};` builds, because `gates` is locked and vendored. Nothing checks that you declared it. If a later `arith` version drops `gates`, your build breaks. Declare every package you `use` directly.
+- **You can import any component the module defines,** not only those listed in its `exports`. The flattener never reads `package.json`: it checks only that the module file defines the name ([`loader.py:162-169`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/loader.py#L162-L169)). Imports are not re-exported, so `use arith::{Xnor};` fails even though `arith` imports `Xnor` itself.
+- **A file next to the importing file wins.** A `src/gates.shdl` in your project hides the vendored `gates.shdl` from every `use gates` in `src/`. Resolution refuses to lock such a project (`the project's gates.shdl shadows the one in package gates`, see [Collision checks](./project-manifest.mdx#collision-checks)). But that check runs only when `shdl` resolves, not at build time. [Running your own index](#running-your-own-index) shows the difference.
+- **One module name, one file.** If two `use` statements of the same module name resolve to two different files anywhere in the program, flattening fails with E0701 `module 'X' resolves to two different files` ([`loader.py:103-116`](https://github.com/rafa-rrayes/SHDL/blob/master/flattener/loader.py#L103-L116)).
+- **Only your own components are build targets.** `--top` and test cases must name a component of a project module ([`builder.py:33-60`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/builder.py#L33-L60)). To test a package component, wrap it in one of yours ([Testing](./testing.mdx#which-components)).
+
+The module lookup and its errors (E0701 not found, E0702 circular import, E0703 missing component) are covered in [Imports](../language-reference/imports.mdx#resolution).
+
+### Upgrading
+
+A lock pins exact versions, and nothing moves them on its own. `shdl install` re-resolves only when `shdl.toml`'s dependencies or the effective index URL changed ([`cli.py:210-221`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L210-L221), [`lockfile.py:43-56`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/lockfile.py#L43-L56)). A new version inside your range is not picked up until something triggers a new resolution:
+
+| To | Do |
+|---|---|
+| Move one package to its latest version, raising the range | `shdl add NAME` records the caret of the latest version, replacing the old range. |
+| Move to an explicit range | `shdl add NAME@RANGE`, or edit the range in `shdl.toml` and run `shdl install`. |
+| Take the newest versions allowed by the current ranges | Delete `shdl.lock` and run `shdl install`. |
+
+`shdl add` and `shdl remove` also re-resolve the whole graph ([`cli.py:155-158`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L155-L158), [`cli.py:189-196`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L189-L196)). Adding or removing one package can therefore move other packages to newer versions within their ranges. Commit `shdl.lock` so these changes show up in review.
+
+## Making a package
+
+A package is a directory named after the package:
+
+```text
+nibble/
+├── package.json            # the manifest
+├── nibble.shdl             # the module: every component of the package
+├── README.md               # optional
+└── tests/
+    └── nibble.tests.json   # the test vectors
+```
+
+The directory name, the `name` field and the module's basename must all be the same, so that `use nibble::{…}` finds `nibble.shdl`. All components live in one module. Components of the same package use each other directly, and components of other packages come in through `use`, like in any SHDL file. The six primitives are always available and are never dependencies.
+
+This page's example package, `nibble`, has two parameterized components:
+
+```shdl lib title="nibble.shdl"
+# nibble: bus helpers built straight from the primitives.
+
+component NandBus<N = 4>(A[N], B[N]) -> (Y[N]) {
+    >i[N]{ a{i}: AND;  n{i}: NOT; }
+    connect {
+        >i[N]{
+            A[{i}] -> a{i}.A;  B[{i}] -> a{i}.B;
+            a{i}.O -> n{i}.A;  n{i}.O -> Y[{i}];
+        }
+    }
+}
+
+component Twice<N = 4>(A[N]) -> (Y[2*N]) {
+    connect {
+        >i[N]{ A[{i}] -> Y[{i}];  A[{i}] -> Y[{i+N}]; }
+    }
+}
+```
+
+Every parameter of an exported component needs a default, because verification builds each export as the top component, and a top is always built at its defaults ([shdl.md §3](/specs/shdl#3-module-structure)).
+
+### package.json
+
+```json title="nibble/package.json"
+{
+  "manifest_format": 1,
+  "name": "nibble",
+  "version": "0.1.0",
+  "summary": "Bus NAND and bus duplication.",
+  "license": "MIT",
+  "authors": ["you <you@example.com>"],
+  "shdl": ">=1.1.0",
+  "module": "nibble.shdl",
+  "dependencies": {},
+  "exports": [
+    {
+      "name": "NandBus",
+      "summary": "Bitwise NAND of two N-bit buses.",
+      "params": [{"name": "N", "default": 4}],
+      "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}],
+      "outputs": [{"name": "Y", "width": "N"}]
+    },
+    {
+      "name": "Twice",
+      "summary": "Repeat an N-bit bus twice.",
+      "params": [{"name": "N", "default": 4}],
+      "inputs": [{"name": "A", "width": "N"}],
+      "outputs": [{"name": "Y", "width": "2N"}]
+    }
+  ]
+}
+```
+
+The fields, as defined by [MANIFEST_FORMAT.md §1-2](https://github.com/rafa-rrayes/CCircus/blob/main/MANIFEST_FORMAT.md), and what `shdl` does with each:
+
+| Field | Required | What `shdl verify-package` checks | Used by |
+|---|---|---|---|
+| `manifest_format` | yes | the integer `1` | |
+| `name` | yes | equals the directory name | everything; `shdl add --path` also requires `[a-z][a-z0-9_]*` ([`cli.py:148-149`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L148-L149)) |
+| `version` | yes | `X.Y.Z` | resolution, the lock |
+| `summary` | yes | present (may be empty) | `search`, `info` |
+| `description` | no | | `info` |
+| `license` | yes | present | `info` |
+| `authors` | yes | not empty | `info` |
+| `homepage` | no | | `info` |
+| `keywords` | no | | `search`, `info` |
+| `shdl` | yes | present, but not parsed | the [toolchain check](./project-manifest.mdx#toolchain-check) in every consumer's resolution |
+| `module` | yes | equals `<name>.shdl` and the file exists | resolution, collision checks, the include path |
+| `dependencies` | yes | each value is a valid range | resolution, and `verify-package`'s include path |
+| `tests` | no | the file exists (default `tests/<name>.tests.json`) | `verify-package` |
+| `exports` | yes | a non-empty array; each entry has `name`, `summary`, `params`, `inputs` and `outputs` | `verify-package` builds each `name`; the lock records the names for the component collision check; `info` lists them |
+
+The checks are in [`publish.py:27-67`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L27-L67). Unknown fields are ignored.
+
+Each export describes one component's interface for people and tools. `params` lists `{"name", "default"}` objects, `[]` if the component has none. `inputs` and `outputs` list `{"name", "width"}` objects, where `width` is an integer or a string expression in the parameters such as `"N"`, `"2N"`, `"N+1"` or `"log2N"`. `shdl` never compares these entries with the SHDL source. They are documentation, and the authoritative port widths are the ones the compiler derives. The optional `"stdlib_seed": true` marks components promoted from the SHDL repository's examples. An export does not have to cover every component. Helper components can stay unlisted, but they are still importable (see [How use finds a package](#how-use-finds-a-package)).
+
+### The test file
+
+The test file uses the format of [Testing](./testing.mdx), the same one `shdl test` runs. It is required: a package without vectors fails verification. Cases may target any component of the module, exported or not.
+
+```json title="nibble/tests/nibble.tests.json"
+{
+  "test_format": 1,
+  "package": "nibble",
+  "cases": [
+    {
+      "component": "NandBus",
+      "steps": 4,
+      "vectors": [
+        {"in": {"A": 12, "B": 10}, "out": {"Y": 7}},
+        {"in": {"A": 15, "B": 15}, "out": {"Y": 0}}
+      ]
+    },
+    {
+      "component": "Twice",
+      "steps": 1,
+      "vectors": [{"in": {"A": 5}, "out": {"Y": 85}}]
+    }
+  ]
+}
+```
+
+To follow along, create the directory from the module above and write the same two JSON files as one-liners:
+
+```console check
+$ mkdir -p nibble/tests && cp nibble.shdl nibble/
+$ echo '{"manifest_format": 1, "name": "nibble", "version": "0.1.0", "summary": "Bus NAND and bus duplication.", "license": "MIT", "authors": ["you <you@example.com>"], "shdl": ">=1.1.0", "module": "nibble.shdl", "dependencies": {}, "exports": [{"name": "NandBus", "summary": "Bitwise NAND of two N-bit buses.", "params": [{"name": "N", "default": 4}], "inputs": [{"name": "A", "width": "N"}, {"name": "B", "width": "N"}], "outputs": [{"name": "Y", "width": "N"}]}, {"name": "Twice", "summary": "Repeat an N-bit bus twice.", "params": [{"name": "N", "default": 4}], "inputs": [{"name": "A", "width": "N"}], "outputs": [{"name": "Y", "width": "2N"}]}]}' > nibble/package.json
+$ echo '{"test_format": 1, "package": "nibble", "cases": [{"component": "NandBus", "steps": 4, "vectors": [{"in": {"A": 12, "B": 10}, "out": {"Y": 7}}, {"in": {"A": 15, "B": 15}, "out": {"Y": 0}}]}, {"component": "Twice", "steps": 1, "vectors": [{"in": {"A": 5}, "out": {"Y": 85}}]}]}' > nibble/tests/nibble.tests.json
+```
+
+### Dependencies on other packages
+
+List other Circuit Circus packages in `dependencies`, with a range, and `use` them in the module. `shdl verify-package` does not download anything. It looks for each dependency, and theirs, as a directory named after the package under `--packages-root`, by default the package's parent directory, and puts those directories on the include path ([`publish.py:70-91`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L70-L91)). A missing one is `dependency 'NAME' not found under ROOT (pass --packages-root at the directory holding it)`. That layout is the `packages/` directory of a CCircus checkout. So a package that depends on `gates` is verified inside a clone of CCircus, or next to a copy of `packages/gates`. The versions found there are not checked against your ranges.
+
+## Verifying a package
+
+[`shdl verify-package DIR`](./shdl-cli.mdx#shdl-verify-package) runs the same checks as the Circuit Circus build ([`publish.py:94-134`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L94-L134)). It needs a C compiler, and no network:
+
+1. It loads and checks `package.json`, as in the table above. Any failure stops here with a list of every problem found.
+2. It builds every export as the top component at its default parameters, printing `  FAIL build  NAME::COMPONENT: …` for each failure and then `[build] NAME: BUILT/TOTAL components compiled`.
+3. It runs every case of the test file, printing one `  ok` or `  FAIL` line per case, then `[test]  NAME: PASSED/TOTAL cases green`.
+4. It prints `OK` and exits `0` only if every export built, every case passed, and there was at least one case. Otherwise it prints `FAIL` and exits `1`.
+
+```console check continue
+$ shdl verify-package nibble
+[build] nibble: 2/2 components compiled
+  ok    NandBus
+  ok    Twice
+[test]  nibble: 2/2 cases green
+
+OK
+```
+
+The directory name matters. A copy under another name fails the manifest check:
+
+```console check continue
+$ cp -R nibble nibble2 && shdl verify-package nibble2 2>&1; echo "exit status: $?"
+shdl: error: <scratch>/nibble2/package.json: invalid manifest:
+  name 'nibble' != directory name 'nibble2'
+exit status: 1
+```
+
+Manifest problems are collected and reported together. If a required field is missing, only the missing fields are listed, because the other checks need them:
+
+```console check continue
+$ mkdir -p bad && echo '{"manifest_format": 1, "name": "bad"}' > bad/package.json
+$ shdl verify-package bad
+shdl: error: <scratch>/bad/package.json: invalid manifest:
+  missing required field: version
+  missing required field: summary
+  missing required field: license
+  missing required field: authors
+  missing required field: shdl
+  missing required field: module
+  missing required field: dependencies
+  missing required field: exports
+$ echo '{"manifest_format": 2, "name": "bad", "version": "1.0", "summary": "", "license": "MIT", "authors": [], "shdl": ">=1.1.0", "module": "Bad.shdl", "dependencies": {"gates": "~0.1"}, "exports": [{"name": "X"}]}' > bad/package.json
+$ shdl verify-package bad
+shdl: error: <scratch>/bad/package.json: invalid manifest:
+  unsupported manifest_format 2
+  authors must list at least one author
+  module 'Bad.shdl' != bad.shdl
+  module file Bad.shdl does not exist
+  invalid version '1.0' (want X.Y.Z)
+  dependency gates: invalid version range '~0.1' (tilde ranges are not supported)
+  exports[0] missing fields: summary, params, inputs, outputs
+```
+
+Build and test failures are reported per component. In this copy, an export is renamed to a component the module does not define, and a vector expects the wrong value. Then the test directory is moved away:
+
+```console check continue
+$ mkdir -p work/nibble/tests && cp nibble/nibble.shdl work/nibble/
+$ sed 's/"name": "Twice"/"name": "Thrice"/' nibble/package.json > work/nibble/package.json
+$ sed 's/"Y": 85/"Y": 84/' nibble/tests/nibble.tests.json > work/nibble/tests/nibble.tests.json
+$ shdl verify-package work/nibble
+  FAIL build  nibble::Thrice: FlattenError: nibble.shdl:1:1: error[E0001]: --top component 'Thrice' not found in module 'nibble' (has: NandBus, Twice)
+[build] nibble: 1/2 components compiled
+  ok    NandBus
+  FAIL  Twice: in={'A': 5} Y=85 (want 84)
+[test]  nibble: 1/2 cases green
+
+FAIL
+$ mv work/nibble/tests work/nibble/t && shdl verify-package work/nibble
+  FAIL build  nibble::Thrice: FlattenError: nibble.shdl:1:1: error[E0001]: --top component 'Thrice' not found in module 'nibble' (has: NandBus, Twice)
+[build] nibble: 1/2 components compiled
+[test]  nibble: no test file (nibble.tests.json) — a package needs vectors
+
+FAIL
+```
+
+The failure lines of the test runner are described in [Failure messages](./testing.mdx#failure-messages).
+
+### What verification does not check
+
+`shdl verify-package` covers the per-package half of the [Circuit Circus admission rules](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md). The CCircus CI checks the whole repository, so a package that passes locally can still be refused. Not checked by `shdl verify-package`:
+
+- that every dependency exists in the registry and that its current version satisfies your range (rule 4);
+- that the dependency graph is acyclic (rule 5);
+- that no other package exports a component with the same name as yours, or ships a module with the same basename (rule 6);
+- that a version already published keeps the same bytes, and that no existing archive changes (rule 7), which `shdl publish` partly checks by refusing a published version;
+- that the package directory contains no symlinks (INDEX_FORMAT.md §4);
+- that `name` matches `[a-z][a-z0-9_]*`, which `shdl.toml` requires of every dependency name;
+- that `shdl` is a valid range, which every consumer's resolution parses;
+- that every export has a test case, or that the `exports` entries match the ports in the SHDL source.
+
+## Trying it as a path dependency
+
+Before publishing, use the package from a project as a path dependency. `shdl add --path DIR` reads the name from `DIR/package.json`, resolves, and records the path relative to the project root ([`cli.py:139-151`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L139-L151)). The directory is never copied, so edits to the package show up in the next build. With no registry dependencies, nothing touches the network:
+
+```console check continue
+$ shdl new app > /dev/null && cd app
+$ shdl add --path ../nibble
+added nibble path ../nibble
+$ tail -2 shdl.toml
+[dependencies]
+nibble = { path = "../nibble" }
+$ ls
+README.md
+shdl.lock
+shdl.toml
+src
+tests
+```
+
+No `shdl_modules/` appears: a path dependency goes straight on the include path. Resolution requires only `name`, `version`, `module`, `dependencies` and `exports` in its manifest ([`resolver.py:32`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/resolver.py#L32)), so a work-in-progress package need not pass `verify-package` to be used this way. See [Path dependencies](./project-manifest.mdx#path-dependencies) for its rules and errors.
+
+Now make the project's main module use the package:
+
+```shdl title="app.shdl"
+use nibble::{NandBus};
+
+top component Main(A[4], B[4]) -> (Y[4]) {
+    nand: NandBus<4>;
+    connect {
+        A -> nand.A;
+        B -> nand.B;
+        nand.Y -> Y;
+    }
+}
+```
+
+```console check continue
+$ cp ../app.shdl src/app.shdl
+$ echo '{"test_format": 1, "package": "app", "cases": [{"component": "Main", "steps": 4, "vectors": [{"in": {"A": 12, "B": 10}, "out": {"Y": 7}}]}]}' > tests/app.tests.json
+$ shdl build -o build/app
+built build/app
+$ shdl test
+[app.tests.json]
+  ok    Main
+
+1/1 cases green
+```
+
+## Publishing to Circuit Circus
+
+Publishing is a pull request against the [CCircus repository](https://github.com/rafa-rrayes/CCircus). [`shdl publish DIR`](./shdl-cli.mdx#shdl-publish) uploads nothing. It prepares and checks the PR ([`cli.py:411-433`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L411-L433)):
+
+1. It loads `package.json` and applies the manifest checks.
+2. It reads the index and fails if this name and version are already published.
+3. It runs `verify-package`. On failure it prints `FAIL — fix the package before publishing` and exits `1`.
+4. It prints the steps of the PR.
+
+Step 2 needs the network even for a package that would fail step 3. Here it runs against an empty `file://` index so the example stays offline. Without `--index`, it checks Circuit Circus:
+
+```console check
+$ mkdir -p empty && echo '{"registry_format": 2, "packages": []}' > empty/registry.json
+$ shdl publish nibble --index "file://$PWD/empty"
+[build] nibble: 2/2 components compiled
+  ok    NandBus
+  ok    Twice
+[test]  nibble: 2/2 cases green
+
+nibble 0.1.0 verified. To publish it to Circuit Circus:
+
+  1. Fork and clone https://github.com/rafa-rrayes/CCircus
+  2. Copy this package in:   cp -R <scratch>/nibble <CCircus>/packages/nibble
+  3. Regenerate the index:   python tools/cc.py gen-index
+  4. Commit packages/nibble, registry.json, index/nibble.json and
+     archives/nibble-0.1.0.tar.gz, then open a PR.
+
+CI re-verifies everything (INDEX_FORMAT.md §7); once merged, the
+package is installable with:  shdl add nibble
+```
+
+`tools/cc.py gen-index` in the CCircus checkout builds the archive, merges the new version into `index/nibble.json`, and rewrites `registry.json`. The CCircus [MANIFEST_FORMAT.md §5-6](https://github.com/rafa-rrayes/CCircus/blob/main/MANIFEST_FORMAT.md) runs it, and the CCircus verifier, as `uv run python tools/cc.py check <pkg>` and `uv run python tools/cc.py gen-index`. CI runs `gen-index --check` and builds and tests every package. After the PR is merged and the site redeploys, `shdl add nibble` works for everyone.
+
+### Versions are immutable
+
+A published version never changes. Its archive and its entry in `index/<name>.json` are never modified or deleted, so any change to a package's files needs a new version. The CCircus policy ([INDEX_FORMAT.md §9](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md)):
+
+| Bump | For |
+|---|---|
+| patch (`0.1.0` to `0.1.1`) | docs, README, new tests, internal restructuring with identical exports and ports |
+| minor (`0.1.0` to `0.2.0`) | new exported components; new parameters whose defaults keep old instantiations working |
+| major (`1.x` to `2.0.0`) | removed or renamed exports, changed ports or parameter defaults: anything that can break a `use` site |
+
+While a package is `0.y.z`, a breaking change bumps the minor position (`0.1.0` to `0.2.0`), because that is the position the caret rule treats as breaking: `^0.1.0` means `>=0.1.0, <0.2.0`.
+
+## Running your own index
+
+Any directory or web server with the Circuit Circus layout works as an index. That is useful for a private package set, for a mirror, or for testing a package before its PR. `shdl` needs only `registry.json`, `index/<name>.json` and the archives. The CCircus repository builds them with `tools/cc.py gen-index`. This script is a minimal producer that follows [INDEX_FORMAT.md §2-4](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md): it packs a package directory into a deterministic archive and adds the version to an index directory.
+
+```python
+import gzip, hashlib, io, json, tarfile
+from pathlib import Path
+
+def publish(pkg: Path, root: Path) -> None:
+    """Add the version in pkg/ to the static index at root."""
+    m = json.loads((pkg / "package.json").read_text())
+    name, version = m["name"], m["version"]
+
+    # §4: whitelisted files, sorted; TarInfo defaults give uid/gid 0, mtime 0, mode 0644
+    files = ["package.json", m["module"], "README.md"]
+    files += [p.relative_to(pkg).as_posix() for p in (pkg / "tests").rglob("*") if p.is_file()]
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", filename="", mtime=0) as gz:
+        with tarfile.open(mode="w", fileobj=gz, format=tarfile.USTAR_FORMAT) as tar:
+            for rel in sorted(f for f in files if (pkg / f).is_file()):
+                data = (pkg / rel).read_bytes()
+                info = tarfile.TarInfo(f"{name}-{version}/{rel}")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+    blob = buf.getvalue()
+    archive = f"archives/{name}-{version}.tar.gz"
+    (root / "archives").mkdir(parents=True, exist_ok=True)
+    (root / archive).write_bytes(blob)
+    sha = hashlib.sha256(blob).hexdigest()
+
+    # §3: index/<name>.json accumulates every published version
+    ifile = root / "index" / f"{name}.json"
+    ifile.parent.mkdir(exist_ok=True)
+    idx = json.loads(ifile.read_text()) if ifile.exists() else {
+        "index_format": 2, "name": name, "latest": version, "versions": {}}
+    idx["versions"][version] = {
+        "summary": m["summary"], "description": m.get("description", ""),
+        "license": m["license"], "authors": m["authors"],
+        "homepage": m.get("homepage", ""), "keywords": m.get("keywords", []),
+        "shdl": m["shdl"], "module": m["module"], "dependencies": m["dependencies"],
+        "archive": archive, "sha256": sha, "size": len(blob), "exports": m["exports"]}
+    idx["latest"] = max(idx["versions"], key=lambda v: tuple(map(int, v.split("."))))
+    ifile.write_text(json.dumps(idx, indent=2) + "\n")
+
+    # §2: registry.json inlines the latest version of every package
+    rfile = root / "registry.json"
+    reg = json.loads(rfile.read_text()) if rfile.exists() else {
+        "registry_format": 2, "name": "My index", "homepage": "", "packages": []}
+    top = idx["versions"][idx["latest"]]
+    others = [p for p in reg["packages"] if p["name"] != name]
+    reg["packages"] = sorted(others + [{
+        "name": name, "version": idx["latest"], "summary": top["summary"],
+        "keywords": top["keywords"], "circuits": len(top["exports"]),
+        "dependencies": top["dependencies"], "index": f"index/{name}.json",
+        "archive": top["archive"], "sha256": top["sha256"]}], key=lambda p: p["name"])
+    rfile.write_text(json.dumps(reg, indent=2) + "\n")
+    print(f"wrote {archive}")
+
+publish(Path("nibble"), Path("myindex"))
+```
+
+```text title="Output"
+wrote archives/nibble-0.1.0.tar.gz
+```
+
+Unlike `gen-index`, this script does not refuse to overwrite a published version, and it does not verify the package. Run `shdl verify-package` first. The archive holds only regular files with normalized metadata:
+
+```python
+import tarfile
+
+with tarfile.open("myindex/archives/nibble-0.1.0.tar.gz") as tar:
+    for m in tar.getmembers():
+        print(f"{m.mode:o} {m.uid}/{m.gid} {m.mtime} {m.name}")
+```
+
+```text title="Output"
+644 0/0 0 nibble-0.1.0/nibble.shdl
+644 0/0 0 nibble-0.1.0/package.json
+644 0/0 0 nibble-0.1.0/tests/nibble.tests.json
+```
+
+`shdl publish` now sees the version as taken. The check comes before verification:
+
+```console check
+$ shdl publish nibble --index "file://$PWD/myindex" 2>&1; echo "exit status: $?"
+shdl: error: nibble 0.1.0 is already published (index file://<scratch>/myindex) — published versions are immutable; bump the version
+exit status: 1
+```
+
+### Using the index from a project
+
+Switch the `app` project from the path dependency to the index. Point `[registry] url` at the index, so every command in the project uses it. `SHDL_INDEX_URL` or `--index` would work too, but the lock records the URL it was resolved against, and `build` uses only `[registry] url` and `SHDL_INDEX_URL` to decide whether the lock is fresh ([`cli.py:73-90`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L73-L90)). A lock made with `--index` is stale for `build`. For a web server, use its `http://` or `https://` URL instead.
+
+```console check
+$ cd app
+$ shdl remove nibble
+removed nibble
+$ shdl build -o build/app
+shdl: error: app.shdl:1:5: error[E0701]: module 'nibble' not found (searched <scratch>/app/src and 0 include dir(s))
+$ printf '\n[registry]\nurl = "file://%s/myindex"\n' "$(dirname "$PWD")" >> shdl.toml
+$ shdl search nib
+nibble 0.1.0  Bus NAND and bus duplication.
+$ shdl add nibble
+  fetched nibble 0.1.0 (0.7 kB)
+added nibble ^0.1.0
+$ ls shdl_modules/nibble
+nibble.shdl
+package.json
+tests
+$ shdl build -o build/app
+built build/app
+$ shdl test
+[app.tests.json]
+  ok    Main
+
+1/1 cases green
+```
+
+Between the `remove` and the `add`, `nibble` is not on the include path, so the flattener searches only the importing file's directory and reports E0701.
+
+A project module named like a package hides it, as described in [How use finds a package](#how-use-finds-a-package). The build fails with a confusing E0703, and only a new resolution names the real problem:
+
+```console check continue
+$ echo 'component Other(A) -> (Y) { connect { A -> Y; } }' > src/nibble.shdl
+$ shdl build -o build/app
+shdl: error: app.shdl:1:14: error[E0703]: module 'nibble' does not define component 'NandBus'
+$ shdl install
+up to date (1 package)
+$ rm shdl.lock && shdl install
+shdl: error: module name collision: the project's nibble.shdl shadows the one in package nibble (the SHDL module namespace is flat — rename the project module)
+$ rm src/nibble.shdl && shdl install
+up to date (1 package)
+```
+
+The last `install` re-resolves, because the lock was deleted, and writes a new one. The package was already vendored at that version, so nothing is downloaded.
+
+### Integrity checks
+
+`build` refuses to run when the vendored tree does not match the lock. `install` restores it, and refuses an archive whose sha256 differs from the one pinned in the lock. Here the archive in the index is corrupted by appending a byte:
+
+```console check continue
+$ rm -rf shdl_modules/nibble && shdl build -o build/app
+shdl: error: vendored package nibble is missing or does not match the lock (nibble 0.1.0) — run 'shdl install'
+$ echo x >> ../myindex/archives/nibble-0.1.0.tar.gz
+$ shdl install 2>&1 | sed -E 's/[0-9a-f]{64}/<sha256>/g'
+shdl: error: sha256 mismatch for nibble 0.1.0: expected <sha256>, got <sha256> (from file://<scratch>/myindex/archives/nibble-0.1.0.tar.gz) — refusing to unpack
+$ ls shdl_modules
+```
+
+Nothing was unpacked. The `sed` only shortens the two hashes for this page.
+
+## Index format reference
+
+The formats are defined in [INDEX_FORMAT.md](https://github.com/rafa-rrayes/CCircus/blob/main/INDEX_FORMAT.md), version 2. This section lists what the 1.1.0 client reads. Everything is served relative to the index URL:
+
+| Path | Contents |
+|---|---|
+| `registry.json` | Every package, with its latest version inlined. |
+| `index/<name>.json` | Every published version of one package. |
+| `archives/<name>-<version>.tar.gz` | The files of one version. |
+| `packages/<name>/…` | The package sources, for browsing. `shdl` never reads them. |
+
+### registry.json
+
+```json
+{
+  "registry_format": 2,
+  "name": "Circuit Circus",
+  "homepage": "https://github.com/rafa-rrayes/CCircus",
+  "packages": [
+    {
+      "name": "gates",
+      "version": "0.1.0",
+      "summary": "Universal & wide gates above the six SHDL primitives.",
+      "keywords": ["gates", "nand", "nor", "xnor", "reduction", "bitwise", "majority"],
+      "circuits": 12,
+      "dependencies": {},
+      "index": "index/gates.json",
+      "archive": "archives/gates-0.1.0.tar.gz",
+      "sha256": "…"
+    }
+  ]
+}
+```
+
+| Field | Read by `shdl` |
+|---|---|
+| `registry_format` | Must be `2`, or every command that reads the index fails with `unsupported registry_format`. |
+| `packages[].name` | Package lookup ([`index_client.py:77-83`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L77-L83)). |
+| `packages[].version` | The latest version: the default range of `shdl add` and the version shown by `shdl search`. |
+| `packages[].summary`, `keywords` | `shdl search`. |
+| `packages[].index` | The URL of the package's version file, relative to `registry.json`. |
+| `name`, `homepage`, `circuits`, `dependencies`, `archive`, `sha256` | Not read by `shdl`. Resolution takes dependencies and hashes from `index/<name>.json`. |
+
+### index/name.json
+
+```json
+{
+  "index_format": 2,
+  "name": "gates",
+  "latest": "0.1.0",
+  "versions": {
+    "0.1.0": {
+      "summary": "Universal & wide gates above the six SHDL primitives.",
+      "description": "…",
+      "license": "GPL-3.0-or-later",
+      "authors": ["rafa-rrayes <rafa@rayes.com.br>"],
+      "homepage": "https://github.com/rafa-rrayes/SHDL",
+      "keywords": ["gates", "nand", "nor", "xnor", "reduction", "bitwise", "majority"],
+      "shdl": ">=1.0.0",
+      "module": "gates.shdl",
+      "dependencies": {},
+      "archive": "archives/gates-0.1.0.tar.gz",
+      "sha256": "…",
+      "size": 2281,
+      "exports": ["… the manifest's exports array, verbatim …"]
+    }
+  }
+}
+```
+
+| Field | Read by `shdl` |
+|---|---|
+| `index_format` | Must be `2`. |
+| `latest` | `shdl info`. |
+| `versions` | Keys must be `X.Y.Z` versions. Resolution considers every key. |
+| `versions.V.dependencies` | Resolution: each range becomes a constraint. Also shown by `shdl info`. |
+| `versions.V.module`, `sha256` | Copied into the lock. The sha256 is what every download is checked against. |
+| `versions.V.exports` | The names go into the lock for the component collision check. `shdl info` lists each `name` and `summary`. |
+| `versions.V.shdl` | The toolchain check: the installed PySHDL must satisfy it. Also shown by `shdl info`. |
+| `versions.V.summary`, `description`, `license`, `authors`, `homepage`, `keywords` | `shdl info`. |
+| `name`, `versions.V.archive`, `versions.V.size` | Not read. |
+
+### Archives
+
+An archive is a gzip-compressed USTAR tar whose members all sit under `<name>-<version>/`: `package.json`, the module, `README.md` if present, and every file under `tests/`. It has no directory entries and no symlinks. The members are sorted by name, with `uid` and `gid` 0, empty owner names, `mtime` 0 and mode `0644`, and the gzip header has an empty file name and `mtime` 0. The same package tree gives the same tar bytes on every platform. The gzip bytes can differ between zlib builds, which is why the sha256 of an archive is taken once, when it is published, and the archive is never rebuilt.
+
+## Error messages
+
+Errors are printed as `shdl: error: MESSAGE` on standard error, with exit status `1`. For resolution and lock errors, see [Resolution errors](./project-manifest.mdx#resolution) and [Path dependencies](./project-manifest.mdx#path-dependencies).
+
+| Message | Cause | Source |
+|---|---|---|
+| `index URL 'U' must start with http://, https:// or file://` | A bad `--index`, `SHDL_INDEX_URL` or `[registry] url`. | [`index_client.py:37-40`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L37-L40) |
+| `index fetch failed: URL: HTTP 404` | The server answered with an error status. | [`index_client.py:50-51`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L50-L51) |
+| `index fetch failed: URL: REASON` | No connection, a DNS failure, a timeout, or a missing `file://` path. | [`index_client.py:52-55`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L52-L55) |
+| `URL: not valid index JSON: DETAIL` | The file is not JSON, or not UTF-8. | [`index_client.py:58-65`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L58-L65) |
+| `URL: unsupported registry_format X (this toolchain speaks 2)` | `registry.json` is not format 2. | [`index_client.py:68-75`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L68-L75) |
+| `URL: unsupported index_format X (this toolchain speaks 2)` | `index/<name>.json` is not format 2. | [`index_client.py:85-93`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L85-L93) |
+| `package 'NAME' not found in the index (URL)` | No such package in `registry.json`. | [`index_client.py:77-83`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L77-L83) |
+| `sha256 mismatch for NAME V: expected A, got B (from URL) — refusing to unpack` | The archive differs from the one the lock pins. | [`index_client.py:107-117`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/index_client.py#L107-L117) |
+| `archive for NAME V contains an unexpected member 'M' — refusing to unpack` | A directory entry, link, `..` component, or path outside `NAME-V/`. | [`vendor.py:57-67`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L57-L67) |
+| `archive for NAME V is not a valid tar.gz: DETAIL` | The archive cannot be read. | [`vendor.py:69-70`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L69-L70) |
+| `archive for NAME V did not contain NAME-V/` | The archive has no files. | [`vendor.py:71-73`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L71-L73) |
+| `vendored package NAME is missing or does not match the lock (NAME V) — run 'shdl install'` | `build`, `test` or `run` found `shdl_modules/` out of date. | [`vendor.py:121-125`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L121-L125) |
+| `path dependency NAME: module M not found in DIR` | Same check, for a path dependency whose module file is gone. | [`vendor.py:113-119`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/vendor.py#L113-L119) |
+| `dependency NAME must be a version-range string or { path = "…" }, got …` | A Git, table or other unsupported dependency in `shdl.toml`. | [`project.py:146-150`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/project.py#L146-L150) |
+| `--path DIR: no package.json there` | `shdl add --path` at a directory without a manifest. | [`cli.py:141-143`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L141-L143) |
+| `FILE: not a valid package manifest: DETAIL` | The path dependency's `package.json` is not JSON or has no `name`. | [`cli.py:144-147`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L144-L147) |
+| `nothing to add — name packages or pass --path DIR` | `shdl add` with no arguments. | [`cli.py:152-153`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L152-L153) |
+| `NAME is not a direct dependency — it is required by A, B` | `shdl remove` of a transitive package. | [`cli.py:182-185`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L182-L185) |
+| `NAME is not a dependency` | `shdl remove` of a package that is not in the project. | [`cli.py:186`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/cli.py#L186) |
+| `no package.json in DIR` | `verify-package` or `publish` on a directory without a manifest. | [`publish.py:28-30`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L28-L30) |
+| `FILE: invalid JSON: DETAIL` | The manifest is not JSON. | [`publish.py:31-34`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L31-L34) |
+| `FILE: invalid manifest:` and a list of problems | See [Verifying a package](#verifying-a-package). | [`publish.py:36-66`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L36-L66) |
+| `dependency 'NAME' not found under ROOT (pass --packages-root at the directory holding it)` | `verify-package` cannot find a dependency's directory. | [`publish.py:80-86`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L80-L86) |
+| `NAME V is already published (index URL) — published versions are immutable; bump the version` | `shdl publish` of a version the index already has. | [`publish.py:153-165`](https://github.com/rafa-rrayes/SHDL/blob/master/shdl_cli/publish.py#L153-L165) |
+
+## See also
+
+- [The shdl command](./shdl-cli.mdx): `add`, `remove`, `install`, `search`, `info`, `verify-package` and `publish`.
+- [Project manifest and lockfile](./project-manifest.mdx): `shdl.toml`, `shdl.lock`, ranges, resolution and collision checks.
+- [Testing](./testing.mdx): the test file format shared by projects and packages.
+- [Imports](../language-reference/imports.mdx): how `use` resolves modules.
+- [Projects](../getting-started/projects.mdx): a guided walk-through that adds a package.
+- [shdl_cli.md](/specs/shdl_cli#publishing-to-circuit-circus): the spec's summary.

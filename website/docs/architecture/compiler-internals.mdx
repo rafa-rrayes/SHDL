@@ -1,0 +1,951 @@
+---
+title: Compiler internals
+sidebar_label: Compiler internals
+description: How shdlc turns a Base SHDL netlist into C and a shared library, covering the reader, the validated circuit model, the code generator, the C compiler driver and the tests behind each one.
+---
+
+`shdlc` is the back end of the toolchain. It reads one [Base SHDL](./base-shdl.mdx) netlist, checks it, writes one C file and, unless you stop it early, compiles that file into a shared library that exports the [release ABI](../tools/c-abi.mdx). This page follows a netlist through each stage using the real code and real generated C. For the command-line options, see [the `shdlc` tool page](../tools/shdlc.mdx).
+
+## The stages
+
+The package lives in [`shdlc/`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc) and has one module per stage:
+
+| Module | Job | Entry point |
+| --- | --- | --- |
+| [`cli.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/cli.py) | Command line. Decides between SHDL and Base input, flattens `.shdl` files in-process and turns errors into exit codes. | `main()` |
+| [`compile.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/compile.py) | Glue between the stages. | `compile_text()`, `build_library()` |
+| [`baseshdl.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/baseshdl.py) | Reads Base SHDL text. | `parse_base()` returns a `BaseComponent` |
+| [`model.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/model.py) | Validates the netlist and resolves every name to an index. | `build_circuit()` returns a `Circuit` |
+| [`codegen.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/codegen.py) | Writes the C source. | `generate_c()` |
+| [`cc.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/cc.py) | Finds and runs the C compiler. | `find_cc()`, `build_shared()` |
+| [`harness.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/harness.py) | ctypes wrapper used by the compiler tests, the CPU tests and the conformance runner. | `Sim`, `load_fresh_copy()` |
+| [`sim/base_eval.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/sim/base_eval.py) | `BaseEval`, a slow reference interpreter over the parsed netlist. The tests use it as the oracle. | `BaseEval` |
+
+The data flows like this:
+
+```text
+circuit.shdl --(flattener, only for SHDL input)--> Base SHDL text
+Base SHDL text --parse_base--> BaseComponent --build_circuit--> Circuit
+Circuit --generate_c--> C source --build_shared (cc)--> shared library
+```
+
+`compile_text(base_text)` runs the middle three steps and returns `(circuit, c_source)`. `build_library(base_text, out_path, *, cc=None, cflags=None, emit_c=None)` also runs the C compiler. Only the command line knows about SHDL source files. Its import of the flattener is lazy ("Base-only usage must not require the flattener").
+
+The examples on this page use the 2-bit adder from the conformance suite:
+
+```shdl title="fullAdder.shdl"
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  a1: AND;
+    x2: XOR;  a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A;   B -> x1.B;
+        A -> a1.A;   B -> a1.B;
+
+        x1.O -> x2.A;  Cin -> x2.B;
+        x1.O -> a2.A;  Cin -> a2.B;
+        a1.O -> o1.A;  a2.O -> o1.B;
+
+        x2.O -> Sum;   o1.O -> Cout;
+    }
+}
+```
+
+```shdl title="circuit.shdl"
+"""2-bit ripple-carry adder"""
+use fullAdder::{FullAdder};
+
+top component Add2(A[2], B[2], Cin) -> (Sum[2], Cout) {
+    fa1: FullAdder;
+    fa2: FullAdder;
+
+    connect {
+        A[1] -> fa1.A;  B[1] -> fa1.B;  Cin -> fa1.Cin;
+        fa1.Sum -> Sum[1];
+
+        A[2] -> fa2.A;  B[2] -> fa2.B;  fa1.Cout -> fa2.Cin;
+        fa2.Sum -> Sum[2];
+        fa2.Cout -> Cout;
+    }
+}
+```
+
+You can run the stages one at a time:
+
+```python
+from flattener.pipeline import flatten_program
+from shdlc.baseshdl import parse_base
+from shdlc.codegen import generate_c
+from shdlc.model import build_circuit
+
+base_text = flatten_program("circuit.shdl").text
+comp = parse_base(base_text)
+print(comp.name, comp.inputs, comp.outputs)
+print(len(comp.gates), "gates,", len(comp.connections), "connections")
+
+circuit = build_circuit(comp)
+print(circuit.gates[2])
+for port in circuit.in_ports + circuit.out_ports:
+    print(port.name, [(ref.kind, ref.index) for ref in port.refs])
+print(circuit.init)
+
+c_source = generate_c(circuit)
+print(c_source.splitlines()[0])
+```
+
+```text title="Output"
+Add2 ['A_1_', 'A_2_', 'B_1_', 'B_2_', 'Cin'] ['Sum_1_', 'Sum_2_', 'Cout']
+10 gates, 23 connections
+Gate(name='fa1_x2', type='XOR', a=Ref(kind='gate', index=0), b=Ref(kind='in', index=4))
+A [('in', 0), ('in', 1)]
+B [('in', 2), ('in', 3)]
+Cin [('in', 4)]
+Sum [('gate', 2), ('gate', 7)]
+Cout [('gate', 9)]
+()
+/* Add2: 10 gates, 3 input ports, 2 output ports. */
+```
+
+The `BaseComponent` still holds names and strings. The `Circuit` holds only indices: gate `fa1_x2` reads gate slot 0 (`fa1_x1`) and input slot 4 (`Cin`). Its ports come from `meta.ports`, and the output bits already point at the gates that drive them.
+
+## Reading Base SHDL
+
+`parse_base` is a hand-written scanner with one token of lookahead. It shares no code with the flattener on purpose: it is the consumer's view of the format, so a flattener bug cannot hide itself by being read back by the same code. It is also the production reader. Both `shdlc` and PySHDL use it.
+
+How it reads the text:
+
+- A token is an identifier `[A-Za-z_][A-Za-z0-9_]*`, the arrow `->`, one of `( ) { } , : ; .`, or any other single non-space character.
+- Whitespace and `#` comments to the end of the line are skipped between tokens. The flattener never writes comments, but the reader accepts them.
+- `component`, `connect` and `meta` are recognized by position, not reserved. The instance loop stops at the first token that reads `connect`.
+- After the closing `}` of the component, the reader either sees the end of the input or `meta` followed by JSON. The JSON is read with `json.JSONDecoder().raw_decode`, so key order is kept. Only whitespace may follow it.
+- Gate types must be one of `AND`, `OR`, `XOR`, `NOT`, `__VCC__` and `__GND__`.
+
+The result is a `BaseComponent` with `name`, `inputs`, `outputs`, `gates` (an ordered `dict` from instance name to type), `connections` (a list of `(source, destination)` string pairs) and `meta` (whatever the JSON decoded to, `{}` when absent).
+
+Every syntax error raises `BaseParseError`, a subclass of `ValueError`. These are all the messages:
+
+| Message | Cause |
+| --- | --- |
+| `unexpected end of input at offset N` | The text stops in the middle of the component. |
+| `expected 'X', got 'Y'` | A keyword or punctuation token is missing. |
+| `expected identifier, got 'X'` | A name position holds something else, such as `9bad`. |
+| `unknown primitive type 'X'` | A gate type outside the six primitives. |
+| `duplicate instance 'X'` | Two gates with the same name. |
+| `malformed meta JSON: ...` | The text after `meta` is not valid JSON. The message ends with Python's JSON error, which has a line and column. |
+| `trailing content after meta object` | Anything but whitespace after the JSON value, including a `#` comment. |
+| `unexpected token 'X' after component` | Anything but `meta` after the component. |
+| `PATH: Base SHDL input is not valid UTF-8 (byte offset N)` | Raised by `cli.py`, not the parser, when the file does not decode. |
+
+Apart from the JSON errors, the messages carry no line or column. Here is what you see if you pass an SHDL file as Base SHDL:
+
+```console check
+$ shdlc --base circuit.shdl 2>&1; echo "exit $?"
+shdlc: error: expected 'component', got '"'
+exit 1
+```
+
+:::caution[`meta` is not checked to be an object]
+The reader accepts any JSON value after `meta`, and `build_circuit` then tests `"ports" in comp.meta` and `"init" in comp.meta`. A list or a string that does not contain those words passes through silently. A string that does, such as `meta "ports"`, reaches `comp.meta["ports"]` and fails with a raw `TypeError` and a Python traceback, not a `shdlc: error:` line. The flattener never writes such files.
+:::
+
+## The circuit model
+
+`build_circuit` turns a `BaseComponent` into a `Circuit`, a frozen dataclass that the code generator can use without further checks:
+
+| Field | Contents |
+| --- | --- |
+| `name` | Component name. |
+| `inputs` | Input wire names. The position is the input slot. |
+| `gates` | `Gate(name, type, a, b)` in declaration order. The position is the gate slot. `type` is `AND`, `OR`, `XOR`, `NOT`, `VCC` or `GND` (the power gates lose their underscores). `a` and `b` are `Ref`s, or `None` for pins the type does not have. |
+| `outputs` | Output wire names, kept for reporting. |
+| `in_ports` | `PortGroup(name, refs)` per input port. Every ref has kind `"in"`. |
+| `out_ports` | `PortGroup` per output port. Each ref points at the gate that finally drives the bit (kind `"gate"`) or, for a wire that passes an input straight through, at the input (kind `"in"`). |
+| `init` | `(gate_slot, bit)` pairs, in the order of `meta.init`. |
+
+A `Ref(kind, index)` names either an input slot or a gate slot. The code generator never sees names, output-to-output aliases or JSON.
+
+### What gets checked
+
+The model docstring lists eight invariants, and each violation has its own `ModelError` (also a `ValueError`):
+
+| # | Invariant |
+| --- | --- |
+| 1 | Names are unique across inputs, outputs and gates. |
+| 2 | Every dotted endpoint is a known `gate.PIN`. A source is `gate.O` or a wire. A plain destination must be an output wire. |
+| 3 | Pins match the primitive: `AND`, `OR` and `XOR` take exactly `A` and `B`, `NOT` takes exactly `A`, `VCC` and `GND` take none. |
+| 4 | Each gate pin and each output wire has exactly one driver. |
+| 5 | No gate input pin floats and no output wire is undriven. |
+| 6 | Chains of output wires driving output wires resolve to a gate or an input. A cycle is an error. |
+| 7 | `meta.ports`, when present, has both `inputs` and `outputs` keys, names existing wires on the right side, uses unique identifier port names, keeps widths within 1 to 64 and never puts one input wire in two port bits. |
+| 8 | `meta.init` keys are `gate.O` or output wires that resolve to a gate. Values are 0 or 1, and no gate is seeded twice. |
+
+Some rules are more lenient than you might expect:
+
+- Without `meta.ports`, every header wire becomes its own 1-bit port with the same name. This is why a hand-written Base file can be poked by wire name.
+- `meta.ports` may cover only some wires. An uncovered input stays 0 forever and cannot be poked. An uncovered output cannot be read.
+- Output wires may appear in several output ports. Only input wires are limited to one port bit, because two poke targets for one wire would silently overwrite each other.
+- Aliases are resolved eagerly, so an alias cycle is an error even when no port reads those wires.
+- Init values must be the integers 0 or 1. JSON `true` is rejected (the check is `type(value) is not int`).
+
+The model also enforces the two [documented limits](/specs/shdl#142-documented-limits) that come from the C ABI:
+
+- A port is 1 to 64 bits wide, because `poke` and `peek` move a `uint64_t`.
+- A component has at most 65,535 input wires, because the generated tables index input wires with `uint16_t`. The comment in `model.py` explains why this must be an error: "beyond it the table initializers would silently truncate under release cflags (no -Werror)". The check runs before any name is declared.
+
+There is no limit on the number of gates.
+
+This script feeds broken netlists to `compile_text`:
+
+```python
+from shdlc import compile_text
+from shdlc.baseshdl import BaseParseError
+from shdlc.model import ModelError
+
+NOT1 = "component T(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> O; } }"
+CASES = [
+    "component T(A) -> (A) { connect { A -> A; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; n -> O; } }",
+    "component T(A) -> (O) { v: __VCC__; connect { A -> v.A; v.O -> O; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.B; n.O -> O; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; n.O -> O; A -> O; } }",
+    "component T(A) -> (O) { n: NOT; connect { A -> n.A; } }",
+    NOT1 + ' meta {"ports": {"inputs": {}}}',
+    NOT1 + ' meta {"ports": {"inputs": {"X": ["A"], "Y": ["A"]}, "outputs": {}}}',
+    NOT1 + ' meta {"init": {"n.O": 2}}',
+    NOT1 + ' meta {"init": {"n.O": 1, "O": 0}}',
+    "component T(A) -> (O) { connect { A -> O; } }" + ' meta {"init": {"O": 1}}',
+]
+wires = [f"W{i}" for i in range(65)]
+CASES.append(
+    f"component Wide({', '.join(wires)}) -> () {{ connect {{ }} }}"
+    ' meta {"ports": {"inputs": {"W": ' + str(wires).replace("'", '"') + '}, "outputs": {}}}'
+)
+for text in CASES:
+    try:
+        compile_text(text)
+    except (BaseParseError, ModelError) as e:
+        print(f"{type(e).__name__}: {e}")
+```
+
+```text title="Output"
+ModelError: duplicate name 'A': declared as input and output
+ModelError: connection source 'n' is a gate; read its output as 'n.O'
+ModelError: connection destination 'v.A': VCC gate 'v' takes no pin connections
+ModelError: connection destination 'n.B': NOT gate 'n' has no input pin 'B'
+ModelError: output wire 'O' driven more than once
+ModelError: output wire 'O' is not driven
+ModelError: meta.ports is present but missing the 'outputs' key
+ModelError: port 'Y': input wire 'A' is already used by port 'X'
+ModelError: init 'n.O': value must be 0 or 1, got 2
+ModelError: init keys 'n.O' and 'O' both seed gate 'n'
+ModelError: init key 'O': resolves to input wire 'A', not a driving gate
+ModelError: port 'W': width 65 out of range 1..64
+```
+
+The complete list of messages, in the order the checks run:
+
+| Check | Message |
+| --- | --- |
+| Names | `duplicate name 'X': declared as K1 and K2` (K is `input`, `output` or `gate`) |
+| Limits | `too many input wires (N): the generated C indexes input wires with uint16_t (max 65535)` |
+| Gate types | `gate 'g': unknown primitive type 'T'` (the parser already rejects these, so this is a second line of defense) |
+| Sources | `unknown gate 'g' in connection source 'g.P'` |
+| | `connection source 'g.A': only pin 'O' of gate 'g' is readable` |
+| | `connection source 'g' is a gate; read its output as 'g.O'` |
+| | `unknown connection source 'X'` |
+| Destinations | `unknown gate 'g' in connection destination 'g.P'` |
+| | `connection destination 'g.A': VCC gate 'g' takes no pin connections` |
+| | `connection destination 'g.B': NOT gate 'g' has no input pin 'B'` |
+| | `pin 'g.A' driven more than once` |
+| | `output wire 'O' driven more than once` |
+| | `cannot drive input wire 'A'` |
+| | `connection destination 'g' is a gate, not an output wire` |
+| | `unknown connection destination 'X'` |
+| Completeness | `gate 'g': AND input pin 'B' is not driven` |
+| | `output wire 'O' is not driven` |
+| Aliases | `output alias cycle: O -> P -> O` |
+| Ports | `meta.ports must be a JSON object` |
+| | `meta.ports is present but missing the 'inputs' key` (or `'outputs'`) |
+| | `meta.ports.inputs must be a JSON object` (or `outputs`) |
+| | `port name '1x' is not an identifier` |
+| | `duplicate port name 'P'` |
+| | `port 'P': wires must be an array of wire names` |
+| | `port 'P': width N out of range 1..64` |
+| | `port 'P': input wire 'A' is already used by port 'Q'` |
+| | `port 'P': wire 'O' is an output wire, not an input wire` |
+| | `port 'P': wire 'A' is an input wire, not an output wire` |
+| | `port 'P': unknown wire 'X'` |
+| Init | `meta.init must be a JSON object` |
+| | `init 'K': value must be 0 or 1, got V` |
+| | `init key 'g.A': unknown gate 'g'` |
+| | `init key 'g.A': only 'gate.O' may be seeded` |
+| | `init key 'O': resolves to input wire 'A', not a driving gate` |
+| | `unknown init key 'K': not a gate output or output wire` |
+| | `init keys 'K1' and 'K2' both seed gate 'g'` |
+
+## The generated C
+
+`generate_c` is a pure function: the same `Circuit` always produces the same bytes. The output is one self-contained C11 file with no timestamps, paths or version strings. Generate the adder's C and list its top-level declarations:
+
+```console check
+$ shdlc circuit.shdl --no-build --emit-c add2.c
+$ grep -n -E "^(static|SHDLC_API|enum|#if)" add2.c
+7:#if defined(_WIN32)
+16:enum {
+26:enum {
+41:enum {
+48:enum {
+56:static uint8_t inputs[5];
+57:static uint8_t buf_a[10];
+58:static uint8_t buf_b[10];
+59:static uint8_t *cur = buf_a;
+60:static uint8_t *nxt = buf_b;
+61:static int dirty = 0;
+62:static uint64_t out_vals[2];
+65:static const uint16_t in_wires_A[] = { IN_A_1_, IN_A_2_ };
+66:static const uint16_t in_wires_B[] = { IN_B_1_, IN_B_2_ };
+67:static const uint16_t in_wires_Cin[] = { IN_Cin };
+75:static const struct in_port in_ports[] = {
+82:static const char *const out_port_names[] = {
+92:static void recompute_outputs(void)
+106:static void tick(void)
+133:SHDLC_API void reset(void)
+146:SHDLC_API void poke(const char *signal, uint64_t value)
+170:SHDLC_API uint64_t peek(const char *signal)
+203:static void step_impl(int cycles)
+212:static int step_settle_impl(int cycles)
+225:SHDLC_API void step(int cycles)
+236:SHDLC_API int step_settle(int cycles)
+251:SHDLC_API void run_batch(const uint64_t *in, uint64_t *out,
+282:#ifdef __GNUC__
+```
+
+The file always has the same sections in the same order:
+
+1. A one-line header comment such as `/* Add2: 10 gates, 3 input ports, 2 output ports. */`.
+2. `#include` lines for `stdint.h`, `stdio.h` and `string.h`.
+3. The `SHDLC_API` export macro, and `SHDLC_NOINLINE` when the circuit is large enough to be [split into chunks](#large-circuits-tick-chunks).
+4. Four `enum` blocks that give every slot a name.
+5. The simulation state.
+6. The port tables.
+7. `recompute_outputs()` and `tick()`, plus the chunk functions when present.
+8. The init seed table, only when the circuit has `meta.init`.
+9. The six exported functions, with `step_impl` and `step_settle_impl` in between.
+10. A load-time constructor.
+
+Everything except the six exported functions is `static`.
+
+### Slot names
+
+Each input wire gets `IN_<wire>`, each gate gets `G_<gate>` with its type in a comment, and each output port gets `OUT_<port>`. The prefixes keep generated names from colliding with each other or with C keywords, because Base SHDL names are already C identifiers:
+
+```c
+/* Gate slots, in declaration order. */
+enum {
+    G_fa1_x1 = 0, /* XOR */
+    G_fa1_a1 = 1, /* AND */
+    /* ... */
+    G_fa2_o1 = 9, /* OR */
+    NUM_GATES = 10
+};
+```
+
+`NUM_INPUTS` counts input wires (5 here). `NUM_IN_PORTS` counts input ports (3 here), since a port can be several wires wide.
+
+### State
+
+```c
+/*
+ * Simulation state. Gate outputs are double-buffered: every cycle reads
+ * cur[] and writes nxt[], then the buffers swap (shdlc_goals.md §2.3).
+ */
+static uint8_t inputs[5];
+static uint8_t buf_a[10];
+static uint8_t buf_b[10];
+static uint8_t *cur = buf_a;
+static uint8_t *nxt = buf_b;
+static int dirty = 0;
+static uint64_t out_vals[2];
+```
+
+That is the entire state: one byte per input wire, two byte buffers for the gate outputs, the packed output port values and the lazy-evaluation flag. There is no cycle counter and nothing is allocated. Because the state is file-scope `static`, one loaded library is one simulator instance. Each array is sized `max(1, n)`, because C11 with `-pedantic` rejects zero-length arrays. A circuit with no gates still gets `buf_a[1]`.
+
+### Port tables
+
+`poke` and `peek` find ports by name at run time, so the names and bit layouts are data:
+
+```c
+/* Input ports: bit b of a poked value lands on wires[b] (LSB first). */
+static const uint16_t in_wires_A[] = { IN_A_1_, IN_A_2_ };
+static const uint16_t in_wires_B[] = { IN_B_1_, IN_B_2_ };
+static const uint16_t in_wires_Cin[] = { IN_Cin };
+
+struct in_port {
+    const char *name;
+    int width;
+    const uint16_t *wires;
+};
+
+static const struct in_port in_ports[] = {
+    { "A", 2, in_wires_A },
+    { "B", 2, in_wires_B },
+    { "Cin", 1, in_wires_Cin }
+};
+
+/* Output port names, aligned with out_vals[] / the OUT_ indices. */
+static const char *const out_port_names[] = {
+    "Sum",
+    "Cout"
+};
+```
+
+These `uint16_t` tables set the 65,535-input-wire limit. An `in_wires_*` initializer longer than 80 characters wraps to one wire per line. A circuit with no input ports gets a dummy `{ "", 0, 0 }` entry, and one with no output ports gets a dummy `""` name, so the arrays are never empty. `NUM_IN_PORTS` and `NUM_OUT_PORTS` stay 0, so the loops never reach the dummies.
+
+Output bits are not stored per wire. `recompute_outputs()` packs each output port from the committed state after every cycle:
+
+```c
+static void recompute_outputs(void)
+{
+    out_vals[OUT_Sum] = ((uint64_t)cur[G_fa1_x2] << 0)
+        | ((uint64_t)cur[G_fa2_x2] << 1);
+    out_vals[OUT_Cout] = ((uint64_t)cur[G_fa2_o1] << 0);
+}
+```
+
+An output that passes an input straight through reads `inputs[]` instead. You can see both kinds in the example under [reset and init seeds](#reset-and-init-seeds).
+
+### One cycle: `tick()`
+
+`tick()` is the unit-delay compute-commit step from [shdlc_goals.md §2.3](/specs/shdlc_goals#23-the-compute-commit-contract). Every gate reads only the previous cycle (`cur[]` and `inputs[]`) and writes `nxt[]`. Then the pointers swap:
+
+```c
+static void tick(void)
+{
+    uint8_t *tmp;
+
+    nxt[G_fa1_x1] = (uint8_t)(inputs[IN_A_1_] ^ inputs[IN_B_1_]); /* fa1_x1: XOR */
+    nxt[G_fa1_a1] = (uint8_t)(inputs[IN_A_1_] & inputs[IN_B_1_]); /* fa1_a1: AND */
+    nxt[G_fa1_x2] = (uint8_t)(cur[G_fa1_x1] ^ inputs[IN_Cin]); /* fa1_x2: XOR */
+    /* ... one statement per gate, in declaration order ... */
+    nxt[G_fa2_o1] = (uint8_t)(cur[G_fa2_a1] | cur[G_fa2_a2]); /* fa2_o1: OR */
+
+    tmp = cur;
+    cur = nxt;
+    nxt = tmp;
+    recompute_outputs();
+    dirty = 0;
+}
+```
+
+Each gate type becomes one expression:
+
+| Type | C expression |
+| --- | --- |
+| `AND` | `(uint8_t)(a & b)` |
+| `OR` | `(uint8_t)(a \| b)` |
+| `XOR` | `(uint8_t)(a ^ b)` |
+| `NOT` | `(uint8_t)(a ^ 1u)` |
+| `VCC` | `1u` |
+| `GND` | `0u` |
+
+`NOT` is written as `^ 1u` rather than `~`, so the byte stays 0 or 1 without masking. The netlist is never sorted or settled: each tick moves signals forward by one gate level, which is why feedback loops need no special handling. The comment in the generated file sums up the hot path as "no allocation, no string ops, no branches on signal values". [The simulation model](../concepts/simulation-model.mdx) describes what this means for users.
+
+### Large circuits: tick chunks
+
+A circuit with more than 1,024 gates (`_TICK_CHUNK` in `codegen.py`) puts its gate statements into `static` chunk functions of up to 1,024 statements each, and `tick()` calls them in order. The reason is compile time, not run time. The stores are `uint8_t` writes, and in C a character store may alias anything, including `cur` and `nxt` themselves. One huge basic block makes the C compiler's instruction scheduler go quadratic. The chunk parameters are `restrict`, which promises that the read buffer and the write buffer do not overlap. `SHDLC_NOINLINE` stops the compiler from merging the chunks back into one block. A chunk that reads no gate outputs takes only the `n` parameter, because an unused `c` would fail `-Wunused-parameter` builds.
+
+Every chunk reads only `c[]` and writes only `n[]`, so the split cannot change behavior. At 1,024 gates or fewer the output is byte-identical to the unchunked form. The init seeds use a table rather than one store per seed for the same reason (see [reset and init seeds](#reset-and-init-seeds)).
+
+This script builds a chain of 1,024 inverters plus one `VCC`, 1,025 gates in all:
+
+```python
+from shdlc import compile_text
+
+decls = [f"    n{i}: NOT;" for i in range(1024)] + ["    hi: __VCC__;"]
+conns = ["        A -> n0.A;"] + [f"        n{i - 1}.O -> n{i}.A;" for i in range(1, 1024)]
+conns += ["        n1023.O -> O;", "        hi.O -> H;"]
+base = "component Chain(A) -> (O, H) {\n" + "\n".join(decls) + "\n    connect {\n" + "\n".join(conns) + "\n    }\n}\n"
+
+circuit, c = compile_text(base)
+lines = c.splitlines()
+print(len(circuit.gates), "gates")
+for i, line in enumerate(lines):
+    if line.startswith("static void tick_chunk_"):
+        body = lines[i + 2 : lines.index("}", i)]
+        print(line, "--", len(body), "statements")
+start = lines.index("static void tick(void)")
+print("\n".join(lines[start : lines.index("}", start) + 1]))
+```
+
+```text title="Output"
+1025 gates
+static void tick_chunk_0(const uint8_t *restrict c, uint8_t *restrict n) -- 1024 statements
+static void tick_chunk_1(uint8_t *restrict n) -- 1 statements
+static void tick(void)
+{
+    uint8_t *tmp;
+
+    tick_chunk_0(cur, nxt);
+    tick_chunk_1(nxt);
+
+    tmp = cur;
+    cur = nxt;
+    nxt = tmp;
+    recompute_outputs();
+    dirty = 0;
+}
+```
+
+The second chunk holds only the `VCC` gate, which reads nothing, so it gets the one-parameter form.
+
+### Reset and init seeds
+
+`reset()` returns the circuit to cycle 0 as [shdlc_goals.md §2.4](/specs/shdlc_goals#24-reset-semantics) defines it. Here is the SR latch from [the Base SHDL page](./base-shdl.mdx#constants-init-and-feedback) again:
+
+```shdl title="latch.shdl"
+"""SR latch built from OR and NOT, with a constant-enabled reset."""
+top component Latch(S, R) -> (Q, Qn) {
+    EN = 1;
+    g: AND;
+    o1: OR;  n1: NOT;
+    o2: OR;  n2: NOT;
+
+    init { o1.O = 1; n1.O = 0; n2.O = 1; }
+
+    connect {
+        R -> g.A;   EN -> g.B;
+        g.O -> o1.A;  n2.O -> o1.B;  o1.O -> n1.A;  n1.O -> Q;
+        S -> o2.A;    n1.O -> o2.B;  o2.O -> n2.A;  n2.O -> Qn;
+    }
+}
+```
+
+Its C has the seed table that `reset()` loops over:
+
+```console check
+$ shdlc latch.shdl --no-build
+$ sed -n '/^static const struct init_seed/,/^};/p' latch.c
+static const struct init_seed {
+    uint32_t wire; /* gate slot */
+    uint8_t value;
+} init_seeds[] = {
+    { G_o1, 1u },
+    { G_n1, 0u },
+    { G_n2, 1u },
+};
+```
+
+```c
+/*
+ * Return to cycle 0 (shdlc_goals.md §2.4): all state zero, buffers
+ * re-pinned (idempotent), then init seeds applied to cur[] only so
+ * VCC/GND still read 0 until the first tick.
+ */
+SHDLC_API void reset(void)
+{
+    size_t i;
+
+    memset(inputs, 0, sizeof(inputs));
+    memset(buf_a, 0, sizeof(buf_a));
+    memset(buf_b, 0, sizeof(buf_b));
+    cur = buf_a;
+    nxt = buf_b;
+    for (i = 0; i < sizeof(init_seeds) / sizeof(init_seeds[0]); i++) {
+        cur[init_seeds[i].wire] = init_seeds[i].value;
+    }
+    dirty = 0;
+    recompute_outputs();
+}
+```
+
+`reset()` clears the inputs and both buffers, points `cur` back at `buf_a`, writes the seeds into `cur[]` only and repacks the outputs. Calling it twice gives the same state. A circuit without `meta.init` gets the same function without the seed loop.
+
+Power gates are ordinary gates, so at cycle 0 they read 0 like everything else, and they read their constant from cycle 1 on. The constant `EN = 1` in the latch is gate `EN_bit1`, compiled to `nxt[G_EN_bit1] = 1u;`, so the `AND` gate reading it sees 0 during the first cycle. The next example shows this with a `VCC` wired straight to an output, next to a passthrough output:
+
+```python
+from shdlc import build_library, compile_text
+from shdlc.cc import lib_suffix
+from shdlc.harness import Sim, load_fresh_copy
+
+POWER = "component Power(A) -> (V, P) { v: __VCC__; connect { v.O -> V; A -> P; } }"
+
+c_source = compile_text(POWER)[1]
+start = c_source.index("static void recompute_outputs")
+print(c_source[start : c_source.index("}", start) + 1])
+
+lib_path = build_library(POWER, "power" + lib_suffix())
+first = Sim(lib_path)
+print(first.peek("V"))           # cycle 0: VCC still reads 0
+first.step(1)
+print(first.peek("V"))           # from cycle 1 on it reads 1
+
+second = Sim(lib_path)           # same path: dlopen returns the same loaded image
+print(second.peek("V"))
+fresh = load_fresh_copy(lib_path, ".")
+print(fresh.peek("V"), fresh.path.stem)
+```
+
+```text title="Output"
+static void recompute_outputs(void)
+{
+    out_vals[OUT_V] = ((uint64_t)cur[G_v] << 0);
+    out_vals[OUT_P] = ((uint64_t)inputs[IN_A] << 0);
+}
+0
+1
+1
+0 power.copy0000
+```
+
+The last two lines show why the test harness has `load_fresh_copy`. The dynamic loader caches libraries by path, so a second load of the same file shares its state and does not run the constructor again. A copy at a new path is an independent instance.
+
+### The load-time constructor
+
+The file ends with:
+
+```c
+/* Make init seeds live at load time, before any explicit reset(). */
+#ifdef __GNUC__
+__attribute__((constructor)) static void shdlc_ctor(void)
+{
+    reset();
+}
+#endif
+```
+
+GCC and Clang run it when the library loads, so a fresh library already holds its init seeds, and a latch reads `Q=0, Qn=1` before you call anything. On a compiler that does not define `__GNUC__` there is no constructor. The state then starts as all zeros from static initialization, and the seeds apply only after you call `reset()` yourself. Neither `shdlc` nor PySHDL calls `reset()` after loading. [shdlc_goals.md §8](/specs/shdlc_goals#8-interoperability-requirements) documents this: the build driver only runs GCC-style compilers, and MSVC users compile the `--no-build` output themselves.
+
+### `poke` and `peek`
+
+```c
+SHDLC_API void poke(const char *signal, uint64_t value)
+{
+    int i;
+    int b;
+
+    /* NULL takes the unknown-signal path; no name comparison on it. */
+    if (signal != 0) {
+        for (i = 0; i < NUM_IN_PORTS; i++) {
+            if (strcmp(signal, in_ports[i].name) == 0) {
+                for (b = 0; b < in_ports[i].width; b++) {
+                    inputs[in_ports[i].wires[b]] = (uint8_t)((value >> b) & 1u);
+                }
+                dirty = 1;
+                return;
+            }
+        }
+    }
+    fprintf(stderr, "poke: unknown signal \"%s\"\n",
+            signal != 0 ? signal : "(null)");
+}
+```
+
+- Ports are found by a linear `strcmp` scan. This is fine for the handful of ports a circuit has, but it is why [`run_batch`](#run_batch) exists for tight loops.
+- The value is scattered one bit per wire, least significant bit first. Bits above the port width are never read, so the value is masked for free, and no shift is ever 64 or more.
+- An unknown name, or `NULL`, prints `poke: unknown signal "X"` to standard error and changes nothing.
+- A poke sets `dirty`. The gates see the new value at the next tick.
+
+`peek` checks output ports first, then input ports:
+
+- An output port read while `dirty` is set runs one `tick()` first, which clears `dirty`. This is the lazy evaluation described in [the C ABI](../tools/c-abi.mdx). It then returns `out_vals[i]`.
+- An input port gathers its wires from `inputs[]` and never ticks.
+- An unknown name prints `peek: unknown signal "X"` and returns 0.
+
+Because outputs are checked first, a name used for both an input and an output port would read the output. `build_circuit` rejects that case anyway.
+
+### `step` and `step_settle`
+
+```c
+static void step_impl(int cycles)
+{
+    int i;
+
+    for (i = 0; i < cycles; i++) {
+        tick();
+    }
+}
+
+static int step_settle_impl(int cycles)
+{
+    int i;
+
+    for (i = 0; i < cycles; i++) {
+        tick();
+        if (memcmp(cur, nxt, sizeof(buf_a)) == 0) {
+            return i + 1;
+        }
+    }
+    return i;
+}
+
+SHDLC_API void step(int cycles)
+{
+    step_impl(cycles);
+}
+```
+
+`step(n)` runs exactly `n` ticks. `step(0)` or a negative count does nothing and leaves `dirty` alone, so a pending poke is still evaluated by the next output `peek`.
+
+`step_settle(n)` stops early at a fixed point. After a tick, the swapped-out `nxt[]` still holds the previous cycle, so one `memcmp` of the two buffers shows whether the tick changed anything. If nothing changed and the inputs are held, every later tick would compute the same state, so stopping is invisible to the caller. It returns the number of ticks it ran, including the one that found the fixed point. An oscillator never compares equal and runs all `n`.
+
+The static `_impl` functions work around a real crash. On Linux, exported names share the global symbol namespace, and glibc still exports a legacy regex function called `step` (`step@GLIBC_2.2.5`). If `run_batch` called the exported `step()` directly, the call could bind to libc's `step`, which would read the `int` cycle count as a regex program pointer and crash. Internal calls go through the `static` functions, which always bind locally, and the exported `step` and `step_settle` are thin wrappers.
+
+### `run_batch`
+
+`run_batch(in, out, count, cycles, settle)` does in one call what a loop of pokes, steps and peeks would do:
+
+1. For each frame `k`, it pokes `in[k*NUM_IN_PORTS + p]` into input port `p`, in declaration order.
+2. It runs `cycles` ticks with `step_impl`, or with `step_settle_impl` when `settle` is nonzero.
+3. It reads every output port into `out[k*NUM_OUT_PORTS + q]` with `peek` semantics, including the lazy tick when `cycles` is 0 or less.
+
+The generated comment promises it is "observably identical to the same poke/step/peek calls made one by one". It skips all the name lookups, and it never dereferences `in` or `out` when its dimension is zero.
+
+This example drives the adder through the harness `Sim` class, which wraps the ABI with ctypes:
+
+```python
+import ctypes
+
+from flattener.pipeline import flatten_program
+from shdlc import build_library
+from shdlc.cc import lib_suffix
+from shdlc.harness import Sim
+
+lib_path = build_library(flatten_program("circuit.shdl").text, "add2" + lib_suffix())
+sim = Sim(lib_path)
+sim.poke("A", 3)
+sim.poke("B", 1)
+print(sim.peek("A"), sim.peek("B"))        # inputs never tick
+print(sim.peek("Sum"), sim.peek("Cout"))   # first output peek runs one pending tick
+print(sim.peek("Sum"), sim.peek("Cout"))   # not dirty any more: no tick
+print(sim.step_settle(100))                # ticks until nothing changes
+print(sim.peek("Sum"), sim.peek("Cout"))
+print(sim.step_settle(100))                # already at a fixed point
+```
+
+```text title="Output"
+3 1
+0 0
+0 0
+4
+0 1
+1
+```
+
+3 + 1 is 4, which does not fit in the 2-bit `Sum`, so the result is `Sum=0, Cout=1`. Settling took three ticks that changed something plus one that did not. A second `step_settle` on a settled circuit runs a single tick. Now a batch of three frames, each settled:
+
+```python continue
+print(sim.run_batch([(1, 1, 0), (3, 3, 1), (2, 0, 0)], 2, cycles=100, settle=True))
+sim.reset()
+print(sim.peek("Sum"), sim.peek("Cout"), sim.peek("A"))
+```
+
+```text title="Output"
+[(2, 0), (3, 1), (2, 0)]
+0 0 0
+```
+
+### Exported symbols
+
+Only the six ABI functions are visible outside the library. Two things make this work:
+
+- `SHDLC_API` marks them: `__declspec(dllexport)` on Windows, `__attribute__((visibility("default")))` with GCC and Clang, and nothing otherwise.
+- The default flags include `-fvisibility=hidden`, and every other function and variable is `static` anyway.
+
+This lets several circuit libraries live in one process without clashing ([shdlc_goals.md §8](/specs/shdlc_goals#8-interoperability-requirements)). Looking the names up with ctypes shows the boundary:
+
+```python continue
+raw = ctypes.CDLL(str(lib_path))
+for name in ["reset", "poke", "peek", "step", "step_settle", "run_batch",
+             "tick", "recompute_outputs", "step_impl", "cur", "inputs"]:
+    print(f"{name:18} {'exported' if hasattr(raw, name) else 'hidden'}")
+```
+
+```text title="Output"
+reset              exported
+poke               exported
+peek               exported
+step               exported
+step_settle        exported
+run_batch          exported
+tick               hidden
+recompute_outputs  hidden
+step_impl          hidden
+cur                hidden
+inputs             hidden
+```
+
+## Building the shared library
+
+[`cc.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/cc.py) finds a C compiler and runs it once. `find_cc(cc=None)` tries, in order:
+
+1. The explicit `cc` argument (`--cc` on the command line).
+2. `$CC`, if it is set and not blank.
+3. `cc`, then `clang`, then `gcc`, on `PATH`.
+
+The chosen value is split with `shlex`, so `--cc "gcc -m64"` works. The first word must be on `PATH` or be an existing absolute path. Failures raise `CCError`:
+
+| Situation | Message |
+| --- | --- |
+| The value splits into nothing | `C compiler not found: SOURCE ('VALUE') is empty after splitting` |
+| The program cannot be found | `C compiler not found: 'HEAD' (from SOURCE: 'VALUE') is not on PATH and is not an existing absolute path` |
+| Nothing given and nothing found | `C compiler not found: no explicit compiler given, $CC is unset, and none of 'cc', 'clang', 'gcc' is on PATH` |
+| The compiler exits nonzero | `C compiler failed with exit code N: COMMAND` followed by `--- stderr ---` and the compiler's output |
+
+`SOURCE` is `explicit cc argument` or `$CC`. A whitespace-only `$CC` counts as unset.
+
+```console check
+$ CC=no-such-cc shdlc circuit.shdl -o add2.so 2>&1; echo "exit $?"
+shdlc: error: C compiler not found: 'no-such-cc' (from $CC: 'no-such-cc') is not on PATH and is not an existing absolute path
+exit 1
+```
+
+`build_shared` runs `CC FLAGS -o OUT FILE.c` with its output captured. Passing `cflags` replaces the defaults rather than adding to them. There are three flag sets:
+
+```python
+from shdlc.cc import DEFAULT_CFLAGS, DEV_CFLAGS
+from shdlc.harness import STRICT_CFLAGS
+
+print(" ".join(DEFAULT_CFLAGS))
+print(" ".join(DEV_CFLAGS))
+print(" ".join(STRICT_CFLAGS))
+```
+
+```text title="Output"
+-std=c11 -O2 -shared -fPIC -fvisibility=hidden
+-std=c11 -O0 -shared -fPIC -fvisibility=hidden
+-std=c11 -Wall -Wextra -Werror -pedantic -O2 -fPIC -shared -fvisibility=hidden
+```
+
+| Set | Used by | Notes |
+| --- | --- | --- |
+| `DEFAULT_CFLAGS` | `shdlc`, and PySHDL's `Circuit` when you pass no `cflags` | `-O2`, as [shdlc_goals.md §5.2](/specs/shdlc_goals#52-where-performance-comes-from) states. |
+| `DEV_CFLAGS` | `shdlc --dev`, and the `--dev` option of the [`shdl` commands](../tools/shdl-cli.mdx) that build | `-O0`. The comment in `cc.py` measures it at about 12 times faster to compile on a 37k-gate netlist. The simulator runs slower. |
+| `STRICT_CFLAGS` | The test suite | Adds `-Wall -Wextra -Werror -pedantic`, so every test build also proves the generated C is warning-free. |
+
+`lib_suffix()` returns `.dylib` on macOS, `.dll` on Windows and Cygwin, and `.so` elsewhere.
+
+`build_library` writes the C to `emit_c` when you give it one and keeps that file. Otherwise it writes a temporary `.c` file next to the output (named after the output's stem) and deletes it afterwards, even when compilation fails.
+
+## The command line
+
+[`cli.py`](https://github.com/rafa-rrayes/SHDL/blob/master/shdlc/cli.py) is a thin layer over `compile.py`. It decides the input kind first:
+
+- `--shdl` forces SHDL source and `--base` forces Base SHDL. The two options cannot be combined.
+- Otherwise a `.shdl` suffix means SHDL source and anything else means Base SHDL. `Path.suffix` looks only at the last suffix, so `add2.base.shdl` counts as SHDL source and needs `--base`. [Writing Base SHDL by hand](./base-shdl.mdx#writing-base-shdl-by-hand) shows the error you get without it.
+
+SHDL input is flattened in-process with `flatten_program(path, include_dirs=..., top=...)`. No timestamp is passed, which does not matter because the C does not depend on the metadata's `doc` block. Base input is read as bytes and decoded as UTF-8.
+
+It then either writes C and stops (`--no-build`) or builds the library:
+
+| Option | Default |
+| --- | --- |
+| `--emit-c FILE.c` | Not written when building. With `--no-build`, `STEM.c` in the working directory. |
+| `-o LIB` | `STEM` plus `lib_suffix()` in the working directory. |
+
+`STEM` is the input file name without its last suffix, so `add2.base.shdl` gives `add2.base.c`.
+
+Exit codes follow the docstring: 0 on success, 1 on a diagnosed failure, 2 on a usage error. Usage errors come from `argparse`:
+
+```console check
+$ shdlc --base circuit.shdl --top Add2 2>&1; echo "exit $?"
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+             [--base | --shdl] [--top NAME] [-I DIR]
+             input
+shdlc: error: --top and -I apply only to .shdl inputs
+exit 2
+$ shdlc circuit.shdl --dev --no-build 2>&1; echo "exit $?"
+usage: shdlc [-h] [-o LIB] [--emit-c FILE.c] [--no-build] [--cc CC] [--dev]
+             [--base | --shdl] [--top NAME] [-I DIR]
+             input
+shdlc: error: --dev has no effect with --no-build
+exit 2
+```
+
+Diagnosed failures print one `shdlc: error:` line. Flattener errors print the SHDL diagnostic with its code. `BaseParseError`, `ModelError`, `CCError` and `OSError` print their message:
+
+```console check
+$ shdlc missing.shdl 2>&1; echo "exit $?"
+shdlc: error: missing.shdl:1:1: error[E0701]: file not found: missing.shdl
+exit 1
+```
+
+Things the command line does not check:
+
+- `-o` and `--cc` are silently ignored with `--no-build`. Only `--dev` is rejected.
+- Any other exception, such as the `TypeError` from a non-object `meta` [described above](#reading-base-shdl), escapes as a Python traceback with exit code 1.
+
+## Determinism
+
+The same `Circuit` always produces byte-identical C, both within one process and across Python hash seeds. Nothing in the C depends on the time, the path or the tool version. The Base SHDL metadata does carry a timestamp, but `shdlc` reads only `meta.ports` and `meta.init`, so two flattens at different times give different Base text and identical C:
+
+```python
+from flattener.pipeline import flatten_program
+from shdlc import compile_text
+
+early = flatten_program("circuit.shdl", timestamp="2026-01-01T00:00:00Z").text
+late = flatten_program("circuit.shdl", timestamp="2031-06-30T12:00:00Z").text
+print(early == late)
+print(compile_text(early)[1] == compile_text(late)[1])
+```
+
+```text title="Output"
+False
+True
+```
+
+The tests compare C source, not compiled libraries, because Mach-O binaries embed an `LC_UUID` that changes on every link. Separately, `test_optlevels.py` checks that `-O0` and `-O3` builds produce identical traces ([shdlc_goals.md §7.2](/specs/shdlc_goals#72-determinism)).
+
+## How the compiler is tested
+
+The compiler tests live in [`tests/compiler/`](https://github.com/rafa-rrayes/SHDL/blob/master/tests/compiler). Every expected value comes from `BaseEval` or from the specs, never from the C under test ([golden_tests.md §1.1](/specs/golden_tests#11-the-oracle-chain)). With the default settings, pytest collects 539 tests:
+
+| File | Tests | What it proves |
+| --- | --- | --- |
+| `test_model.py` | 66 | Every `build_circuit` invariant, plus valid inputs flattened from the fixtures. |
+| `test_codegen.py` | 36 | The structure of the generated C, from hand-built `Circuit`s, without compiling. |
+| `test_primitives.py` | 22 | Truth tables for each gate, cycle by cycle, including the cycle-0 zeros. |
+| `test_cc.py` | 21 | `find_cc`, `lib_suffix` and `build_shared`. |
+| `test_differential.py` | 20 | Every fixture in lockstep with `BaseEval`, all ports compared every cycle. |
+| `test_base_reader.py` | 16 | Every `BaseParseError`, malformed JSON through the CLI, and Base names the reader accepts unchecked. |
+| `test_cli.py` | 16 | End-to-end `uv run shdlc` runs in a subprocess. |
+| `test_abi_contracts.py` | 13 | Edge cases of the six exported functions. |
+| `test_toolchain.py` | 12 | Temporary file cleanup, `find_cc` edge cases, and undefined symbols limited to libc. |
+| `test_batch_settle.py` | 9 | `step_settle` and `run_batch` behave exactly like the scalar calls. |
+| `test_lazy_peek.py` | 8 | The dirty flag: exactly one hidden tick per batch of pokes. |
+| `test_frontend_errors.py` | 7 | Clean CLI errors and exit codes, with no tracebacks. |
+| `test_edge_cases.py` | 6 | Degenerate circuits and unknown signal names. |
+| `test_oracle_robustness.py` | 6 | `BaseEval` is stricter than the ABI on purpose (for example, it rejects oversized pokes). |
+| `test_sim_contracts.py` | 6 | Declaration order does not matter, inputs persist, and values are 2-state. |
+| `test_ports.py` | 5 | Multi-bit ports: bit order, masking and 64-bit width. |
+| `test_propagation.py` | 5 | One gate level per cycle: a ripple carry is visible cycle by cycle. |
+| `test_reset_init.py` | 5 | The constructor reset, init seeds, idempotence and input clearing. |
+| `test_feedback.py` | 4 | SR latch transients and a 20-stage ring clock. |
+| `test_determinism.py` | 4 | Byte-identical C in-process and across hash seeds. |
+| `test_sanitizers.py` | 4 | Generated C under `-fsanitize=address,undefined`. It builds a driver executable, because sanitized shared libraries cannot be loaded into Python on macOS. |
+| `test_chunked.py` | 2 | A netlist with more than 1,024 gates, built with `-Werror` and run in lockstep. |
+| `test_optlevels.py` | 2 | Identical traces at `-O0` and `-O3`. |
+| `test_independence.py` | 2 | Libraries loaded at the same time stay independent. |
+| `test_symbols.py` | 1 | The export list is exactly the six ABI functions. It uses `nm -gU`, so it runs on macOS only. |
+| `test_fuzz.py` | 28 | Random valid netlists from `fuzz_gen.py` in lockstep with `BaseEval`, plus random interleavings of all six calls. |
+| `test_nocrash_shdlc.py` | 213 | Mutated Base text, random token soup and corrupted `meta` JSON: the reader and model either succeed or raise `BaseParseError` or `ModelError`. Both CLIs are also run on a sample and must exit 0, 1 or 2 without a traceback. |
+
+Some tests scale with environment variables:
+
+| Variable | Default | Controls |
+| --- | --- | --- |
+| `SHDLC_DIFF_CYCLES` | 150 | Cycles per circuit in `test_differential.py`. |
+| `SHDLC_FUZZ` | 20 | Random circuits in `test_fuzz.py`. |
+| `SHDLC_FUZZ_CYCLES` | 100 | Cycles per random circuit. |
+| `SHDLC_FUZZ5_RUNS` | 120 | Random call sequences in the interleaving test. |
+| `SHDLC_NOCRASH` | 200 | Mutated inputs in `test_nocrash_shdlc.py`. |
+
+The shared helpers are in `shdlc/harness.py`, which `tests/compiler/harness.py` re-exports and extends with `DualSim`, a runner that drives a compiled library and `BaseEval` in lockstep. `Sim` loads libraries with `RTLD_LOCAL`, so each handle resolves its own six symbols. [Testing](../tools/testing.mdx) covers the rest of the repository's tests, and [conformance](../tools/conformance.mdx) covers the cross-implementation suite.
+
+## Related pages
+
+- [`shdlc`](../tools/shdlc.mdx): the command-line reference.
+- [C ABI](../tools/c-abi.mdx): the contract the generated library implements.
+- [Base SHDL format](./base-shdl.mdx): the input format.
+- [The simulation model](../concepts/simulation-model.mdx): what one tick means for users.
+- [shdlc_goals.md](/specs/shdlc_goals): the normative compiler goals, including the [release ABI](/specs/shdlc_goals#31-release-build-abi) and [reset semantics](/specs/shdlc_goals#24-reset-semantics).

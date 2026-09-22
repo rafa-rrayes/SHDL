@@ -1,0 +1,133 @@
+---
+title: Introduction
+description: SHDL is an educational, gate-level hardware description language whose simulator runs every gate, every cycle, so you can watch signals propagate.
+---
+
+SHDL (Simple Hardware Description Language) is a small hardware description language and toolchain for building digital circuits out of logic gates and simulating them one gate level at a time. This page explains what SHDL is, how its pieces fit together, what ships in PySHDL 1.1.0, and where to go next.
+
+## What SHDL is
+
+SHDL is an **educational** language. You describe circuits as networks of single-bit gates (AND, OR, NOT and XOR), group them into reusable components, and compose those into adders, latches, registers, an ALU and eventually a working CPU. The language has no arithmetic operators, no behavioral `always` blocks and no hidden flip-flops. Everything you write becomes gates, and you can always see which gates.
+
+Its defining rule is **gate-level fidelity**. The simulator models every gate as having exactly one cycle of propagation delay. On each cycle, every gate computes its output from the values its inputs had at the end of the previous cycle. This is the **unit-delay model**. A result therefore does not appear instantly: it ripples forward one gate level per cycle, and you can watch it. A ripple-carry adder visibly takes longer than a carry-lookahead adder, and a loop of gates that feeds back on itself becomes a latch or an oscillator with no special syntax. No tool in the chain is allowed to collapse that behavior into an instant result. Helpers such as `settle()` sit *on top of* the model and simply run the right number of cycles.
+
+The model is **2-state and deterministic**: every wire is 0 or 1, every wire starts at 0 (or at a value you seed with an `init` block), and the same inputs always produce the same trace. [Simulation model](./concepts/simulation-model.mdx) covers the details.
+
+## Two languages and a pipeline
+
+SHDL comes in two layers:
+
+| Layer | What it is | Specified in |
+|---|---|---|
+| **SHDL** | The language you write. Hierarchical components, multi-bit ports, compile-time parameters, generators and `when` conditionals, bit slices and concatenation, named constants, `init` seeds, and imports. | [shdl.md](/specs/shdl) |
+| **Base SHDL** | The intermediate representation every downstream tool reads. A flat netlist of single-bit wires over exactly six primitives, plus a JSON metadata section (port groups, hierarchy, source map, timing, constants, init seeds, statistics). | [base_shdl.md](/specs/base_shdl) |
+
+The six primitives are the logic gates `AND`, `OR`, `NOT`, `XOR` and the power pins `__VCC__` (constant 1) and `__GND__` (constant 0). Everything else, including `NAND`, `NOR` and `XNOR`, is an ordinary component that the flattener inlines down to those six (the repository provides them in [`examples/stdgates.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/stdgates.shdl); see [Standard gates](./language-reference/standard-gates.mdx)).
+
+The toolchain is a straight pipeline:
+
+```text
+  .shdl source
+       │
+       ▼
+  Flattener (shdl-flatten)   parse + resolve imports, validate, bind parameters,
+       │                     expand generators and slices, materialize constants,
+       │                     inline the hierarchy, compute timing + metadata
+       ▼
+  Base SHDL                  single-bit primitive netlist + JSON metadata
+       │
+       ▼
+  Compiler (shdlc)           generates C with a two-buffer compute/commit cycle
+       │                     and builds it with your C compiler
+       ▼
+  shared library             reset / poke / peek / step / step_settle / run_batch
+       │
+       ▼
+  PySHDL (Circuit)           loads the library and drives it from Python
+```
+
+Nothing after the flattener reads SHDL directly, so any tool that understands Base SHDL can join the pipeline. See [Architecture](./architecture/overview.mdx) for how each stage works, and [SHDL_Project.md](/specs/SHDL_Project#2-the-pipeline) for the design rationale.
+
+## What ships in PySHDL 1.1.0
+
+Everything below installs as one PyPI package, `PySHDL` (import name `SHDL`), which requires Python 3.14 or newer and a C compiler. See [Installation](./getting-started/installation.mdx).
+
+| Component | Command or import | What it does | Guide |
+|---|---|---|---|
+| Flattener | `shdl-flatten` | Lowers SHDL to Base SHDL and reports errors with stable `E0xxx` codes, file, line and column. | [shdl-flatten](./tools/shdl-flatten.mdx) |
+| Compiler | `shdlc` | Compiles SHDL or Base SHDL to C and builds a shared library that exports the six-function release ABI. | [shdlc](./tools/shdlc.mdx), [C ABI](./tools/c-abi.mdx) |
+| Python driver | `from SHDL import Circuit` | Runs flatten, compile, build and load in-process, then gives you poke, peek, step, settle, batches and introspection. | [Using PySHDL](./getting-started/using-pyshdl.mdx), [Python API](./tools/python-api.mdx) |
+| Project manager | `shdl` | Creates projects (`shdl.toml`), builds them, runs JSON test vectors, opens an interactive REPL, and installs packages from **Circuit Circus**, the SHDL package index. | [Projects](./getting-started/projects.mdx), [shdl CLI](./tools/shdl-cli.mdx) |
+| Conformance suite | `shdl-conformance` | A frozen corpus of 38 cases with golden Base SHDL and cycle-by-cycle traces that any implementation of the pipeline can be checked against. | [Conformance](./tools/conformance.mdx) |
+
+:::info[Planned, not shipped]
+
+The SHDB interactive debugger, its debug build of the compiled library, the State Region memory layout and the `.shdb` format are designed in the specifications but **not implemented** in 1.1.0. Alternative backends such as Verilog or BLIF export are also future work. See the [Roadmap](./roadmap.mdx).
+
+:::
+
+## A taste
+
+Here is a one-bit 2-to-1 multiplexer: it passes `A` through when the select line `S` is 0 and `B` when `S` is 1.
+
+```shdl title="mux2.shdl"
+"""A 2-to-1 multiplexer: O = A when S = 0, B when S = 1."""
+
+top component Mux2(A, B, S) -> (O) {
+    inv: NOT;
+    gA:  AND;
+    gB:  AND;
+    o1:  OR;
+
+    connect {
+        S -> inv.A;
+        A -> gA.A;  inv.O -> gA.B;
+        B -> gB.A;  S -> gB.B;
+        gA.O -> o1.A;  gB.O -> o1.B;
+        o1.O -> O;
+    }
+}
+```
+
+PySHDL compiles it and loads it in one line. Settle it with `A = 1` and `S = 0`, then flip `S` and step one cycle at a time:
+
+```python
+from SHDL import Circuit
+
+with Circuit("mux2.shdl") as mux:
+    print(mux)
+    mux["A"], mux["B"], mux["S"] = 1, 0, 0
+    print("settled in", mux.settle(), "cycles: O =", mux["O"])
+
+    mux["S"] = 1                      # select B
+    for cycle in range(1, 4):
+        mux.step()
+        print(f"cycle {cycle}: O = {mux['O']}")
+```
+
+```text title="Output"
+<SHDL.Circuit 'Mux2' (A, B, S) -> (O)>
+settled in 3 cycles: O = 1
+cycle 1: O = 1
+cycle 2: O = 1
+cycle 3: O = 0
+```
+
+The output keeps showing the old value for two cycles after `S` changes. The change has to pass through three gates in turn: first the inverter, then the `gA` AND gate, then the OR gate. The circuit's depth is 3, which is why `settle()` ran 3 cycles. This delay is the unit-delay model at work, and it is what SHDL is built to show you.
+
+## Where next
+
+| If you want to... | Read |
+|---|---|
+| Install the toolchain | [Installation](./getting-started/installation.mdx) |
+| Build something step by step | [Your first circuit](./getting-started/first-circuit.mdx) |
+| Drive circuits from Python | [Using PySHDL](./getting-started/using-pyshdl.mdx), then the [Python API](./tools/python-api.mdx) reference |
+| Organize a project and use packages | [Projects and packages](./getting-started/projects.mdx) |
+| Understand cycles, settling and feedback | [Simulation model](./concepts/simulation-model.mdx) |
+| Look up syntax | [Language reference](./language-reference/overview.mdx) |
+| Read complete designs | [Examples](./examples/half-adder.mdx), up to a [16-bit CPU](./examples/sr16-cpu.mdx) |
+| Call the compiled library from C or another language | [C ABI](./tools/c-abi.mdx) |
+| See how the toolchain works inside | [Architecture](./architecture/overview.mdx) |
+| Read the normative specifications | [Specs](/specs/shdl) |
+
+The source code, the examples and the issue tracker live at [github.com/rafa-rrayes/SHDL](https://github.com/rafa-rrayes/SHDL). SHDL is free software under the GPL-3.0-or-later.

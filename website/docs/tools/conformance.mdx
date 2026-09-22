@@ -1,0 +1,620 @@
+---
+title: Conformance suite
+sidebar_label: Conformance suite
+description: The SHDL conformance suite (38 cases, suite 1.1.0), covering its three tiers, the shdl-conformance runner, the case and trace formats, how to add a case, and how another implementation can validate against it.
+---
+
+The conformance suite is the ground truth for the SHDL toolchain. It is a corpus of 38 small circuits, each with a frozen, reviewed golden result. Some goldens are the exact Base SHDL the flattener must produce. Others are cycle-by-cycle traces that a simulator must reproduce. The flattener, `shdlc` and the Python `Circuit` class are all tested against the suite. Any other implementation of SHDL, in any language, can be tested the same way: every case is plain text and JSON, and reading it needs no Python.
+
+This page covers the tiers, the `shdl-conformance` runner, the file formats, adding a case, and using the suite from another implementation. The normative document is [`conformance/conformance.md`](https://github.com/rafa-rrayes/SHDL/blob/master/conformance/conformance.md) in the repository. It is not part of the specifications section of this site.
+
+## At a glance {/* #overview */}
+
+| | |
+|---|---|
+| Suite version | `1.1.0` (`MANIFEST.json`, `suite_version`) |
+| Cases | 38, all in Tier A. 33 also have Tier B traces, 7 have Tier C traces. |
+| Checks | `run`: 78 (38 Tier A + 33 Tier B + 7 Tier C). `verify-oracle`: 40, one per trace. |
+| Required features | 42 feature keys in 8 groups: `primitive`, `derived`, `adder`, `state`, `lang`, `composite`, `degenerate` and `abi`. Every key is claimed by at least one case. |
+| Pinned timestamp | `2026-01-01T00:00:00Z`, baked into every golden `meta.doc.flattened_at` |
+| Where | [`conformance/`](https://github.com/rafa-rrayes/SHDL/tree/master/conformance) in the repository, also installed with the `pyshdl` package |
+| Runner | `shdl-conformance`, installed with `pyshdl` |
+
+Every golden value was computed by the reference evaluator, or derived by hand from the specifications. None comes from an implementation under test. Goldens are frozen: they change only when the specification changes, never to make a failing implementation pass ([regeneration](#regen)).
+
+## The three tiers {/* #tiers */}
+
+Each case lists the tiers it takes part in, in `case.json` under `tiers`.
+
+- **Tier A: flattening.** Flatten `circuit.shdl` with the case's `top` and the pinned timestamp. Compare the result **byte for byte** with the frozen `expected.base.shdl`. This tests the [flattener](./shdl-flatten.mdx).
+- **Tier B: simulation.** Build a simulator from the frozen `expected.base.shdl` and replay the case's traces. Each `expect` must match. The traces check circuit behaviour: truth tables, propagation latency, carry ripple, latches and oscillators.
+- **Tier C: ABI semantics.** The mechanics are the same as Tier B, but each trace isolates one rule of the [release control ABI](./c-abi.mdx#lazy-peek). Examples are poke masking, lazy peek and `step(0)`.
+
+The runner compiles the **frozen** `expected.base.shdl` for Tiers B and C, never a fresh flatten. A flattener regression therefore shows up only as a Tier A failure, and a backend regression only as a B or C failure. For the same reason, a project that implements only a flattener needs only Tier A. A project that implements only a simulator can ignore `circuit.shdl` entirely.
+
+The seven Tier C traces, together with Tier B, pin every rule of the simulator contract:
+
+| Case | Rule it pins |
+|---|---|
+| `abi_lazy_peek` | Peeking an output ticks exactly once, and only if an input was poked since the last tick. |
+| `abi_peek_input` | Peeking an input never ticks and never clears the dirty flag. |
+| `abi_poke_masking` | `poke` masks the value to the port width; it is never an error. |
+| `abi_reset_init` | `reset` is idempotent, clears state and inputs, and applies `init` seeds. |
+| `abi_step_zero` | `step(0)` does nothing, and it keeps the dirty flag set. |
+| `abi_vcc_cycle0` | `__VCC__` reads 0 at cycle 0 and 1 from cycle 1. |
+| `init_comb` | An `init` seed on a combinational gate is transient and comes back on reset. |
+
+## Running the suite {/* #running */}
+
+`shdl-conformance` is installed with `pyshdl`. The case files ship inside the package, so the command works from any directory, with or without a checkout of the repository. In a checkout, run `uv run shdl-conformance ...`. Tiers B and C compile each case with `shdlc`, which needs a C compiler. It uses strict flags (`-std=c11 -Wall -Wextra -Werror` among them). If a case fails to compile, its traces are reported as failures, not skipped.
+
+```console check
+$ shdl-conformance --help
+usage: shdl-conformance [-h] {run,verify-oracle,regen,list} ...
+
+Run the SHDL conformance suite against the current toolchain.
+
+positional arguments:
+  {run,verify-oracle,regen,list}
+    run                 check all goldens (tiers A, B, C)
+    verify-oracle       re-derive trace goldens from BaseEval and lockstep-
+                        check the C library
+    regen               regenerate goldens for ONE case (dry run unless
+                        --write)
+    list                list all cases
+
+options:
+  -h, --help            show this help message and exit
+```
+
+| Command | What it does | Exit status |
+|---|---|---|
+| `run [--filter TEXT] [--tier A\|B\|C]` | Checks goldens against the current toolchain. Tier A re-flattens and byte-compares; Tiers B and C compile the frozen base and replay each trace. | 1 if any check fails, else 0 |
+| `verify-oracle [--filter TEXT]` | Replays every trace on a fresh reference oracle and checks that the stored values can be re-derived from it. It also runs the compiled C library in lockstep with the oracle. | 1 if any check fails, else 0 |
+| `regen --case NAME [--write]` | Recomputes one case's goldens. Without `--write` it is a dry run that only prints the diff ([regeneration](#regen)). | 1 on an unknown case, a broken suite or a failed flatten, else 0 |
+| `list` | One line per case: name, tiers, trace count and title. | 0 |
+
+`--filter` keeps cases whose name *contains* the text. `--tier` keeps checks of one tier. The `cases: N selected` line counts the cases matched by `--filter` only. A filter that matches nothing runs 0 checks and exits 0. Every report goes to stdout, including integrity errors.
+
+### `list`
+
+```console check
+$ shdl-conformance list
+SHDL conformance suite v1.1.0 — list
+flatten timestamp: 2026-01-01T00:00:00Z
+cases: 38 selected of 38
+
+abi_lazy_peek            tiers=AC  traces=1  ABI: peek of an output ticks exactly once iff dirty
+abi_peek_input           tiers=AC  traces=1  ABI: peek of an input never ticks and never clears dirty
+abi_poke_masking         tiers=AC  traces=1  ABI: poke masks the value to the port width
+abi_reset_init           tiers=AC  traces=1  ABI: reset is idempotent, clears state and inputs, applies init seeds
+abi_step_zero            tiers=AC  traces=1  ABI: step(0) is a no-op that preserves the dirty flag
+abi_vcc_cycle0           tiers=AC  traces=1  ABI: __VCC__ reads 0 at cycle 0 and 1 from cycle 1
+add100                   tiers=AB  traces=1  Adder with one constant operand (Hundred[8] = 100)
+add2                     tiers=AB  traces=1  2-bit ripple-carry adder, explicitly wired
+adder8_ripple            tiers=AB  traces=2  8-bit ripple-carry adder with a per-cycle carry-wave trace
+adder_n_default          tiers=AB  traces=1  Parameterized ripple adder at its default binding (N=4)
+adder_n_mixed            tiers=AB  traces=1  One generator/conditional component at two parameter bindings
+alu                      tiers=AB  traces=1  8-bit ALU: AND/OR/XOR/ADD with Cout and Zero flags
+bus_ops                  tiers=AB  traces=1  Sign extension via replication and concatenation
+comparator               tiers=AB  traces=1  8-bit equality comparator (XNOR + AND-reduce)
+concat_demo              tiers=AB  traces=1  Concatenation as source and destination, replication, bare braces
+cond_matrix              tiers=AB  traces=1  Conditional-operator matrix: every when-condition operator at flatten time
+const_demo               tiers=AB  traces=1  Named constant bits become __VCC__/__GND__ drivers
+cpu_rege                 tiers=AB  traces=1  SR16 two-phase master-slave register (RegE, N=16)
+d_latch                  tiers=AB  traces=1  Gated D latch composed on SRLatch
+deep_hier                tiers=AB  traces=1  Deep hierarchy: a five-level instantiation chain over one NOT
+degen_slice              tiers=AB  traces=1  Degenerate single-element slice In[k:k]
+derived_gates            tiers=AB  traces=1  Derived gates NAND/NOR/XNOR from the stdgates library
+diamond                  tiers=AB  traces=1  Diamond import: two arms share one leaf module
+full_adder               tiers=AB  traces=1  Full adder from two half adders
+init_comb                tiers=ABC traces=1  init seed on a purely combinational gate (transient, reset-restored)
+mux2                     tiers=AB  traces=1  2-to-1 single-bit multiplexer
+mux4n                    tiers=AB  traces=1  4-way 8-bit mux tree (Mux4N over three MuxN instances)
+nested_repl              tiers=AB  traces=1  Nested replication inside a concatenation source
+passthru_wire            tiers=AB  traces=1  Gate-light passthrough through two levels of wire-only hierarchy
+pipe                     tiers=AB  traces=1  Three buffer stages instantiated with a loop-variable parameter
+primitives_all           tiers=AB  traces=2  All six primitives in one circuit
+register_n               tiers=AB  traces=1  8-bit load-enable register from D latches
+repeated_names           tiers=AB  traces=1  Identical instance names in sibling scopes
+repeater                 tiers=AB  traces=1  Nested generators with arithmetic index expressions
+ring_clock               tiers=AB  traces=1  8-stage ring oscillator
+single_gate              tiers=AB  traces=1  Single NOT gate (Inverter)
+split_byte               tiers=AB  traces=1  Slices only: a byte split into nibbles with zero gates
+sr_latch                 tiers=AB  traces=1  SR latch: feedback state with init-block power-on
+```
+
+### `run`
+
+Each result line has the form `STATUS  TIER  CASE  ARTIFACT`. Tier A checks name `expected.base.shdl`, and trace checks name the trace file:
+
+```console check
+$ shdl-conformance run --filter add
+SHDL conformance suite v1.1.0 — run
+flatten timestamp: 2026-01-01T00:00:00Z
+cases: 6 selected of 38
+
+PASS  A  add100                   expected.base.shdl
+PASS  B  add100                   traces/sums.json
+PASS  A  add2                     expected.base.shdl
+PASS  B  add2                     traces/sums.json
+PASS  A  adder8_ripple            expected.base.shdl
+PASS  B  adder8_ripple            traces/carry_wave.json
+PASS  B  adder8_ripple            traces/sums.json
+PASS  A  adder_n_default          expected.base.shdl
+PASS  B  adder_n_default          traces/sums.json
+PASS  A  adder_n_mixed            expected.base.shdl
+PASS  B  adder_n_mixed            traces/both_widths.json
+PASS  A  full_adder               expected.base.shdl
+PASS  B  full_adder               traces/truth_table.json
+
+summary: 13 checks, 0 failure(s)
+$ shdl-conformance run --tier C
+SHDL conformance suite v1.1.0 — run --tier C
+flatten timestamp: 2026-01-01T00:00:00Z
+cases: 38 selected of 38
+
+PASS  C  abi_lazy_peek            traces/hidden_tick_iff_dirty.json
+PASS  C  abi_peek_input           traces/input_peek_tickless.json
+PASS  C  abi_poke_masking         traces/masking.json
+PASS  C  abi_reset_init           traces/reset_restores_seeds.json
+PASS  C  abi_step_zero            traces/step_zero_noop.json
+PASS  C  abi_vcc_cycle0           traces/vcc_wave.json
+PASS  C  init_comb                traces/seed_then_recompute.json
+
+summary: 7 checks, 0 failure(s)
+$ shdl-conformance run | tail -n 1
+summary: 78 checks, 0 failure(s)
+```
+
+A failing check is followed by indented detail lines. A trace mismatch names the op index, the signal, the golden value and the value the library returned:
+
+```text
+FAIL  B  buffer2                  traces/propagate.json
+      op[7] expect O: golden 0, lib 1
+```
+
+A Tier A failure prints `flattened output differs from frozen golden:` and a unified diff, cut off after 40 lines. A Tier A case whose circuit no longer flattens prints `flattening conformance/cases/<name>/circuit.shdl failed: <diagnostic>`. Reports are deterministic: cases come in manifest order and traces in listed order, and no timestamps or temporary paths are printed. Two runs therefore give byte-identical text:
+
+```console check
+$ shdl-conformance run --filter mux > first.txt; shdl-conformance run --filter mux > second.txt
+$ cmp first.txt second.txt && echo identical
+identical
+```
+
+### `verify-oracle` {/* #verify-oracle */}
+
+`run` compares the library with the stored goldens. `verify-oracle` checks where the goldens came from. For each trace it replays the ops on two simulators at once. The first is a fresh `OracleSim`: the pure-Python reference evaluator `BaseEval`, wrapped in the ABI's poke and peek rules. The second is the compiled C library. The check fails if a stored value cannot be re-derived from the oracle (`golden not re-derivable from oracle: ...`), or if the oracle and the library disagree at any observation (`lockstep divergence: ...`).
+
+```console check
+$ shdl-conformance verify-oracle --filter abi
+SHDL conformance suite v1.1.0 — verify-oracle
+flatten timestamp: 2026-01-01T00:00:00Z
+cases: 6 selected of 38
+
+PASS  C  abi_lazy_peek            traces/hidden_tick_iff_dirty.json
+PASS  C  abi_peek_input           traces/input_peek_tickless.json
+PASS  C  abi_poke_masking         traces/masking.json
+PASS  C  abi_reset_init           traces/reset_restores_seeds.json
+PASS  C  abi_step_zero            traces/step_zero_noop.json
+PASS  C  abi_vcc_cycle0           traces/vcc_wave.json
+
+summary: 6 checks, 0 failure(s)
+$ shdl-conformance verify-oracle | tail -n 1
+summary: 40 checks, 0 failure(s)
+```
+
+`verify-oracle` has no Tier A checks. It covers only cases with traces, one check per trace. `--filter abi` matches the six `abi_*` cases, not `init_comb`.
+
+### Errors
+
+```console check
+$ shdl-conformance run --tier D 2>&1; echo "exit $?"
+usage: shdl-conformance run [-h] [--filter FILTER] [--tier {A,B,C}]
+shdl-conformance run: error: argument --tier: invalid choice: 'D' (choose from A, B, C)
+exit 2
+$ shdl-conformance regen --case nope; echo "exit $?"
+unknown case 'nope'; available: abi_lazy_peek, abi_peek_input, abi_poke_masking, abi_reset_init, abi_step_zero, abi_vcc_cycle0, add100, add2, adder8_ripple, adder_n_default, adder_n_mixed, alu, bus_ops, comparator, concat_demo, cond_matrix, const_demo, cpu_rege, d_latch, deep_hier, degen_slice, derived_gates, diamond, full_adder, init_comb, mux2, mux4n, nested_repl, passthru_wire, pipe, primitives_all, register_n, repeated_names, repeater, ring_clock, single_gate, split_byte, sr_latch
+exit 1
+```
+
+Every command first loads and validates the whole corpus. Any **integrity problem** stops it before a single check runs. It then prints every problem by repository-relative path and exits 1. These problems include a missing or unlisted file, a malformed JSON field, a feature no case covers, and a golden whose hash does not match. These are real messages from a modified copy of the suite:
+
+```text
+conformance suite integrity check failed (1 problem(s)):
+  - missing golden artifact: conformance/cases/sr_latch/traces/set_hold_reset.json (listed in conformance/cases/sr_latch/case.json)
+```
+
+```text
+conformance suite integrity check failed (1 problem(s)):
+  - golden content drift: conformance/cases/mux2/expected.base.shdl hash e4a0fd52… does not match MANIFEST.json golden_hashes bfc66e1b… — a golden changed without a deliberate manifest update; regenerate via 'shdl-conformance regen --case <name> --write' (bump suite_version)
+```
+
+The real message prints both hashes in full; they are shortened here. Hash checks run only when the corpus is otherwise structurally valid, so a missing file hides any hash problems until it is fixed.
+
+### From pytest {/* #pytest */}
+
+The repository's test suite runs the same checks. [`tests/flattener/test_conformance.py`](https://github.com/rafa-rrayes/SHDL/blob/master/tests/flattener/test_conformance.py) has one integrity test, one test per Tier A golden and one test per trace, plus tests that break a sandbox copy of the corpus on purpose. [`tests/pyshdl/test_pyshdl_conformance.py`](https://github.com/rafa-rrayes/SHDL/blob/master/tests/pyshdl/test_pyshdl_conformance.py) replays every trace through the public [`Circuit`](./python-api.mdx) API, with `strict=False` because the traces poke values wider than the port. A plain `uv run pytest` in the repository runs both. conformance.md §11 names the first file as `tests/test_conformance.py`, but it lives under `tests/flattener/`.
+
+## Layout {/* #layout */}
+
+```text
+conformance/
+  MANIFEST.json            suite version, case list, feature map, changelog, golden hashes
+  conformance.md           the normative description of the suite
+  cases/
+    <case-name>/
+      case.json            case metadata
+      circuit.shdl         the SHDL entry point
+      *.shdl               any other modules the circuit imports
+      expected.base.shdl   frozen golden: the flattened Base SHDL
+      traces/
+        *.json             frozen golden simulation traces
+  runner/                  the Python reference runner (shdl-conformance)
+```
+
+Each case directory is self-contained. Imports resolve from the importing file's own directory first ([module search](./shdl-flatten.mdx#module-search)), so `circuit.shdl` and its sibling `.shdl` files are everything the flattener needs. No `-I` is required. For example, `add2/` contains its own copy of `fullAdder.shdl`, and `derived_gates/` contains `stdgates.shdl`.
+
+A small case, `abi_vcc_cycle0/circuit.shdl`:
+
+```shdl title="circuit.shdl"
+"""Conformance: __VCC__ reads 0 at cycle 0 and 1 from cycle 1 on.
+
+The NOT tap sees the cycle-0 zero exactly once, so HiInv goes 0, 1, 0, ...
+— a trace only a faithful unit-delay implementation reproduces.
+"""
+
+top component VccProbe() -> (Hi, HiInv) {
+    v: __VCC__;
+    n: NOT;
+
+    connect {
+        v.O -> Hi;
+        v.O -> n.A;
+        n.O -> HiInv;
+    }
+}
+```
+
+### `MANIFEST.json` {/* #manifest */}
+
+```json
+{
+  "manifest_format": 1,
+  "suite_version": "1.1.0",
+  "flatten_timestamp": "2026-01-01T00:00:00Z",
+  "cases": ["abi_lazy_peek", "abi_peek_input", "..."],
+  "required_features": {
+    "primitive:and": "AND gate compiled and simulated correctly",
+    "...": "..."
+  },
+  "changelog": [
+    { "version": "1.0.0", "date": "2026-06-10", "notes": "Initial corpus: 32 cases ..." },
+    { "version": "1.1.0", "date": "2026-06-12", "notes": "Additive (CNF-4): six new cases ..." }
+  ],
+  "golden_hashes": {
+    "conformance/cases/abi_lazy_peek/expected.base.shdl": "<sha256 hex>",
+    "...": "..."
+  }
+}
+```
+
+| Field | Rules |
+|---|---|
+| `manifest_format` | `1`. Reject any other value. |
+| `suite_version` | Semantic version of the corpus ([versioning](#regen)). |
+| `flatten_timestamp` | The timestamp every golden was flattened with. Tier A must flatten with exactly this string. |
+| `cases` | Sorted, unique case names. Must match the directories under `cases/` exactly, in both directions. |
+| `required_features` | Feature key to description. Every key must be claimed by at least one case, and every feature a case claims must be listed here. |
+| `changelog` | One `{version, date, notes}` entry per released suite version. New entries are appended; old ones are never rewritten. |
+| `golden_hashes` | Repository-relative path to the SHA-256 of every golden: each `expected.base.shdl` and each trace, 78 entries in 1.1.0. It must match the golden files exactly, in both directions ([drift fence](#regen)). |
+
+### `case.json` {/* #case-json */}
+
+The real `add2/case.json`:
+
+```json
+{
+  "case_format": 1,
+  "name": "add2",
+  "title": "2-bit ripple-carry adder, explicitly wired",
+  "description": "Two FullAdders chained by hand (no generator).",
+  "tiers": [
+    "A",
+    "B"
+  ],
+  "top": null,
+  "circuit": "circuit.shdl",
+  "sources": [
+    "circuit.shdl",
+    "fullAdder.shdl"
+  ],
+  "expected_base": "expected.base.shdl",
+  "traces": [
+    "traces/sums.json"
+  ],
+  "features": [
+    "lang:hierarchy",
+    "lang:imports",
+    "lang:multibit-ports"
+  ],
+  "provenance": {
+    "expected_base": "flattener flatten_program(circuit.shdl, timestamp='2026-01-01T00:00:00Z') at suite v1.0.0 creation (2026-06-10); reviewed and frozen — modified only via 'shdl-conformance regen'",
+    "traces": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test"
+  }
+}
+```
+
+| Field | Rules |
+|---|---|
+| `case_format` | `1`. |
+| `name` | Must equal the directory name. |
+| `title`, `description` | Non-empty strings. |
+| `tiers` | A non-empty, duplicate-free subset of `"A"`, `"B"` and `"C"`. |
+| `top` | The component to flatten, as with `--top`, or `null` for the default [top selection](./shdl-flatten.mdx#top-selection). |
+| `circuit` | The file to flatten. It must appear in `sources`. |
+| `sources` | Sorted. It must list exactly the `.shdl` files in the directory, excluding `expected_base`. |
+| `expected_base` | The golden Base SHDL file name, by convention `expected.base.shdl`. |
+| `traces` | Sorted case-relative paths that must match `traces/*.json` exactly. It must be non-empty if the case has Tier B or C, and empty otherwise. |
+| `features` | A non-empty list of keys from the manifest's `required_features`. |
+| `provenance` | `expected_base` and `traces`: non-empty strings saying where each golden's values came from. |
+
+### Trace files {/* #traces */}
+
+A trace is an ordered list of operations to replay against a fresh simulator. This is the complete `single_gate/traces/cycle_semantics.json`, with each op shown on one line:
+
+```json
+{
+  "trace_format": 1,
+  "name": "cycle_semantics",
+  "tier": "B",
+  "description": "O is 0 at cycle 0 (no tick yet), 1 after one cycle with A=0, then follows NOT A.",
+  "provenance": "expect values computed by conformance.runner.oracle.OracleSim (the BaseEval reference oracle with release-ABI peek/poke discipline) replaying the ops over the frozen expected.base.shdl; never taken from the C implementation under test",
+  "ops": [
+    { "op": "reset" },
+    { "op": "expect", "signal": "O", "value": 0 },
+    { "op": "step", "cycles": 1 },
+    { "op": "expect", "signal": "O", "value": 1 },
+    { "op": "poke", "signal": "A", "value": 1 },
+    { "op": "step", "cycles": 1 },
+    { "op": "expect", "signal": "O", "value": 0 },
+    { "op": "poke", "signal": "A", "value": 0 },
+    { "op": "step", "cycles": 1 },
+    { "op": "expect", "signal": "O", "value": 1 }
+  ]
+}
+```
+
+| Field | Rules |
+|---|---|
+| `trace_format` | `1`. |
+| `name` | Non-empty; by convention the file name without `.json`. |
+| `tier` | `"B"` or `"C"`, and one of the case's `tiers`. |
+| `description`, `provenance` | Non-empty strings. |
+| `ops` | A non-empty list. `ops[0]` must be exactly `{"op": "reset"}`, so a trace never depends on earlier state. |
+
+Each op object has exactly the keys shown:
+
+| Op | Keys | Meaning |
+|---|---|---|
+| `reset` | `op` | Return to the power-on state ([`reset()`](./c-abi.mdx#reset)). |
+| `poke` | `op`, `signal`, `value` | Set input port `signal`. `value` is an integer in `[0, 2^64)` and can be wider than the port; the implementation must mask it ([`poke`](./c-abi.mdx#poke)). |
+| `step` | `op`, `cycles` | Advance `cycles` cycles, an integer in `[0, 1000000]`. `0` is allowed and meaningful ([`step`](./c-abi.mdx#step)). |
+| `expect` | `op`, `signal`, `value` | `peek(signal)` with full peek semantics, including the hidden tick when an input is dirty ([lazy peek](./c-abi.mdx#lazy-peek)), then compare with `value`. |
+
+`signal` names are port names from `meta.ports` of the case's `expected.base.shdl`: inputs for `poke`, inputs or outputs for `expect`. A multi-bit port's value is the sum of `bit_i * 2^i` over its wires, which `meta.ports` lists LSB first. Before replaying, the runner checks every trace's signal names against the frozen ports. An unknown name is reported as `op[N] pokes unknown input 'X'` or `op[N] expects unknown signal 'X'`, not as a wrong value.
+
+**Order matters.** Peeking an output while an input is dirty advances the circuit one cycle, so an observation is part of the stimulus. Swapping two adjacent `expect` ops can change later values. Tier B traces observe only at clean points, right after a `reset` or `step`, so their values show plain unit-delay behaviour. Tier C traces break this discipline on purpose to pin the hidden-tick rules.
+
+**Large values.** Values can be as large as 2^64 − 1, beyond the 2^53 that an IEEE-754 double represents exactly. Parse traces with a 64-bit-aware JSON reader, such as a BigInt-capable parser in JavaScript. Every value in the 1.1.0 corpus is at most 65535.
+
+The tools write canonical JSON: two-space indent, keys in the order shown, a trailing newline, UTF-8. Validation checks content, not formatting.
+
+## The simulator contract {/* #contract */}
+
+Tiers B and C assume these rules. They are the release control ABI of `shdlc`-generated libraries. The [C ABI](./c-abi.mdx) page documents them, and the normative text is [shdlc_goals.md §2](/specs/shdlc_goals#23-the-compute-commit-contract), [§3](/specs/shdlc_goals#31-release-build-abi) and [shdl.md §11](/specs/shdl#11-simulation-semantics). A reimplementation must follow them to pass.
+
+- **Unit delay, two buffers.** Each cycle computes every gate's next output from the *current* values, then swaps buffers. Signals advance one gate level per cycle and are never settled instantly. A poked input reaches an output of combinational depth D after D cycles ([simulation model](../concepts/simulation-model.mdx)).
+- **Primitives.** `AND`, `OR` and `XOR` have inputs `A` and `B` and output `O`. `NOT` has input `A` and output `O`. `__VCC__` and `__GND__` have output `O` only. `__VCC__` computes its 1 on the first tick like any other gate, so it **reads 0 at cycle 0** unless `meta.init` seeds it.
+- **`reset()`** zeroes the inputs and both buffers, applies the `meta.init` seeds to the current buffer only, and clears the dirty flag. It is idempotent. Loading behaves as if `reset` had been called.
+- **`poke(signal, value)`** stores `value & (2^width − 1)`, sets the dirty flag and evaluates nothing.
+- **`peek` of an output**: if dirty, advance exactly one cycle and clear the flag, then return the value.
+- **`peek` of an input** returns the stored value. It never ticks and never touches the dirty flag.
+- **`step(n)`**: for `n > 0`, advance `n` cycles and clear the flag. For `n <= 0`, do nothing; in particular the flag stays set.
+
+The reference `OracleSim` in [`conformance/runner/oracle.py`](https://github.com/rafa-rrayes/SHDL/blob/master/conformance/runner/oracle.py) implements exactly these rules over `BaseEval`:
+
+```python
+from flattener.pipeline import flatten_program
+from conformance.runner.oracle import OracleSim
+
+base = flatten_program("examples/inverter.shdl").text
+sim = OracleSim(base)
+sim.reset()
+print(sim.peek("O"))            # cycle 0: nothing computed yet
+sim.step(1)
+print(sim.peek("O"))            # NOT 0
+sim.poke("A", 0xFF)             # masked to the 1-bit port
+print(sim.peek("A"), sim.dirty) # reading an input never ticks
+print(sim.peek("O"), sim.dirty) # reading an output ticks once
+```
+
+```text title="Output"
+0
+1
+1 True
+0 False
+```
+
+## Where golden values come from {/* #provenance */}
+
+- **`expected.base.shdl`** is the flattener's output at the suite version named in the case's provenance, with the pinned timestamp. It was reviewed against [base_shdl.md](/specs/base_shdl) and then frozen.
+- **Trace `expect` values** come from replaying the trace's own `poke`, `step` and `expect` sequence on `OracleSim` over the frozen base. The C implementation under test never produces a golden value.
+- **The `abi_*` traces** were also derived by hand from the contract above and cross-checked against the oracle. Each case's `description` records the derivation.
+
+`verify-oracle` re-checks this provenance at any time.
+
+## Regeneration and versioning {/* #regen */}
+
+Goldens change only when the specification of flattening or simulation changes. `regen` is the only tool that writes them:
+
+- `shdl-conformance regen --case NAME` is a dry run. It re-flattens the circuit, recomputes every `expect` value on the oracle over the new base, prints a unified diff of `expected.base.shdl` and each changed value, and writes nothing.
+- Adding `--write` applies exactly that diff, then refreshes those files' `golden_hashes` entries in `MANIFEST.json`.
+- It works on one case at a time; there is no bulk mode. It rewrites only derived data, meaning the flattened base and the `expect` values. The ops, metadata and descriptions are never touched.
+
+```console check
+$ shdl-conformance regen --case add2
+regen add2 (dry run)
+
+conformance/cases/add2/expected.base.shdl: unchanged
+
+conformance/cases/add2/traces/sums.json: unchanged
+
+all goldens already match the current toolchain; nothing to do
+```
+
+`regen` edits the files the runner loads. In a checkout those are the files under `conformance/`; in an installed package they are the package's own copies. Run it in a checkout.
+
+**The drift fence.** Each golden's SHA-256 is recorded in `golden_hashes`. The integrity check fails if a golden changes without its hash, and also if the map and the golden files disagree in either direction. Editing a golden by hand therefore turns the whole suite red until the hash is refreshed and the version bumped. This catches a golden change that the live checks cannot see: an edited base still matches a re-flatten if the flattener changed too, and an edited value still matches the oracle if the oracle changed too.
+
+**Versioning.** `suite_version` is a semantic version of the corpus:
+
+| Bump | When |
+|---|---|
+| Major | Any change to an existing golden byte: an `expected.base.shdl`, or any op of an existing trace. It needs a changelog entry naming the cases and the reason. |
+| Minor | Additions: new cases, new traces on existing cases, new required features with cases that cover them. 1.1.0 was a minor release that added six cases. |
+| Patch | Changes that touch no golden: descriptions, documentation, runner behaviour. |
+
+`manifest_format`, `case_format` and `trace_format` version the file schemas. They change only when a schema changes shape, and consumers should reject values they do not recognize.
+
+## Adding a case {/* #adding-a-case */}
+
+This walkthrough adds a case called `buffer2` to a copy of the suite. The output shown is from a real run. The case is a two-inverter buffer, with a trace that shows the output following the input two cycles later.
+
+1. **Create the case directory** with `circuit.shdl`, plus any modules it imports, and `case.json`. Keep `sources` and `traces` sorted, and take `features` from the manifest's `required_features`:
+
+   ```text
+   conformance/cases/buffer2/
+     case.json          tiers ["A", "B"], sources ["circuit.shdl"], traces ["traces/propagate.json"],
+                        features ["primitive:not"], top null
+     circuit.shdl       top component Buffer2(A) -> (O) with two NOTs in series
+     traces/propagate.json
+   ```
+
+2. **Produce the golden base** with the pinned timestamp, then **review it** against [base_shdl.md](/specs/base_shdl):
+
+   ```text
+   shdl-flatten conformance/cases/buffer2/circuit.shdl --timestamp 2026-01-01T00:00:00Z \
+       -o conformance/cases/buffer2/expected.base.shdl
+   ```
+
+3. **Write each trace's stimulus.** Start with `reset`. For Tier B, observe only right after a `step`, and step at least `meta.timing.max_depth` cycles (1 for purely sequential logic) so values can propagate. Fill in the `expect` values by hand from the [contract](#contract), which is best for ABI cases, or use `conformance.runner.gen.fill_trace_ops` (below). Check the values make sense either way.
+
+4. **List the case in `MANIFEST.json`.** Add it to `cases` in sorted order, and add any new feature to `required_features`. Bump `suite_version` by a minor version and append a `changelog` entry.
+
+5. **Add `golden_hashes` entries** for `expected.base.shdl` and each trace, with the SHA-256 of each file (`shasum -a 256 FILE` or `sha256sum FILE`). conformance.md §13 leaves this step out, but without it every command refuses to run. `regen --write` cannot add them either, because it loads the suite first:
+
+   ```text
+   $ shdl-conformance regen --case buffer2
+   conformance suite integrity check failed (2 problem(s)):
+     - golden content drift: conformance/cases/buffer2/expected.base.shdl has no entry in MANIFEST.json golden_hashes (refresh hashes via 'shdl-conformance regen --write')
+     - golden content drift: conformance/cases/buffer2/traces/propagate.json has no entry in MANIFEST.json golden_hashes (refresh hashes via 'shdl-conformance regen --write')
+   ```
+
+6. **Run the case and verify it.** Both commands must pass, and so must a full `run`, which also checks feature coverage. In this walkthrough the hand-written trace had a wrong value on purpose, and both commands caught it:
+
+   ```text
+   $ shdl-conformance run --filter buffer2
+   SHDL conformance suite v1.2.0 — run
+   flatten timestamp: 2026-01-01T00:00:00Z
+   cases: 1 selected of 39
+
+   PASS  A  buffer2                  expected.base.shdl
+   FAIL  B  buffer2                  traces/propagate.json
+         op[7] expect O: golden 0, lib 1
+
+   summary: 2 checks, 1 failure(s)
+   $ shdl-conformance verify-oracle --filter buffer2
+   ...
+   FAIL  B  buffer2                  traces/propagate.json
+         golden not re-derivable from oracle: op[7] expect O: golden 0, oracle 1
+   ```
+
+   Once the hashes exist, `regen` can repair the values. It shows the change first, then writes it and refreshes the hash:
+
+   ```text
+   $ shdl-conformance regen --case buffer2
+   regen buffer2 (dry run)
+
+   conformance/cases/buffer2/expected.base.shdl: unchanged
+
+   conformance/cases/buffer2/traces/propagate.json: CHANGED (1 expect value(s))
+     op[7] expect O: 0 -> 1
+
+   dry run: 1 golden(s) would change; nothing written (pass --write to apply)
+   $ shdl-conformance regen --case buffer2 --write
+   ...
+   wrote 1 golden(s)
+     golden_hashes[conformance/cases/buffer2/traces/propagate.json] refreshed
+   REMINDER: a golden change is a semantic change to the suite — bump the major suite_version and add a MANIFEST.json changelog entry (conformance.md).
+   ```
+
+   The reminder is always printed. For a case that has not been released yet, the minor bump from step 4 is enough. After the repair, `run --filter buffer2` passes, and the full suite ran 80 checks with 0 failures.
+
+`fill_trace_ops(base_text, ops)` fills `expect` values by replaying a stimulus on a fresh oracle. It returns the ops in canonical key order and passes the other ops through unchanged. `trace_json_text(data)` in the same module writes a trace in canonical form.
+
+```python
+from flattener.pipeline import flatten_program
+from conformance.runner.gen import fill_trace_ops
+
+base = flatten_program("examples/inverter.shdl", timestamp="2026-01-01T00:00:00Z").text
+skeleton = [
+    {"op": "reset"},
+    {"op": "expect", "signal": "O"},
+    {"op": "step", "cycles": 1},
+    {"op": "expect", "signal": "O"},
+    {"op": "poke", "signal": "A", "value": 1},
+    {"op": "expect", "signal": "O"},
+    {"op": "expect", "signal": "O"},
+]
+for op in fill_trace_ops(base, skeleton):
+    print(op)
+```
+
+```text title="Output"
+{'op': 'reset'}
+{'op': 'expect', 'signal': 'O', 'value': 0}
+{'op': 'step', 'cycles': 1}
+{'op': 'expect', 'signal': 'O', 'value': 1}
+{'op': 'poke', 'signal': 'A', 'value': 1}
+{'op': 'expect', 'signal': 'O', 'value': 0}
+{'op': 'expect', 'signal': 'O', 'value': 0}
+```
+
+The last two `expect` ops show the lazy peek: the first peek after the poke runs the pending tick, so `O` is already 0.
+
+## Using the suite from another implementation {/* #other-implementations */}
+
+The suite is designed to test implementations that share no code with this repository. The Python runner is only the reference. A runner in another language follows [conformance.md §12](https://github.com/rafa-rrayes/SHDL/blob/master/conformance/conformance.md):
+
+1. Read `MANIFEST.json`, reject unknown `manifest_format`, `case_format` and `trace_format` values, and iterate over `cases`.
+2. **To test a flattener**, flatten `cases/<name>/<circuit>` for each Tier A case, using the case's `top` and the manifest's `flatten_timestamp`. Compare the result byte for byte with `expected_base`. Output is UTF-8 with `\n` line endings.
+3. **To test a simulator**, build it from `expected_base` for each case with Tier B or C traces. Take ports and widths from `meta.ports` and the initial state from `meta.init` ([Base SHDL](../architecture/base-shdl.mdx)). Replay every trace in `traces` under the [contract](#contract) and compare every `expect`.
+4. Report each failure with the case, trace, op index, signal, and expected and actual values. Exit non-zero on any failure, and on any listed file that is missing or cannot be parsed. Never skip one silently.
+
+Tier A requires the exact text. A flattener has to reproduce the reference emitter's formatting as well as its netlist: instance and connection order, the `meta` key order, and the 2-space JSON indentation. The goldens themselves are the reference for that formatting. This is how the reference flattener passes Tier A, run by hand for one case:
+
+```console check
+$ C=$(python -c 'import conformance, pathlib; print(pathlib.Path(conformance.__file__).parent / "cases" / "add2")') && shdl-flatten "$C/circuit.shdl" --timestamp 2026-01-01T00:00:00Z | cmp - "$C/expected.base.shdl" && echo "add2: Tier A match"
+add2: Tier A match
+```
+
+A simulator backend can use the traces alone: a Base SHDL parser, the seven ABI rules and a JSON reader are enough to run all 40 traces. [shdlc_goals.md §7](/specs/shdlc_goals#7-correctness-requirements) makes equivalence to the reference evaluator a correctness requirement. The suite is how that requirement is checked.
+
+## See also
+
+- [`conformance/conformance.md`](https://github.com/rafa-rrayes/SHDL/blob/master/conformance/conformance.md): the normative suite document.
+- [C ABI](./c-abi.mdx): the release control ABI that Tiers B and C pin.
+- [shdl-flatten](./shdl-flatten.mdx): the implementation Tier A checks, and how it picks the top and resolves imports.
+- [Simulation model](../concepts/simulation-model.mdx): unit delay, cycle 0 and settling.
+- [Base SHDL](../architecture/base-shdl.mdx): the format of every `expected.base.shdl`.

@@ -1,0 +1,530 @@
+---
+title: C ABI
+sidebar_label: C ABI
+description: The six functions every shdlc-compiled library exports, their exact semantics, and how to call them from C, Python ctypes, or any other FFI.
+---
+
+Every library that `shdlc` builds exports the same six C functions. The functions take circuit port names as strings, so one host program can drive any compiled circuit. This page gives the exact signatures, what each function does (including the edge cases the generated C handles), how state and instances work, and complete host programs in C and Python `ctypes`. The normative text is [shdlc_goals.md §3](/specs/shdlc_goals#3-the-compiled-library-interface). The [Python API](./python-api.mdx) is a thin layer over this ABI.
+
+## The six functions {/* #functions */}
+
+```c
+void     reset       (void);
+void     poke        (const char *signal, uint64_t value);
+uint64_t peek        (const char *signal);
+void     step        (int cycles);
+int      step_settle (int cycles);
+void     run_batch   (const uint64_t *in, uint64_t *out,
+                      int count, int cycles, int settle);
+```
+
+| Function | Does | Hot path? |
+|---|---|---|
+| [`reset()`](#reset) | Returns the circuit to its power-on state (all zero except `init` seeds) | No |
+| [`poke(signal, value)`](#poke) | Sets an input port; masks `value` to the port width | No (looks up the name) |
+| [`peek(signal)`](#peek) | Reads an input or output port; runs one [lazy cycle](#lazy-peek) first if an input changed | No (looks up the name) |
+| [`step(cycles)`](#step) | Runs exactly `cycles` evaluation cycles | Yes |
+| [`step_settle(cycles)`](#step-settle) | Like `step`, but stops early at a fixed point; returns the cycles run | Yes |
+| [`run_batch(in, out, count, cycles, settle)`](#run-batch) | Poke, step and peek `count` frames in one call | Yes (ports addressed by index) |
+
+`shdlc` does not write a header file. Copy the declarations above into your host program, with `#include <stdint.h>` for `uint64_t`.
+
+The library exports these six symbols and nothing else. The generated C marks each of them `SHDLC_API` and `shdlc` compiles with `-fvisibility=hidden`. `SHDLC_API` expands to `__declspec(dllexport)` when `_WIN32` is defined, to `__attribute__((visibility("default")))` under GCC-compatible compilers, and to nothing otherwise. On macOS, `nm` lists them with the platform's leading underscore:
+
+```text
+$ nm -gU adder8.so
+0000000000000758 T _peek
+00000000000005ec T _poke
+0000000000000590 T _reset
+0000000000000ca8 T _run_batch
+0000000000000be4 T _step
+0000000000000c14 T _step_settle
+```
+
+There is no version symbol, no gate-level access and no way to enumerate ports through the ABI. The ports come from the circuit's source or its Base SHDL `ports` metadata (see [port names](#port-names)).
+
+## Building a library
+
+`shdlc` compiles a `.shdl` source or a Base SHDL file into a shared library (see the [`shdlc` page](./shdlc.mdx) for every option). It prints nothing when it succeeds. This page builds five libraries and uses them in the examples below. The last one is a two-gate probe of the constant `__VCC__`:
+
+```shdl title="vccProbe.shdl"
+top component VccProbe() -> (Hi, HiInv) {
+    v: __VCC__;
+    n: NOT;
+
+    connect {
+        v.O -> Hi;
+        v.O -> n.A;
+        n.O -> HiInv;
+    }
+}
+```
+
+```console check
+$ shdlc examples/adder8.shdl -o adder8.so
+$ shdlc examples/inverter.shdl -o inverter.so
+$ shdlc examples/fullAdder.shdl -o fullAdder.so
+$ shdlc examples/srLatch.shdl -o srLatch.so
+$ shdlc vccProbe.shdl -o vcc.so
+$ ls *.so
+adder8.so
+fullAdder.so
+inverter.so
+srLatch.so
+vcc.so
+```
+
+Without `-o`, the library is named after the input with the platform's suffix: `.dylib` on macOS, `.dll` on Windows, `.so` elsewhere. The loader does not care about the suffix. These examples use `.so` everywhere so that they read the same on every platform.
+
+## Port names {/* #port-names */}
+
+`poke` and `peek` address **ports**, never gates or individual wires.
+
+- **User-facing names.** A multi-bit port is addressed by its source name (`"A"`), not by its expanded Base SHDL wires (`A_1_`, `A_2_`, ...). The names and their bit order come from the `ports` metadata that [`shdl-flatten`](./shdl-flatten.mdx) writes ([base_shdl.md §4.3](/specs/base_shdl#43-ports--port-grouping)). If a Base SHDL file has no `ports` metadata, every single-bit input and output wire becomes a one-bit port with its own name.
+- **Exact, case-sensitive match.** `"A"` and `"a"` are different names. Nothing is trimmed or normalized.
+- **Bit order.** Bit 0 of the `uint64_t` (the LSB) is the port's first wire, `A_1_`. Bit `b` goes to wire `A_{b+1}_`. The generated table for the adder's 8-bit input shows this:
+
+  ```c
+  /* Input ports: bit b of a poked value lands on wires[b] (LSB first). */
+  static const uint16_t in_wires_A[] = {
+      IN_A_1_, IN_A_2_, IN_A_3_, IN_A_4_, IN_A_5_, IN_A_6_, IN_A_7_, IN_A_8_
+  };
+  ```
+
+- **Declaration order.** Ports are numbered in the order the component header declares them (the insertion order of the `ports` metadata). Only [`run_batch`](#run-batch) uses these numbers. For `Adder8(A[8], B[8], Cin) -> (Sum[8], Cout)` the input ports are A = 0, B = 1, Cin = 2 and the output ports are Sum = 0, Cout = 1.
+- **Width.** A port is 1 to 64 bits wide, so its value fits in one `uint64_t`. `shdlc` refuses to compile a wider port (`port 'A': width 65 out of range 1..64`; see [`shdlc` limits](./shdlc.mdx)).
+- **One namespace per direction.** Port names are unique across inputs and outputs together, so a name never refers to both an input and an output.
+
+Each call looks the name up with a linear `strcmp` scan over the port table. This is cheap for a handful of ports but runs on every call. Loops that move a lot of data should use [`run_batch`](#run-batch), which does no string work at all.
+
+## Function reference
+
+### `reset()` {/* #reset */}
+
+```c
+void reset(void);
+```
+
+Returns the simulation to its **power-on state**:
+
+- all inputs and all gate outputs become 0;
+- the gates named in the circuit's `init` block are set to their declared cycle-0 values ([base_shdl.md §4.11](/specs/base_shdl#411-init--initial-state));
+- any pending poke is discarded, because the [dirty flag](#lazy-peek) is cleared.
+
+A circuit without `init` resets to all zero. `reset()` is idempotent, and its result is identical to a freshly loaded library ([shdlc_goals.md §2.4](/specs/shdlc_goals#24-reset-semantics)).
+
+**Constants are not preloaded.** `__VCC__` and `__GND__` are ordinary gates. They produce their value on the first cycle after a reset, so until that cycle an output driven by `__VCC__` reads 0. The [`init` seeds](#power-on) are the only non-zero values present before the first cycle.
+
+### `poke(signal, value)` {/* #poke */}
+
+```c
+void poke(const char *signal, uint64_t value);
+```
+
+Sets the input port named `signal` to `value`.
+
+- **Masking.** Bit `b` of `value` is copied to the port's wire `b`. Bits at and above the port width are ignored, so the port receives `value mod 2^width`. Poking 300 into an 8-bit port stores 44. There is no error for an over-wide value.
+- **Arms a lazy cycle.** Every successful poke sets the dirty flag, even if the port already held that value. The next `peek` of an output runs one cycle first (see [lazy peek](#lazy-peek)).
+- **No evaluation.** `poke` itself never runs a cycle. Several pokes in a row just set more inputs.
+- **Unknown names.** An unknown name prints `poke: unknown signal "<name>"` to stderr and does nothing else: no input changes, and the dirty flag is left as it was. This applies to the empty string `""`, to output ports (you cannot poke an output) and to `NULL`, which prints `poke: unknown signal "(null)"`. `NULL` is checked explicitly and is never dereferenced.
+
+### `peek(signal)` {/* #peek */}
+
+```c
+uint64_t peek(const char *signal);
+```
+
+Reads the port named `signal`, packed LSB-first into a `uint64_t`. Bits above the port width are always 0.
+
+- **Output ports.** If the dirty flag is set, `peek` first runs exactly one evaluation cycle, which clears the flag. It then returns the port's value as of the last committed cycle.
+- **Input ports.** Returns the value the inputs currently hold, which is the last poke masked to the width, or 0 after a reset. Reading an input never runs a cycle and never clears the dirty flag.
+- **Unknown names** (including `""` and `NULL`) print `peek: unknown signal "<name>"` (or `"(null)"`) to stderr and return 0. A real port that reads 0 looks the same, so check the name if you are unsure.
+
+### The dirty flag and lazy peek {/* #lazy-peek */}
+
+The library keeps one **dirty flag**. A successful `poke` sets it and every evaluation cycle clears it. When `peek` reads an output port while the flag is set, it runs **one** cycle first.
+
+This makes the pattern `poke`, `poke`, `peek` behave sensibly without an explicit `step`: the new inputs reach the first level of gates before you read. It is **one cycle, not a settle.**
+
+- A signal that is `d` gate levels deep needs `d` cycles to respond. After a lazy peek, only depth-1 logic has seen the new inputs.
+- A second `peek` without a poke in between runs no cycle and returns the same value.
+- `peek` of an input port never triggers the lazy cycle.
+- `step(n)` with `n >= 1` runs cycles, so it clears the flag. `step(0)` and negative counts run nothing, and a pending lazy cycle stays pending.
+- `reset()` clears the flag and discards the pending cycle.
+
+To see the settled value of combinational logic, advance at least `max_depth` cycles (reported by `shdl-flatten` in the Base SHDL `timing` metadata, [base_shdl.md §4.7](/specs/base_shdl#47-timing--circuit-depth-and-propagation)), or call [`step_settle`](#step-settle) with a generous bound. The [simulation model](../concepts/simulation-model.mdx) explains why a gate sees only the previous cycle's values.
+
+### `step(cycles)` {/* #step */}
+
+```c
+void step(int cycles);
+```
+
+Runs exactly `cycles` evaluation cycles. In each cycle every gate computes its new output from the previous cycle's gate outputs and the current inputs, and then all new values are committed at once ([shdlc_goals.md §2.3](/specs/shdlc_goals#23-the-compute-commit-contract)). Every gate is evaluated on every cycle; nothing is skipped. `cycles <= 0` does nothing and leaves the dirty flag untouched.
+
+### `step_settle(cycles)` {/* #step-settle */}
+
+```c
+int step_settle(int cycles);
+```
+
+Behaves like `step(cycles)` but stops early at a **fixed point**. After each cycle it compares the whole gate state with the previous cycle's state. When a cycle changes nothing it returns immediately, because with the inputs held every later cycle would compute the same state again. The result is **observably identical** to `step(cycles)`: only the time spent differs.
+
+The return value is the number of cycles actually run:
+
+| Situation | Returns |
+|---|---|
+| `cycles <= 0` | 0 (nothing runs, dirty flag untouched) |
+| A cycle changed nothing | That cycle's number, counting from 1. Proving the fixed point costs one cycle, so this is at least 1. |
+| No fixed point within `cycles` (an oscillator, or a circuit that needs more cycles) | `cycles` |
+
+A result smaller than `cycles` therefore proves the circuit settled. A result equal to `cycles` means either that it did not settle, or that the fixed point was found on the very last cycle. For example, `step_settle(1)` returns 1 both when its one cycle changes a gate and when it changes nothing. Oscillators such as a ring oscillator never compare equal and always run all `cycles`.
+
+### `run_batch(in, out, count, cycles, settle)` {/* #run-batch */}
+
+```c
+void run_batch(const uint64_t *in, uint64_t *out,
+               int count, int cycles, int settle);
+```
+
+Drives `count` input frames through the circuit in one call. This removes the per-call FFI cost and all name lookups. With `P` input ports and `Q` output ports, numbered in [declaration order](#port-names):
+
+```text
+in  = [ frame 0: port 0 .. port P-1 | frame 1: port 0 .. port P-1 | ... ]   count * P values
+out = [ frame 0: port 0 .. port Q-1 | frame 1: port 0 .. port Q-1 | ... ]   count * Q values
+```
+
+For each frame `k`, from 0 to `count - 1`:
+
+1. every input port `p` is poked with `in[k*P + p]`, masked and arming the dirty flag, exactly like `poke`;
+2. the circuit advances `cycles` cycles, through `step` when `settle` is 0 and through `step_settle` otherwise (the cycle count `step_settle` returns is discarded);
+3. every output port `q` is written to `out[k*Q + q]` with `peek` semantics. If the dirty flag is still set because `cycles <= 0`, one lazy cycle runs before the first output is read.
+
+The call is observably identical to making the same `poke`, `step` and `peek` calls one by one. State carries over between frames, and the call does not reset it first, so sequential circuits work as expected. Some edge cases:
+
+- `count <= 0` does nothing.
+- The buffers are only borrowed for the duration of the call. The library never keeps or frees them.
+- A buffer whose dimension is zero is never dereferenced. A circuit with no input ports may pass `NULL` for `in`, and one with no output ports may pass `NULL` for `out`.
+- The library cannot check the buffer sizes. `in` must hold at least `count * P` values and `out` at least `count * Q`.
+
+## Power-on state and the load-time constructor {/* #power-on */}
+
+When compiled by a GCC-compatible compiler (anything that defines `__GNUC__`, which includes Clang), the generated C contains a constructor that calls `reset()` as soon as the library is loaded:
+
+```c
+/* Make init seeds live at load time, before any explicit reset(). */
+#ifdef __GNUC__
+__attribute__((constructor)) static void shdlc_ctor(void)
+{
+    reset();
+}
+#endif
+```
+
+A freshly loaded library therefore already holds its power-on state. For example, a `peek` of an SR latch's `Qn` returns its `init` value of 1 before any call to `reset()` or `step()`. Other compilers get no constructor. The library then starts with every value at zero and **without** its `init` seeds until the host calls `reset()`. A portable host should call `reset()` once after loading. The call is harmless when the constructor has already run.
+
+## State, instances and threads {/* #instances */}
+
+All simulation state lives in `static` variables inside the library. There are no handles and no memory that you allocate or free. The ABI design constraints are listed in [shdlc_goals.md §3.2](/specs/shdlc_goals#32-abi-design-constraints). They have these practical consequences:
+
+- **One circuit instance per loaded copy.** Every call acts on the same global state.
+- **Loading the same path twice does not give a second instance.** `dlopen` (and `LoadLibrary`) return the already-loaded copy, so the two handles share state, and the constructor does not run again. To get an independent instance, copy the library file to a new path and load the copy. PySHDL's `Circuit` does this for every instance: it loads a uniquely named `.copyNNNN` copy of the library.
+- **No thread safety.** The functions take no locks. Calls into one loaded copy must not overlap, so guard each copy with a mutex if several threads use it. Separate copies do not share any simulation state.
+- **No callbacks.** The library never calls into the host, apart from writing the unknown-signal messages to `stderr`.
+
+## Calling from C {/* #from-c */}
+
+This host program loads `adder8.so` at run time with `dlopen` and uses all six functions:
+
+```c title="drive.c"
+/* drive.c: load an shdlc-built library at run time and drive it. */
+#include <dlfcn.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+
+typedef void (*reset_fn)(void);
+typedef void (*poke_fn)(const char *, uint64_t);
+typedef uint64_t (*peek_fn)(const char *);
+typedef void (*step_fn)(int);
+typedef int (*step_settle_fn)(int);
+typedef void (*run_batch_fn)(const uint64_t *, uint64_t *, int, int, int);
+
+int main(int argc, char **argv)
+{
+    void *lib = dlopen(argc > 1 ? argv[1] : "./adder8.so", RTLD_NOW | RTLD_LOCAL);
+    if (!lib) {
+        fprintf(stderr, "dlopen: %s\n", dlerror());
+        return 1;
+    }
+    reset_fn reset = (reset_fn)dlsym(lib, "reset");
+    poke_fn poke = (poke_fn)dlsym(lib, "poke");
+    peek_fn peek = (peek_fn)dlsym(lib, "peek");
+    step_fn step = (step_fn)dlsym(lib, "step");
+    step_settle_fn step_settle = (step_settle_fn)dlsym(lib, "step_settle");
+    run_batch_fn run_batch = (run_batch_fn)dlsym(lib, "run_batch");
+
+    /* The library's constructor already ran reset(); calling it again is harmless. */
+    reset();
+    poke("A", 100);
+    poke("B", 55);
+    printf("after 1 lazy cycle: Sum=%" PRIu64 "\n", peek("Sum"));
+    step(16);
+    printf("after 17 cycles:    Sum=%" PRIu64 " Cout=%" PRIu64 "\n", peek("Sum"), peek("Cout"));
+
+    poke("A", 300); /* 300 & 0xFF = 44: poke masks to the port width */
+    printf("A reads back as     %" PRIu64 "\n", peek("A"));
+    printf("step_settle ran     %d cycles\n", step_settle(100));
+    printf("Sum=%" PRIu64 "\n", peek("Sum"));
+
+    /* Three frames; input ports in declaration order: A, B, Cin. */
+    uint64_t in[3 * 3] = {
+        1, 2, 0,
+        200, 100, 0,
+        255, 0, 1,
+    };
+    uint64_t out[3 * 2]; /* output ports: Sum, Cout */
+    run_batch(in, out, 3, 17, 0);
+    for (int k = 0; k < 3; k++) {
+        printf("frame %d: Sum=%" PRIu64 " Cout=%" PRIu64 "\n", k, out[k * 2], out[k * 2 + 1]);
+    }
+
+    fflush(stdout);
+    peek("Nope"); /* unknown names report on stderr and read 0 */
+    dlclose(lib);
+    return 0;
+}
+```
+
+Build the circuit and the host, then run it:
+
+```bash
+shdlc examples/adder8.shdl -o adder8.so
+cc -std=c11 -Wall -Wextra -o drive drive.c -ldl
+./drive
+```
+
+This output was captured on macOS (stdout and stderr together):
+
+```text
+after 1 lazy cycle: Sum=0
+after 17 cycles:    Sum=155 Cout=0
+A reads back as     44
+step_settle ran     7 cycles
+Sum=99
+frame 0: Sum=3 Cout=0
+frame 1: Sum=44 Cout=1
+frame 2: Sum=0 Cout=1
+peek: unknown signal "Nope"
+```
+
+Here is what each line shows:
+
+- **Line 1.** One lazy cycle is not enough for an adder whose `max_depth` is 17, so `Sum` still reads 0.
+- **Line 2.** After 17 cycles in total, the sum 155 has rippled through.
+- **Lines 3 to 5.** The poke of 300 is masked to 44. `step_settle` returns 7: the state stopped changing after 6 cycles, and the seventh cycle confirmed the fixed point, 44 + 55 = 99. How long a circuit takes to settle depends on the values. `max_depth` (17 here) is the worst case over all inputs.
+- **The frames.** Each frame gets 17 cycles: 1 + 2 = 3, 200 + 100 = 300 (Sum 44 with carry out), and 255 + 0 + 1 = 256 (Sum 0 with carry out).
+
+`-ldl` is needed on older glibc systems. On macOS and recent glibc, `dlopen` is in the C library and the flag is accepted but unnecessary. On Windows the equivalents are `LoadLibrary` and `GetProcAddress`.
+
+### Linking the generated C directly {/* #static-linking */}
+
+The ABI is plain C, so you can skip the shared library and compile the generated source into your program. `--no-build --emit-c` writes the C file:
+
+```c title="main.c"
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+
+void poke(const char *signal, uint64_t value);
+uint64_t peek(const char *signal);
+int step_settle(int cycles);
+
+int main(void)
+{
+    poke("A", 200);
+    poke("B", 100);
+    step_settle(100);
+    printf("Sum=%" PRIu64 " Cout=%" PRIu64 "\n", peek("Sum"), peek("Cout"));
+    return 0;
+}
+```
+
+```bash
+shdlc examples/adder8.shdl --no-build --emit-c adder8.c
+cc -std=c11 -Wall -Wextra -o static_demo main.c adder8.c
+./static_demo
+```
+
+```text
+Sum=44 Cout=1
+```
+
+The load-time constructor still runs before `main` (under GCC-compatible compilers). Only one circuit can be linked into a program this way, because every circuit defines the same six function names. To use several circuits in one process, load them as shared libraries.
+
+## Calling from Python with ctypes {/* #ctypes */}
+
+Any FFI that can call C functions can drive a library. With `ctypes`, declare every signature: without `restype`, `peek` would be truncated to a C `int`. Pass `ctypes` a path that contains a slash, such as an absolute path. `dlopen` searches the system library path for a bare file name instead of the current directory.
+
+```python
+import ctypes
+import os
+
+u64 = ctypes.c_uint64
+u64_p = ctypes.POINTER(u64)
+
+
+def load(path):
+    """Load one copy of an shdlc library and declare the six signatures."""
+    lib = ctypes.CDLL(os.path.abspath(path), mode=os.RTLD_LOCAL)
+    lib.reset.argtypes, lib.reset.restype = [], None
+    lib.poke.argtypes, lib.poke.restype = [ctypes.c_char_p, u64], None
+    lib.peek.argtypes, lib.peek.restype = [ctypes.c_char_p], u64
+    lib.step.argtypes, lib.step.restype = [ctypes.c_int], None
+    lib.step_settle.argtypes, lib.step_settle.restype = [ctypes.c_int], ctypes.c_int
+    lib.run_batch.argtypes = [u64_p, u64_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    lib.run_batch.restype = None
+    return lib
+
+
+adder = load("adder8.so")
+adder.poke(b"A", 100)
+adder.poke(b"B", 55)
+print("ran", adder.step_settle(100), "cycles; Sum =", adder.peek(b"Sum"))
+```
+
+```text title="Output"
+ran 6 cycles; Sum = 155
+```
+
+Names are `bytes`. `c_char_p` also accepts `None`, which reaches the library as `NULL`.
+
+**The lazy cycle, up close.** The inverter shows that a poke arms a cycle even when it does not change the input. The full adder shows that the lazy cycle is only one cycle: its `Cout` is two gate levels deep.
+
+```python continue
+inv = load("inverter.so")
+print(inv.peek(b"O"))  # fresh load: no cycle has run, so NOT's output is still 0
+inv.poke(b"A", 0)      # same value A already had, but the poke still arms a cycle
+print(inv.peek(b"O"))  # the lazy cycle runs: O = NOT 0 = 1
+
+fa = load("fullAdder.so")
+fa.poke(b"A", 1)
+fa.poke(b"B", 1)
+print(fa.peek(b"Cout"), fa.peek(b"Cout"))  # one lazy cycle, then none: 0 0
+fa.step(1)
+print(fa.peek(b"Cout"))  # the second level has now seen A AND B
+```
+
+```text title="Output"
+0
+1
+0 0
+1
+```
+
+**Masking and unknown names.** Only stdout is shown in the output below. The two bad names also print `poke: unknown signal "a"` and `peek: unknown signal "Nope"` to stderr.
+
+```python continue
+adder.poke(b"A", 300)        # 300 = 0b1_0010_1100; bit 8 is outside the 8-bit port
+print(adder.peek(b"A"))
+adder.poke(b"A", 2**64 - 1)  # every bit set: the port keeps its low 8
+print(adder.peek(b"A"))
+adder.poke(b"a", 1)          # names are case-sensitive: no port "a", nothing changes
+print(adder.peek(b"A"))
+print(adder.peek(b"Nope"))   # unknown names read 0
+```
+
+```text title="Output"
+44
+255
+255
+0
+```
+
+**`run_batch`.** Build flat `c_uint64` arrays with `P` values per input frame and room for `Q` values per output frame:
+
+```python continue
+frames = [(1, 2, 0), (200, 100, 0), (255, 0, 1)]  # A, B, Cin in declaration order
+count, P, Q = len(frames), 3, 2
+inp = (u64 * (count * P))(*[v for frame in frames for v in frame])
+out = (u64 * (count * Q))()
+adder.run_batch(inp, out, count, 17, 0)
+print([tuple(out[k * Q:(k + 1) * Q]) for k in range(count)])  # (Sum, Cout) per frame
+```
+
+```text title="Output"
+[(3, 0), (44, 1), (0, 1)]
+```
+
+**Constants and zero-dimension buffers.** `VccProbe` has no inputs, so `in` can be `NULL`. `Hi` reads 0 until the first cycle. `HiInv` inverts `Hi` one cycle late, so it sees the cycle-0 zero exactly once:
+
+```python continue
+vcc = load("vcc.so")
+print(vcc.peek(b"Hi"), vcc.peek(b"HiInv"))  # cycle 0: constants are not preloaded
+out = (u64 * (4 * 2))()
+vcc.run_batch(None, out, 4, 1, 0)  # 4 frames of 1 cycle; no input ports, so in = NULL
+print([tuple(out[k * 2:(k + 1) * 2]) for k in range(4)])
+```
+
+```text title="Output"
+0 0
+[(1, 1), (1, 0), (1, 0), (1, 0)]
+```
+
+**`init` seeds and `reset`.** The SR latch's `init` block sets `Qn = 1` at power-on. The constructor has already applied the seed when the library is loaded, and `reset()` applies it again:
+
+```python continue
+sr = load("srLatch.so")
+print(sr.peek(b"Q"), sr.peek(b"Qn"))  # seeded power-on state, no reset() needed
+sr.poke(b"S", 1)
+print("settled after", sr.step_settle(10), "cycles:", sr.peek(b"Q"), sr.peek(b"Qn"))
+sr.reset()
+print(sr.peek(b"S"), sr.peek(b"Q"), sr.peek(b"Qn"))  # inputs cleared, seeds re-applied
+```
+
+```text title="Output"
+0 1
+settled after 5 cycles: 1 0
+0 0 1
+```
+
+**Instances.** Loading the same path again returns the same copy and the same state. A copy of the file at a new path is a fresh, independent instance:
+
+```python continue
+import shutil
+
+again = load("adder8.so")  # same path: the already-loaded copy
+print(again.peek(b"A"))    # 255, set through `adder` above
+shutil.copy("adder8.so", "adder8_2.so")
+fresh = load("adder8_2.so")  # new path: new copy, constructor ran, state is zero
+print(fresh.peek(b"A"))
+```
+
+```text title="Output"
+255
+0
+```
+
+The [`Circuit`](./python-api.mdx) class wraps exactly these calls. It adds port-value checking, `settle()` built on `max_depth`, and automatic per-instance copies.
+
+## Performance notes
+
+- `step`, `step_settle` and `run_batch` do no string handling and no allocation. Each cycle is straight-line code with one statement per gate, followed by a pointer swap of the two state buffers. Circuits with more than 1024 gates split the per-cycle code into chunk functions of up to 1024 gates each, so that the C compiler stays fast on large designs ([compiler internals](../architecture/compiler-internals.mdx)).
+- `poke` and `peek` scan the port table by name on every call. Hoist them out of inner loops, or use `run_batch`.
+- `step_settle` compares the full gate state after every cycle (one `memcmp`). It is faster than `step` when a circuit settles well before the bound, and a little slower on circuits that never settle.
+- The expected performance characteristics are in [shdlc_goals.md §5](/specs/shdlc_goals#5-performance-expectations).
+
+## Not in 1.1.0 {/* #not-in-1-1-0 */}
+
+The release ABI above is the only interface that `shdlc` 1.1.0 generates. Two extensions are designed but **not implemented**. See the [roadmap](../roadmap.mdx):
+
+- **Debug build ABI** ([shdlc_goals.md §3.3](/specs/shdlc_goals#33-debug-build-abi-planned)). It would add gate-level introspection (`peek_gate`, `peek_gate_prev`, `get_cycle`, `get_num_gates`, `get_gate_info`) for the planned SHDB debugger. No 1.1.0 library exports these symbols, and `shdlc` has no debug mode. `--dev` only lowers the C optimization level to `-O0`.
+- **State Region** ([shdlc_goals.md §4](/specs/shdlc_goals#4-the-state-region--interoperability-foundation-planned)). This is a documented memory layout that would let other tools read and write the simulation state directly.
+
+## See also
+
+- [`shdlc`](./shdlc.mdx): building libraries, options, generated C.
+- [Python API](./python-api.mdx): the `Circuit` class built on this ABI.
+- [Simulation model](../concepts/simulation-model.mdx): cycles, depth and settling.
+- [Conformance suite](./conformance.mdx): Tier C traces that pin down this ABI's edge cases (lazy peek, masking, `step(0)`, `init` seeds, `__VCC__` at cycle 0).
+- [shdlc_goals.md](/specs/shdlc_goals): the compiler's normative goals, in particular [§3](/specs/shdlc_goals#3-the-compiled-library-interface) (this ABI), [§2](/specs/shdlc_goals#21-cycle-accurate-2-state) (the cycle model) and [§7](/specs/shdlc_goals#7-correctness-requirements) (correctness).

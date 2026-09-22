@@ -1,0 +1,306 @@
+---
+title: Full adder
+sidebar_label: Full adder
+description: A full adder built from two half adders and an OR gate, showing component hierarchy, flattened names and gate-level timing.
+---
+
+A full adder adds three bits: `A`, `B` and a carry in `Cin`. It is the cell
+that every ripple-carry adder repeats once per bit. This page builds it from two
+[half adders](./half-adder.mdx), shows how the flattener names the gates it
+inlines, and traces the signals cycle by cycle to show why the carry output
+takes one gate delay longer than the sum.
+
+## What it computes
+
+| A | B | Cin | Sum | Cout | A + B + Cin |
+|---|---|-----|-----|------|-------------|
+| 0 | 0 | 0   | 0   | 0    | 0 |
+| 0 | 0 | 1   | 1   | 0    | 1 |
+| 0 | 1 | 0   | 1   | 0    | 1 |
+| 0 | 1 | 1   | 0   | 1    | 2 |
+| 1 | 0 | 0   | 1   | 0    | 1 |
+| 1 | 0 | 1   | 0   | 1    | 2 |
+| 1 | 1 | 0   | 0   | 1    | 2 |
+| 1 | 1 | 1   | 1   | 1    | 3 |
+
+`Sum` is the XOR of all three inputs. `Cout` is 1 when at least two inputs are
+1. Together, `Cout Sum` is the two-bit count of ones among the inputs.
+
+The construction follows from that: the first half adder adds `A + B`, the
+second adds `Cin` to that partial sum, and at most one of the two can produce a
+carry, so an OR gate combines them.
+
+## Source
+
+This is the whole of
+[`examples/fullAdder.shdl`](https://github.com/rafa-rrayes/SHDL/blob/master/examples/fullAdder.shdl):
+
+```shdl title="fullAdder.shdl"
+"""
+04 -- Half adder and full adder: hierarchy inside one module.
+
+A module may define several components that instantiate one another;
+here FullAdder is built from two HalfAdders and an OR.  The `top`
+marker makes FullAdder the default when this file is compiled
+directly; other modules import it with
+
+    use fullAdder::{FullAdder};
+"""
+
+component HalfAdder(A, B) -> (Sum, Carry) {
+    x1: XOR;  a1: AND;
+
+    connect {
+        A -> x1.A;  B -> x1.B;  x1.O -> Sum;
+        A -> a1.A;  B -> a1.B;  a1.O -> Carry;
+    }
+}
+
+top component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    ha1: HalfAdder;     # A + B
+    ha2: HalfAdder;     # (A + B) + Cin
+    o1:  OR;            # carry out if either stage carried
+
+    connect {
+        A       -> ha1.A;   B   -> ha1.B;
+        ha1.Sum -> ha2.A;   Cin -> ha2.B;
+        ha2.Sum -> Sum;
+
+        ha1.Carry -> o1.A;  ha2.Carry -> o1.B;
+        o1.O -> Cout;
+    }
+}
+```
+
+What each part does:
+
+- **The docstring** (lines 1 to 10). A triple-quoted string at the top of a
+  module is its documentation. The flattener copies it into the `doc.description`
+  field of the Base SHDL metadata, and `Circuit.info.description` returns it.
+  See [Lexical elements](../language-reference/lexical-elements.mdx).
+- **Two components in one module.** `HalfAdder` is declared first and used by
+  `FullAdder` below it. A module can hold any number of components.
+- **`top component FullAdder`**. With more than one component in the file, the
+  flattener needs to know which to build. The `top` marker makes `FullAdder` the
+  default; `--top HalfAdder` on the command line (or `top="HalfAdder"` in
+  Python) overrides it. See [Components](../language-reference/components.mdx).
+- **`ha1: HalfAdder;`** declares an instance of a user-defined component, with
+  the same syntax as a primitive gate instance.
+- **`ha1.Sum -> ha2.A;`** connects a port of one instance to a port of another.
+  Instance ports are named after the component's own port list (`A`, `B`,
+  `Sum`, `Carry`), where primitive gates always use `A`, `B` and `O`. See
+  [Connections](../language-reference/connections.mdx).
+- **`# A + B`** is a line comment.
+
+Other modules reuse the full adder with an import, as the docstring says:
+`use fullAdder::{FullAdder};`. The [8-bit adder](./8-bit-adder.mdx) does exactly
+that. See [Imports](../language-reference/imports.mdx).
+
+## How hierarchy flattens
+
+Base SHDL has no hierarchy: every instance of `HalfAdder` is replaced by copies
+of its gates. Each copied gate is renamed by prefixing the instance name and an
+underscore, so `x1` inside `ha1` becomes `ha1_x1`. The instance's port
+connections are rewired straight to the gates that drive them.
+
+```console check
+$ shdl-flatten examples/fullAdder.shdl --timestamp 2026-01-01T00:00:00Z
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    ha1_x1: XOR;
+    ha1_a1: AND;
+    ha2_x1: XOR;
+    ha2_a1: AND;
+    o1: OR;
+
+    connect {
+        A -> ha1_x1.A;
+        B -> ha1_x1.B;
+        A -> ha1_a1.A;
+        B -> ha1_a1.B;
+        ha1_x1.O -> ha2_x1.A;
+        Cin -> ha2_x1.B;
+        ha1_x1.O -> ha2_a1.A;
+        Cin -> ha2_a1.B;
+        ha2_x1.O -> Sum;
+        ha1_a1.O -> o1.A;
+        ha2_a1.O -> o1.B;
+        o1.O -> Cout;
+    }
+}
+
+meta {
+...
+  "timing": {
+    "max_depth": 3,
+    "output_depths": {
+      "Sum": 2,
+      "Cout": 3
+    },
+    "is_combinational": true,
+    "has_feedback": false,
+    "critical_path": [
+      "A",
+      "ha1_x1",
+      "ha2_a1",
+      "o1",
+      "Cout"
+    ]
+  },
+  "monitors": {},
+  "stats": {
+    "total_gates": 5,
+    "total_connections": 12,
+    "total_ports": 5,
+    "by_type": {
+      "XOR": 2,
+      "AND": 2,
+      "OR": 1
+    }
+  },
+...
+```
+
+Notice that `ha1.Sum -> ha2.A` became two connections, `ha1_x1.O -> ha2_x1.A`
+and `ha1_x1.O -> ha2_a1.A`, because the half adder's `A` input fans out to both
+of its gates.
+
+The elided part of the metadata keeps the hierarchy the netlist no longer has.
+Under `hierarchy`, the entry for `ha1` records its type, where it was declared,
+its prefix and what each of its ports became:
+
+```json
+"ha1": {
+  "type": "HalfAdder",
+  "source_file": "fullAdder.shdl",
+  "source_line": 22,
+  "prefix": "ha1_",
+  "ports": {
+    "A": "A",
+    "B": "B",
+    "Sum": "ha1_x1.O",
+    "Carry": "ha1_a1.O"
+  },
+  "instances": {
+    "x1": {
+      "type": "XOR",
+      "gate": "ha1_x1"
+    },
+    "a1": {
+      "type": "AND",
+      "gate": "ha1_a1"
+    }
+  }
+}
+```
+
+The `source_map` section points every gate back to the line that declared it:
+`ha1_x1` and `ha2_x1` both come from line 13, the `x1: XOR;` inside
+`HalfAdder`. The [Flattening pipeline](../architecture/flattening-pipeline.mdx)
+page describes the renaming rules, and [Base SHDL](../architecture/base-shdl.mdx)
+describes the metadata.
+
+## Size and timing
+
+| Property | Value |
+|---|---|
+| Gates | 5 (2 XOR, 2 AND, 1 OR) |
+| Connections | 12 |
+| `max_depth` | 3 |
+| Depth of `Sum` | 2 (`ha1_x1`, `ha2_x1`) |
+| Depth of `Cout` | 3 (`ha1_x1`, `ha2_a1`, `o1`) |
+| Critical path | `A`, `ha1_x1`, `ha2_a1`, `o1`, `Cout` |
+
+Hierarchy has no cost: the full adder has exactly the gates its two half adders
+and the OR contribute. Depth, though, adds up along the path. `Cout` waits for
+the first half adder's XOR, then the second half adder's AND, then the OR.
+
+## Simulate it
+
+The sessions below run from the root of a checkout of the repository, so the
+path is `examples/fullAdder.shdl`. `max_depth` is 3, so `settle()` advances
+three cycles per input vector. This loop checks all eight rows of the truth
+table:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/fullAdder.shdl") as c:
+    print(c.info.description.splitlines()[0])
+    print("stats:", dict(c.info.stats["by_type"]), "max_depth:", c.timing.max_depth)
+    print("A B Cin | Sum Cout")
+    for a in (0, 1):
+        for b in (0, 1):
+            for cin in (0, 1):
+                c["A"], c["B"], c["Cin"] = a, b, cin
+                c.settle()
+                assert c["Sum"] + 2 * c["Cout"] == a + b + cin
+                print(f"{a} {b}  {cin}  |  {c['Sum']}   {c['Cout']}")
+```
+
+```text title="Output"
+04 -- Half adder and full adder: hierarchy inside one module.
+stats: {'XOR': 2, 'AND': 2, 'OR': 1} max_depth: 3
+A B Cin | Sum Cout
+0 0  0  |  0   0
+0 0  1  |  1   0
+0 1  0  |  1   0
+0 1  1  |  0   1
+1 0  0  |  1   0
+1 0  1  |  0   1
+1 1  0  |  0   1
+1 1  1  |  1   1
+```
+
+### Cycle by cycle
+
+`settle()` hides the intermediate cycles. Stepping one cycle at a time shows
+them. Here the inputs change from all zeros to `A=1, B=0, Cin=1`, whose sum is
+`0` with a carry of `1`:
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/fullAdder.shdl") as c:
+    c["A"], c["B"], c["Cin"] = 1, 0, 1
+    for cycle in range(1, 5):
+        c.step(1)
+        print(f"cycle {cycle}: Sum={c['Sum']} Cout={c['Cout']}")
+```
+
+```text title="Output"
+cycle 1: Sum=1 Cout=0
+cycle 2: Sum=0 Cout=0
+cycle 3: Sum=0 Cout=1
+cycle 4: Sum=0 Cout=1
+```
+
+On cycle 1 every gate sees the new inputs, but `ha2_x1` still sees the old
+output of `ha1_x1` (0), so it computes `0 XOR 1 = 1` and `Sum` briefly reads 1.
+On cycle 2 the new partial sum reaches the second half adder: `Sum` drops to its
+final value, and `ha2_a1` produces the carry. On cycle 3 the OR passes the carry
+to `Cout`. From then on nothing changes.
+
+That brief wrong value is a *glitch*, and it is why you should read a
+combinational circuit only after `max_depth` cycles. The
+[Simulation model](../concepts/simulation-model.mdx) page explains the rule.
+
+### Picking a different top
+
+`top` in Python does what `--top` does for `shdl-flatten`: it builds another
+component of the same file.
+
+```python
+from SHDL import Circuit
+
+with Circuit("examples/fullAdder.shdl", top="HalfAdder") as c:
+    print(c, "max_depth:", c.timing.max_depth)
+```
+
+```text title="Output"
+<SHDL.Circuit 'HalfAdder' (A, B) -> (Sum, Carry)> max_depth: 1
+```
+
+## Next
+
+The [8-bit adder](./8-bit-adder.mdx) chains eight full adders with a
+generator, then generalizes the width with a parameter.

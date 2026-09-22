@@ -1,0 +1,155 @@
+---
+title: Language overview
+sidebar_label: Overview
+description: The shape of an SHDL module, its bit-level data model, and a map of every language feature covered by the reference.
+---
+
+This reference describes SHDL as implemented by PySHDL 1.1.0: every rule, limit and error message on these pages comes from the flattener source (`flattener/`) and was checked by running it. This page shows a complete program, explains how a source file is organized and what a signal is, and maps each language feature to the page that covers it. The normative specification is [shdl.md](/specs/shdl); where it and the implementation differ, these pages describe the implementation.
+
+## A complete example
+
+The module below defines a full adder and a parameterized adder/subtractor built from it. It uses most of the language: a doc comment, two components, multi-bit ports, a parameter with a default, generators, a `when`/`else` conditional and the `top` marker.
+
+```shdl title="addSub.shdl"
+"""An N-bit adder/subtractor: Sum = A + B when Sub = 0, A - B when Sub = 1."""
+
+component FullAdder(A, B, Cin) -> (Sum, Cout) {
+    x1: XOR;  x2: XOR;
+    a1: AND;  a2: AND;
+    o1: OR;
+
+    connect {
+        A -> x1.A;     B -> x1.B;
+        x1.O -> x2.A;  Cin -> x2.B;   x2.O -> Sum;
+        A -> a1.A;     B -> a1.B;
+        x1.O -> a2.A;  Cin -> a2.B;
+        a1.O -> o1.A;  a2.O -> o1.B;  o1.O -> Cout;
+    }
+}
+
+top component AddSub<N = 4>(A[N], B[N], Sub) -> (Sum[N], Cout) {
+    >i[N]{
+        inv{i}: XOR;        # B[i] XOR Sub inverts B when subtracting
+        fa{i}: FullAdder;
+    }
+
+    connect {
+        >i[N]{
+            B[i] -> inv{i}.A;   Sub -> inv{i}.B;
+            A[i] -> fa{i}.A;    inv{i}.O -> fa{i}.B;
+            fa{i}.Sum -> Sum[i];
+            when {i == 1} { Sub -> fa{i}.Cin; }            # +1 completes two's complement
+            else          { fa{i-1}.Cout -> fa{i}.Cin; }
+        }
+        fa{N}.Cout -> Cout;
+    }
+}
+```
+
+Simulating it from Python shows the arithmetic and the circuit's depth:
+
+```python
+from SHDL import Circuit
+
+with Circuit("addSub.shdl") as c:
+    for a, b, sub in [(9, 3, 0), (9, 3, 1), (3, 9, 1)]:
+        c["A"], c["B"], c["Sub"] = a, b, sub
+        c.settle()
+        op = "-" if sub else "+"
+        print(f"{a} {op} {b} = {c['Sum']}  (Cout={c['Cout']})")
+    print("max_depth:", c.info.timing.max_depth)
+    print(c.info.description)
+```
+
+```text title="Output"
+9 + 3 = 12  (Cout=0)
+9 - 3 = 6  (Cout=1)
+3 - 9 = 10  (Cout=0)
+max_depth: 10
+An N-bit adder/subtractor: Sum = A + B when Sub = 0, A - B when Sub = 1.
+```
+
+`3 - 9` wraps to 10 because the result is 4 bits wide (`10 = 16 - 6`). `settle()` advances the circuit by `max_depth` cycles, the length of its longest gate path; see [the simulation model](../concepts/simulation-model.mdx) and the [Python API](../tools/python-api.mdx).
+
+## Structure of a module {/* #module-structure */}
+
+A source file is a **module**. Its name is the file name without the `.shdl` extension, so `addSub.shdl` is module `addSub`. A module contains, in this order:
+
+1. Zero or more **imports**: `use module::{Name, ...};`. Every import must come before the first component ([Imports](./imports.mdx)).
+2. Zero or more **component definitions**, in any order; a component may instantiate one defined later in the file ([Components](./components.mdx)).
+3. Optionally, a trailing `meta { ... }` block, which the flattener skips. It exists so that the flattener's own output, which ends in such a block, can be read back in. Nothing may follow it.
+
+Comments may appear anywhere between tokens. A `"""..."""` comment that comes before the first token is the module's **doc comment**; the flattener records the main module's doc comment as `doc.description` in its metadata, and PySHDL exposes it as `Circuit.info.description` ([Lexical elements](./lexical-elements.mdx#doc-comment)).
+
+The parser accepts a module with no components, but the module you flatten needs at least one to act as the top; an empty main module fails with `E0001`.
+
+### The top component
+
+When you flatten, compile or simulate a file, one component of that file becomes the **top**: its ports become the circuit's ports, and everything it instantiates is inlined into it. The flattener picks the component named by `--top` (or `Circuit(..., top=...)`), else the single component marked `top`, else the only component in the file. The full rules, including parameterized tops, are in [Components](./components.mdx#top-selection).
+
+## The data model
+
+SHDL describes **structure**, not behavior. There are no variables, expressions over signals, or procedural statements: a design is a set of gates and the wires between them.
+
+| Concept | Meaning |
+|---|---|
+| Wire | A single bit, 0 or 1. Every value in a circuit is ultimately a set of wires. |
+| Bus | A multi-bit port such as `A[8]`: eight independent wires `A[1]` to `A[8]`. |
+| Bit numbering | **1-based, bit 1 is the least significant bit.** `A[1]` is the LSB and `A[8]` the MSB of `A[8]`. |
+| Integer view | When you set a port from Python (`c["A"] = 5`), bit k of the integer's binary form lands on `A[k+1]`; reading a port assembles its wires the same way. |
+| Gate | An instance of one of the four logic primitives `AND`, `OR`, `NOT`, `XOR`, or of the constant sources `__VCC__` and `__GND__` ([Standard gates](./standard-gates.mdx)). |
+| Component | A reusable definition with named input and output ports, instances, and connections. Instantiating it copies its gates into the parent. |
+| Connection | `source -> destination;` wires every bit of the source to the matching bit of the destination. Order of statements does not matter. |
+| Cycle | The unit of simulated time. Every gate takes exactly one cycle to update its output (the unit-delay model). |
+
+Port widths are integers computed at compile time. The flattener accepts any positive width, but the compiled simulator carries each port in a 64-bit word, so `shdlc` (and therefore `Circuit` and the `shdl` CLI) rejects a top-level port wider than 64 bits with `shdlc: error: port 'A': width 65 out of range 1..64`. Internal signals between components have no such limit, because only the top component's ports survive flattening.
+
+## From SHDL to Base SHDL
+
+The flattener (`shdl-flatten`, also run in-process by `shdlc` and `Circuit`) reduces a design to **Base SHDL**: one component with only single-bit ports, only primitive gates, and one connection line per wire. Every higher-level feature disappears in that process.
+
+| SHDL (what you write) | Base SHDL (what the flattener emits) |
+|---|---|
+| Any number of components, instantiated hierarchically | One component: the top, with every instance inlined and named by its path (`fa1_x1`) |
+| Multi-bit ports `A[4]` | Single-bit ports `A_1_`, `A_2_`, `A_3_`, `A_4_` (a width-1 port keeps its name) |
+| Slices, concatenation, replication, whole-bus connections | One `driver -> sink;` line per bit |
+| Parameters, generators, `when` | Evaluated away; only the chosen, unrolled structure remains |
+| Named constants | One `__VCC__` or `__GND__` gate per referenced bit (`K_bit1`) |
+| Imports | Resolved; imported components are inlined like local ones |
+| `init` seeds | No gates; recorded in the `init` entry of the metadata |
+| Comments and doc comment | Dropped; the doc comment moves into the metadata |
+
+The flattener appends a `meta { ... }` block of JSON with the port map, hierarchy, timing, statistics and initial state. For the adder/subtractor above:
+
+```console check
+$ shdl-flatten addSub.shdl -o addSub.base.shdl
+$ head -4 addSub.base.shdl
+component AddSub(A_1_, A_2_, A_3_, A_4_, B_1_, B_2_, B_3_, B_4_, Sub) -> (Sum_1_, Sum_2_, Sum_3_, Sum_4_, Cout) {
+    inv1: XOR;
+    fa1_x1: XOR;
+    fa1_x2: XOR;
+```
+
+The emitted top keeps its plain name (`AddSub`, not `AddSub<4>`). See [shdl-flatten](../tools/shdl-flatten.mdx) for the command, [Base SHDL](../architecture/base-shdl.mdx) for the output format, and [the flattening pipeline](../architecture/flattening-pipeline.mdx) for the phases.
+
+## Feature map
+
+| Feature | Syntax at a glance | Page |
+|---|---|---|
+| Comments, identifiers, keywords, numbers, operators | `# ...`, `"..."`, `"""..."""`, `0x1F`, `0b101` | [Lexical elements](./lexical-elements.mdx) |
+| Components, ports, instances, `top` | `top component Name(A, B[8]) -> (Y) { ... }`, `g: AND;` | [Components](./components.mdx) |
+| Signal references | `A`, `A[3]`, `A[2:5]`, `A[:4]`, `A[5:]`, `g.O`, `{Hi, Lo}`, `{4{S}}` | [Signals](./signals.mdx) |
+| Connections and their rules | `src -> dst;` inside `connect { ... }` | [Connections](./connections.mdx) |
+| Compile-time parameters | `component R<N = 8>(D[N]) ...`, `r: R<16>;` | [Parameters](./parameters.mdx) |
+| Generators and conditionals | `>i[N]{ ... }`, `when {i == 1} { ... } else { ... }` | [Generators](./generators.mdx) |
+| Named constants | `K = 5;`, `MASK[8] = 0xF0;` | [Constants](./constants.mdx) |
+| Feedback and initial state | `init { q.O = 1; }` | [Sequential logic](./sequential-logic.mdx) |
+| Imports and module search | `use stdgates::{NAND, XNOR};` | [Imports](./imports.mdx) |
+| Primitive and library gates | `AND OR NOT XOR __VCC__ __GND__`, `NAND NOR XNOR` | [Standard gates](./standard-gates.mdx) |
+| Diagnostics and limits | `file:line:col: error[E0401]: ...` | [Errors](./errors.mdx) |
+
+## Reading this reference
+
+- Every complete SHDL block on these pages is flattened, and every Python and shell snippet is run, by `website/scripts/check_snippets.py` when the documentation is built. The outputs you see are real.
+- Blocks meant to fail show the exact diagnostic. The flattener stops at the first error, and every diagnostic has the form `file:line:col: error[CODE]: message`, with 1-based line and column numbers. The [error catalog](./errors.mdx) lists every code.
+- The grammar in EBNF is in [shdl.md §13](/specs/shdl#13-grammar-reference); each page repeats the productions it covers.
