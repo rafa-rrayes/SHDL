@@ -88,7 +88,7 @@ def _chain_text(n: int, name: str = "Big") -> str:
 # SCL-3 — 10^5-gate synthetic: flatten + compile + 100-cycle differential.
 # --------------------------------------------------------------------------- #
 
-#: 10^5 gates => ~98 chunks past the 1024-gate _TICK_CHUNK threshold.
+#: 10^5 gates => >1500 state words, well past the _TICK_CHUNK-word threshold.
 SCL3_GATES = 100_000
 
 
@@ -98,19 +98,22 @@ def test_scl3_100k_gate_chunking_engages_at_codegen():
     # at commit time; the build+differential half is env-gated below.
     from shdlc.baseshdl import parse_base
     from shdlc.codegen import _TICK_CHUNK, generate_c
+    from shdlc.layout import plan
     from shdlc.model import build_circuit
 
     text = _chain_text(SCL3_GATES)
     circuit = build_circuit(parse_base(text))
     assert len(circuit.gates) == SCL3_GATES
-    assert len(circuit.gates) > _TICK_CHUNK, "must cross the chunk threshold"
+    n_words = len(plan(circuit).words)
+    assert n_words > _TICK_CHUNK, "must cross the chunk threshold"
     c_src = generate_c(circuit)
     # The chunked emission is what gets built: a giant single tick() body is
     # exactly the basic block that triggered the clang misched blowup.
     assert "tick_chunk_0(" in c_src
     assert "SHDLC_NOINLINE" in c_src
-    last_chunk = (SCL3_GATES - 1) // _TICK_CHUNK
+    last_chunk = (n_words - 1) // _TICK_CHUNK
     assert f"tick_chunk_{last_chunk}(" in c_src
+    assert f"tick_chunk_{last_chunk + 1}(" not in c_src
 
 
 @scale_only

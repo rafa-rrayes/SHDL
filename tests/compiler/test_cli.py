@@ -19,6 +19,8 @@ import subprocess
 import pytest
 
 from shdlc.cc import lib_suffix
+from shdlc.codegen import _TICK_CHUNK
+from shdlc.layout import LANES
 
 from .harness import FIXTURES, REPO, Sim, make_oracle
 
@@ -204,10 +206,12 @@ def test_cc_flag_bad_compiler_is_diagnosed(tmp_path):
 
 
 def test_chunked_cli_build_is_warning_free_under_strict_cc(tmp_path):
-    # CCT-3 + CCT-17 (CLI angle): a >1024-gate circuit goes through the
-    # chunked tick() emission; building it via the CLI under -Werror proves
-    # the chunk functions compile warning-free on the real CLI path too.
-    n = 1100
+    # CCT-3 + CCT-17 (CLI angle): a circuit past the chunk threshold (more
+    # than _TICK_CHUNK state words) goes through the chunked tick() emission;
+    # building it via the CLI under -Werror proves the chunk functions compile
+    # warning-free on the real CLI path too. A chain packs 64 gates per word,
+    # so this needs more than _TICK_CHUNK * 64 gates.
+    n = _TICK_CHUNK * LANES + 100
     decls = [f"    g{i}: {'XOR' if i % 2 else 'NOT'};" for i in range(n)]
     conns = ["        a -> g0.A;"]
     for i in range(1, n):

@@ -6,32 +6,40 @@ the same C source, with no timestamps, paths, or versions embedded.
 The emitted translation unit implements the unit-delay, two-buffer
 compute/commit simulation model (shdl.md §11, shdlc_goals.md §2.3): every
 gate reads only the previous cycle's committed values (``cur[]`` for gate
-outputs, ``inputs[]`` for poked input wires) and writes ``nxt[]``; the commit
+outputs, ``inputs[]`` for poked input ports) and writes ``nxt[]``; the commit
 is a pointer swap. One gate level advances per tick — the netlist is never
 topologically settled — so feedback circuits work with no special handling.
 
-Circuits above :data:`_TICK_CHUNK` gates emit their per-gate statements into
-noinline chunk functions with restrict parameters instead of one giant
-``tick()`` body (the generated C carries the rationale); at or below the
-threshold the output is byte-identical to the unchunked form. Init seeds are
-emitted as a static table that ``reset()`` loops over, never per-seed stores,
-for the same reason.
+State is bit-packed (shdlc_goals.md §5.2): :mod:`shdlc.layout` assigns every
+gate a lane of a ``uint64_t`` word, and one C statement evaluates all the
+gates of a word at once. Each operand is gathered from the previous cycle's
+words as an OR of *groups* -- an aligned shift of one source word, or one
+source bit broadcast across lanes -- masked only where stray bits could reach
+a lane the word uses. Unused lanes are kept 0 in both buffers, so the
+whole-state ``memcmp`` that detects a fixed point stays exact. An input port
+is one word (``poke`` masks the value to the port width); output ports are
+gathered lazily on ``peek``/``run_batch``.
+
+Circuits above :data:`_TICK_CHUNK` words emit their statements into noinline
+chunk functions with restrict parameters instead of one giant ``tick()`` body
+(the generated C carries the rationale); at or below the threshold the output
+is byte-identical to the unchunked form. Init seeds are emitted as a static
+table that ``reset()`` loops over, never per-seed stores, for the same reason.
 """
 
 from __future__ import annotations
 
-from .model import Circuit, Gate, Ref
+from . import layout
+from .layout import Gather, Group, Word
+from .model import Circuit
 
 #: C bitwise operator for each two-input primitive.
 _BINARY_OPS = {"AND": "&", "OR": "|", "XOR": "^"}
 
-#: Wrap an ``in_wires_*`` initializer onto multiple lines past this length.
-_WIRE_LINE_LIMIT = 80
-
-#: Split tick() into noinline chunk functions of this many gate statements
-#: when the circuit has more gates than this; at or below it the emission is
+#: Split tick() into noinline chunk functions of this many word statements
+#: when the circuit has more words than this; at or below it the emission is
 #: unchanged (byte-identical output for small circuits).
-_TICK_CHUNK = 1024
+_TICK_CHUNK = 64
 
 
 def _count(n: int, noun: str) -> str:
@@ -39,54 +47,74 @@ def _count(n: int, noun: str) -> str:
     return f"{n} {noun}" + ("" if n == 1 else "s")
 
 
-def _src(circuit: Circuit, ref: Ref, cur: str = "cur") -> str:
-    """C rvalue for a resolved signal source (previous-cycle value)."""
-    if ref.kind == "in":
-        return f"inputs[IN_{circuit.inputs[ref.index]}]"
-    return f"{cur}[G_{circuit.gates[ref.index].name}]"
+def _hex(mask: int) -> str:
+    return f"0x{mask:016X}ULL"
 
 
-def _gate_expr(circuit: Circuit, gate: Gate, cur: str = "cur") -> str:
-    """Right-hand side of the per-gate compute statement."""
-    if gate.type in _BINARY_OPS:
-        assert gate.a is not None and gate.b is not None
-        op = _BINARY_OPS[gate.type]
-        return f"(uint8_t)({_src(circuit, gate.a, cur)} {op} {_src(circuit, gate.b, cur)})"
-    if gate.type == "NOT":
-        assert gate.a is not None
-        return f"(uint8_t)({_src(circuit, gate.a, cur)} ^ 1u)"
-    if gate.type == "VCC":
-        return "1u"
-    if gate.type == "GND":
-        return "0u"
+def _group_expr(g: Group, c: str, inputs: str) -> str:
+    """C rvalue of one gather group (previous-cycle values)."""
+    base = f"{c}[{g.index}]" if g.array == "c" else f"{inputs}[{g.index}]"
+    if g.bcast:
+        bit = f"(({base} >> {g.shift}) & 1u)" if g.shift else f"({base} & 1u)"
+        if g.masked:
+            return f"({bit} * {_hex(g.lanes)})"
+        return f"(0u - {bit})"
+    if g.shift > 0:
+        term = f"({base} >> {g.shift})"
+    elif g.shift < 0:
+        term = f"({base} << {-g.shift})"
+    else:
+        term = base
+    if g.masked:
+        return f"({term} & {_hex(g.lanes)})"
+    return term
+
+
+def _gather_expr(groups: tuple[Group, ...], c: str, inputs: str) -> str:
+    """OR of the groups as a balanced tree (short dependency chains)."""
+    if not groups:
+        return "0ULL"
+    terms = [_group_expr(g, c, inputs) for g in groups]
+    while len(terms) > 1:
+        terms = [
+            f"({terms[i]} | {terms[i + 1]})" if i + 1 < len(terms) else terms[i]
+            for i in range(0, len(terms), 2)
+        ]
+    return terms[0]
+
+
+def _word_expr(word: Word, c: str, inputs: str) -> str:
+    """Right-hand side of a word's compute statement."""
+    t = word.type
+    if t in _BINARY_OPS:
+        a = _gather_expr(word.a, c, inputs)
+        b = _gather_expr(word.b, c, inputs)
+        expr = f"{a} {_BINARY_OPS[t]} {b}"
+        return f"({expr}) & {_hex(word.mask)}" if word.masked else expr
+    if t == "NOT":
+        a = _gather_expr(word.a, c, inputs)
+        return f"~{a} & {_hex(word.mask)}" if word.masked else f"~{a}"
+    if t == "VCC":
+        return _hex(word.mask)
+    if t == "GND":
+        return "0ULL"
     # Unreachable from user input: parse_base rejects unknown primitive names
     # and Circuit validation re-checks gate types before codegen runs (ROB-1).
-    raise AssertionError(f"unknown gate type: {gate.type!r}")  # pragma: no cover
+    raise AssertionError(f"unknown gate type: {word.type!r}")  # pragma: no cover
 
 
-def _reads_gate_outputs(gates: tuple[Gate, ...]) -> bool:
-    """True iff any gate in ``gates`` reads a gate output (a ``cur[]`` read).
-
-    A chunk of gates that never does (all operands are ``inputs[]`` reads, or
-    VCC/GND with no operands) gets an ``n``-only signature: an unused ``c``
-    parameter would fail -Wunused-parameter builds.
-    """
-    return any(ref is not None and ref.kind == "gate" for gate in gates for ref in (gate.a, gate.b))
+def _out_expr(gather: Gather) -> str:
+    expr = _gather_expr(gather.groups, "cur", "inputs")
+    return f"{expr} & {_hex(gather.mask)}" if gather.masked else expr
 
 
-def _wire_array_lines(port_name: str, wire_names: list[str]) -> list[str]:
-    """Declaration of one input port's wire-index array, LSB first."""
-    decl = f"static const uint16_t in_wires_{port_name}[] = "
-    single = decl + "{ " + ", ".join(wire_names) + " };"
-    if len(single) <= _WIRE_LINE_LIMIT:
-        return [single]
-    lines = [decl + "{"]
-    for i in range(0, len(wire_names), 8):
-        chunk = ", ".join(wire_names[i : i + 8])
-        comma = "," if i + 8 < len(wire_names) else ""
-        lines.append(f"    {chunk}{comma}")
-    lines.append("};")
-    return lines
+def _word_stmt(word: Word, n: str, w: int, c: str, inputs: str) -> str:
+    return f"    {n}[{w}] = {_word_expr(word, c, inputs)}; /* {word.type} {word.label}[{len(word.gates)}] */"
+
+
+def _reads(words: tuple[Word, ...], array: str) -> bool:
+    """True iff any word's operand reads ``array`` (``"c"`` or ``"in"``)."""
+    return any(g.array == array for word in words for g in word.a + word.b)
 
 
 def generate_c(circuit: Circuit) -> str:
@@ -98,20 +126,22 @@ def generate_c(circuit: Circuit) -> str:
     ``step_settle``/``run_batch`` (shdlc_goals.md §3.1); everything else is
     static.
     """
-    ni = len(circuit.inputs)
+    plan = layout.plan(circuit)
+    words = plan.words
     ng = len(circuit.gates)
+    nw = len(words)
     nip = len(circuit.in_ports)
     nop = len(circuit.out_ports)
-    chunks: list[tuple[Gate, ...]] = []
-    if ng > _TICK_CHUNK:
-        chunks = [circuit.gates[k : k + _TICK_CHUNK] for k in range(0, ng, _TICK_CHUNK)]
+    chunks: list[tuple[int, tuple[Word, ...]]] = []
+    if nw > _TICK_CHUNK:
+        chunks = [(k, words[k : k + _TICK_CHUNK]) for k in range(0, nw, _TICK_CHUNK)]
 
     out: list[str] = []
     w = out.append
 
     # --- 1. Header comment (name + counts only: byte-determinism). --------
     w(
-        f"/* {circuit.name}: {_count(ng, 'gate')}, "
+        f"/* {circuit.name}: {_count(ng, 'gate')} in {_count(nw, 'word')}, "
         f"{_count(nip, 'input port')}, {_count(nop, 'output port')}. */"
     )
     w("")
@@ -141,30 +171,31 @@ def generate_c(circuit: Circuit) -> str:
         w("")
 
     # --- 3. Index enums. ----------------------------------------------------
-    w("/* Input wire slots. */")
+    w("/* Input port words: bit b of inputs[IN_p] is bit b of the poked value. */")
     w("enum {")
-    for i, name in enumerate(circuit.inputs):
-        w(f"    IN_{name} = {i},")
-    w(f"    NUM_INPUTS = {ni}")
+    for i, port in enumerate(circuit.in_ports):
+        w(f"    IN_{port.name} = {i},")
+    w(f"    NUM_IN_PORTS = {nip}")
     w("};")
     w("")
-    w("/* Gate slots, in declaration order. */")
+    w("/* Gate bits, in declaration order: word * 64 + lane of cur[]/nxt[]. */")
     w("enum {")
     for i, gate in enumerate(circuit.gates):
-        w(f"    G_{gate.name} = {i}, /* {gate.type} */")
+        word, lane = plan.place[i]
+        w(f"    G_{gate.name} = {word * layout.LANES + lane}, /* {gate.type} */")
     w(f"    NUM_GATES = {ng}")
     w("};")
     w("")
-    w("/* Output port slots: indices into out_vals[]. */")
+    w("/* State words (64 gate bits each). */")
+    w("enum {")
+    w(f"    NUM_WORDS = {nw}")
+    w("};")
+    w("")
+    w("/* Output port slots. */")
     w("enum {")
     for i, port in enumerate(circuit.out_ports):
         w(f"    OUT_{port.name} = {i},")
     w(f"    NUM_OUT_PORTS = {nop}")
-    w("};")
-    w("")
-    w("/* Input port count (NUM_INPUTS counts wires; a port may be multi-bit). */")
-    w("enum {")
-    w(f"    NUM_IN_PORTS = {nip}")
     w("};")
     w("")
 
@@ -172,34 +203,26 @@ def generate_c(circuit: Circuit) -> str:
     w("/*")
     w(" * Simulation state. Gate outputs are double-buffered: every cycle reads")
     w(" * cur[] and writes nxt[], then the buffers swap (shdlc_goals.md §2.3).")
+    w(" * Lanes no gate uses are 0 in both buffers.")
     w(" */")
-    w(f"static uint8_t inputs[{max(1, ni)}];")
-    w(f"static uint8_t buf_a[{max(1, ng)}];")
-    w(f"static uint8_t buf_b[{max(1, ng)}];")
-    w("static uint8_t *cur = buf_a;")
-    w("static uint8_t *nxt = buf_b;")
+    w(f"static uint64_t inputs[{max(1, nip)}];")
+    w(f"static uint64_t buf_a[{max(1, nw)}];")
+    w(f"static uint64_t buf_b[{max(1, nw)}];")
+    w("static uint64_t *cur = buf_a;")
+    w("static uint64_t *nxt = buf_b;")
     w("static int dirty = 0;")
-    w(f"static uint64_t out_vals[{max(1, nop)}];")
     w("")
 
     # --- 5. Port tables. ----------------------------------------------------
-    if nip > 0:
-        w("/* Input ports: bit b of a poked value lands on wires[b] (LSB first). */")
-        for port in circuit.in_ports:
-            names = [f"IN_{circuit.inputs[ref.index]}" for ref in port.refs]
-            for line in _wire_array_lines(port.name, names):
-                w(line)
-        w("")
     w("struct in_port {")
     w("    const char *name;")
-    w("    int width;")
-    w("    const uint16_t *wires;")
+    w("    uint64_t mask; /* the port's width, as a bit mask */")
     w("};")
     w("")
     if nip > 0:
         w("static const struct in_port in_ports[] = {")
         rows = [
-            f'    {{ "{port.name}", {len(port.refs)}, in_wires_{port.name} }}'
+            f'    {{ "{port.name}", {_hex((1 << len(port.refs)) - 1)} }}'
             for port in circuit.in_ports
         ]
         w(",\n".join(rows))
@@ -207,11 +230,11 @@ def generate_c(circuit: Circuit) -> str:
     else:
         w("/* No input ports; one dummy entry keeps the table valid C11. */")
         w("static const struct in_port in_ports[1] = {")
-        w('    { "", 0, 0 }')
+        w('    { "", 0 }')
         w("};")
     w("")
     if nop > 0:
-        w("/* Output port names, aligned with out_vals[] / the OUT_ indices. */")
+        w("/* Output port names, aligned with the OUT_ indices. */")
         w("static const char *const out_port_names[] = {")
         w(",\n".join(f'    "{port.name}"' for port in circuit.out_ports))
         w("};")
@@ -222,57 +245,54 @@ def generate_c(circuit: Circuit) -> str:
         w("};")
     w("")
 
-    # --- 6. recompute_outputs and tick. ------------------------------------
+    # --- 6. gather_out and tick. --------------------------------------------
     w("/*")
-    w(" * Pack each output port's bits (LSB first) from the committed state;")
-    w(" * passthrough output bits read inputs[] directly. Runs after every")
-    w(" * commit so out_vals[] always mirrors the visible cycle.")
+    w(" * Pack output port q's bits (LSB first) from the committed state;")
+    w(" * passthrough output bits read inputs[] directly. Gathered on demand")
+    w(" * by peek()/run_batch(), never inside the cycle loop.")
     w(" */")
-    w("static void recompute_outputs(void)")
+    w("static uint64_t gather_out(int q)")
     w("{")
     if nop == 0:
-        w("    /* No output ports. */")
-    for port in circuit.out_ports:
-        terms = [f"((uint64_t){_src(circuit, ref)} << {bit})" for bit, ref in enumerate(port.refs)]
-        head = f"    out_vals[OUT_{port.name}] = {terms[0]}"
-        if len(terms) == 1:
-            w(head + ";")
-        else:
-            w(head)
-            for term in terms[1:-1]:
-                w(f"        | {term}")
-            w(f"        | {terms[-1]};")
+        w("    (void)q;")
+        w("    return 0ULL;")
+    else:
+        w("    switch (q) {")
+        for i, port in enumerate(circuit.out_ports):
+            w(f"    case OUT_{port.name}:")
+            w(f"        return {_out_expr(plan.outputs[i])};")
+        w("    default:")
+        w("        return 0ULL;")
+        w("    }")
     w("}")
     w("")
     if chunks:
         w("/*")
-        w(" * The per-gate statements live in noinline chunk functions instead of")
-        w(" * one giant tick() body. The stores are uint8_t (char) writes through")
-        w(" * pointers, and a char store may alias anything — including cur/nxt")
-        w(" * themselves — so a single huge basic block sends the compiler's")
+        w(" * The word statements live in noinline chunk functions instead of one")
+        w(" * giant tick() body: a single huge basic block sends the compiler's")
         w(" * instruction scheduler quadratic. The restrict parameters assert the")
-        w(" * read buffer and the write buffer are disjoint, and noinline keeps")
+        w(" * read buffers and the write buffer are disjoint, and noinline keeps")
         w(" * each scheduling region small (single-call statics would otherwise be")
         w(" * re-inlined, reconstructing the giant block). Every chunk reads only")
-        w(" * c[] (the committed cycle) and writes only n[], so the split cannot")
-        w(" * change semantics; chunks with no c[] reads take just n.")
+        w(" * c[]/in[] (the committed cycle) and writes only n[], so the split")
+        w(" * cannot change semantics; chunks take only the arrays they read.")
         w(" */")
-        for k, chunk in enumerate(chunks):
+        for k, (start, chunk) in enumerate(chunks):
+            params = []
+            if _reads(chunk, "c"):
+                params.append("const uint64_t *restrict c")
+            if _reads(chunk, "in"):
+                params.append("const uint64_t *restrict in")
+            params.append("uint64_t *restrict n")
             w("SHDLC_NOINLINE")
-            if _reads_gate_outputs(chunk):
-                w(f"static void tick_chunk_{k}(const uint8_t *restrict c, uint8_t *restrict n)")
-            else:
-                w(f"static void tick_chunk_{k}(uint8_t *restrict n)")
+            w(f"static void tick_chunk_{k}({', '.join(params)})")
             w("{")
-            for gate in chunk:
-                w(
-                    f"    n[G_{gate.name}] = {_gate_expr(circuit, gate, 'c')};"
-                    f" /* {gate.name}: {gate.type} */"
-                )
+            for j, word in enumerate(chunk):
+                w(_word_stmt(word, "n", start + j, "c", "in"))
             w("}")
             w("")
     w("/*")
-    w(" * One unit-delay cycle (shdl.md §11, shdlc_goals.md §2.3): every gate")
+    w(" * One unit-delay cycle (shdl.md §11, shdlc_goals.md §2.3): every word")
     w(" * reads only the previous cycle's values (cur[]/inputs[]) and writes")
     w(" * nxt[]; the commit is a pointer swap, so no gate observes a same-cycle")
     w(" * update and feedback advances one gate level per cycle. Hot path: no")
@@ -280,25 +300,26 @@ def generate_c(circuit: Circuit) -> str:
     w(" */")
     w("static void tick(void)")
     w("{")
-    w("    uint8_t *tmp;")
+    w("    uint64_t *tmp;")
     w("")
     if chunks:
-        for k, chunk in enumerate(chunks):
-            args = "cur, nxt" if _reads_gate_outputs(chunk) else "nxt"
-            w(f"    tick_chunk_{k}({args});")
+        for k, (_, chunk) in enumerate(chunks):
+            args = []
+            if _reads(chunk, "c"):
+                args.append("cur")
+            if _reads(chunk, "in"):
+                args.append("inputs")
+            args.append("nxt")
+            w(f"    tick_chunk_{k}({', '.join(args)});")
         w("")
     else:
-        for gate in circuit.gates:
-            w(
-                f"    nxt[G_{gate.name}] = {_gate_expr(circuit, gate)};"
-                f" /* {gate.name}: {gate.type} */"
-            )
-        if ng > 0:
+        for i, word in enumerate(words):
+            w(_word_stmt(word, "nxt", i, "cur", "inputs"))
+        if nw > 0:
             w("")
     w("    tmp = cur;")
     w("    cur = nxt;")
     w("    nxt = tmp;")
-    w("    recompute_outputs();")
     w("    dirty = 0;")
     w("}")
     w("")
@@ -308,11 +329,13 @@ def generate_c(circuit: Circuit) -> str:
         w("/* Init seeds applied by reset(), as data: per-seed stores would")
         w(" * rebuild the giant-basic-block problem the tick chunks avoid. */")
         w("static const struct init_seed {")
-        w("    uint32_t wire; /* gate slot */")
+        w("    uint32_t word;")
+        w("    uint8_t lane;")
         w("    uint8_t value;")
         w("} init_seeds[] = {")
         for gate_index, bit in circuit.init:
-            w(f"    {{ G_{circuit.gates[gate_index].name}, {bit}u }},")
+            word, lane = plan.place[gate_index]
+            w(f"    {{ {word}u, {lane}u, {bit}u }}, /* {circuit.gates[gate_index].name} */")
         w("};")
         w("")
     w("/*")
@@ -332,26 +355,21 @@ def generate_c(circuit: Circuit) -> str:
     w("    nxt = buf_b;")
     if circuit.init:
         w("    for (i = 0; i < sizeof(init_seeds) / sizeof(init_seeds[0]); i++) {")
-        w("        cur[init_seeds[i].wire] = init_seeds[i].value;")
+        w("        cur[init_seeds[i].word] |= (uint64_t)init_seeds[i].value << init_seeds[i].lane;")
         w("    }")
     w("    dirty = 0;")
-    w("    recompute_outputs();")
     w("}")
     w("")
-    w("/* Set an input port; the per-bit scatter masks the value to the port")
-    w(" * width for free (max shift 63, so no width-64 shift exists). */")
+    w("/* Set an input port; the value is masked to the port width. */")
     w("SHDLC_API void poke(const char *signal, uint64_t value)")
     w("{")
     w("    int i;")
-    w("    int b;")
     w("")
     w("    /* NULL takes the unknown-signal path; no name comparison on it. */")
     w("    if (signal != 0) {")
     w("        for (i = 0; i < NUM_IN_PORTS; i++) {")
     w("            if (strcmp(signal, in_ports[i].name) == 0) {")
-    w("                for (b = 0; b < in_ports[i].width; b++) {")
-    w("                    inputs[in_ports[i].wires[b]] = (uint8_t)((value >> b) & 1u);")
-    w("                }")
+    w("                inputs[i] = value & in_ports[i].mask;")
     w("                dirty = 1;")
     w("                return;")
     w("            }")
@@ -362,13 +380,11 @@ def generate_c(circuit: Circuit) -> str:
     w("}")
     w("")
     w("/* Read a port. Outputs are scanned first and trigger one lazy tick per")
-    w(" * poke-batch (tick clears dirty); inputs gather from inputs[] and never")
+    w(" * poke-batch (tick clears dirty); inputs read inputs[] and never")
     w(" * tick. */")
     w("SHDLC_API uint64_t peek(const char *signal)")
     w("{")
     w("    int i;")
-    w("    int b;")
-    w("    uint64_t v;")
     w("")
     w("    /* NULL takes the unknown-signal path; no name comparison on it. */")
     w("    if (signal != 0) {")
@@ -377,16 +393,12 @@ def generate_c(circuit: Circuit) -> str:
     w("                if (dirty) {")
     w("                    tick();")
     w("                }")
-    w("                return out_vals[i];")
+    w("                return gather_out(i);")
     w("            }")
     w("        }")
     w("        for (i = 0; i < NUM_IN_PORTS; i++) {")
     w("            if (strcmp(signal, in_ports[i].name) == 0) {")
-    w("                v = 0u;")
-    w("                for (b = 0; b < in_ports[i].width; b++) {")
-    w("                    v |= (uint64_t)inputs[in_ports[i].wires[b]] << b;")
-    w("                }")
-    w("                return v;")
+    w("                return inputs[i];")
     w("            }")
     w("        }")
     w("    }")
@@ -444,7 +456,7 @@ def generate_c(circuit: Circuit) -> str:
     w("")
     w("/*")
     w(" * Drive `count` input frames through the circuit in one call. Frame k")
-    w(" * scatters in[k*NUM_IN_PORTS + p] to input port p (declaration order,")
+    w(" * pokes in[k*NUM_IN_PORTS + p] into input port p (declaration order,")
     w(" * poke semantics), advances `cycles` cycles -- exactly when `settle`")
     w(" * is 0, with fixed-point early exit when nonzero -- then gathers each")
     w(" * output port into out[k*NUM_OUT_PORTS + q] with peek semantics,")
@@ -457,15 +469,10 @@ def generate_c(circuit: Circuit) -> str:
     w("{")
     w("    int k;")
     w("    int i;")
-    w("    int b;")
-    w("    uint64_t value;")
     w("")
     w("    for (k = 0; k < count; k++) {")
     w("        for (i = 0; i < NUM_IN_PORTS; i++) {")
-    w("            value = in[(size_t)k * NUM_IN_PORTS + (size_t)i];")
-    w("            for (b = 0; b < in_ports[i].width; b++) {")
-    w("                inputs[in_ports[i].wires[b]] = (uint8_t)((value >> b) & 1u);")
-    w("            }")
+    w("            inputs[i] = in[(size_t)k * NUM_IN_PORTS + (size_t)i] & in_ports[i].mask;")
     w("            dirty = 1;")
     w("        }")
     w("        if (settle) {")
@@ -477,7 +484,7 @@ def generate_c(circuit: Circuit) -> str:
     w("            if (dirty) {")
     w("                tick();")
     w("            }")
-    w("            out[(size_t)k * NUM_OUT_PORTS + (size_t)i] = out_vals[i];")
+    w("            out[(size_t)k * NUM_OUT_PORTS + (size_t)i] = gather_out(i);")
     w("        }")
     w("    }")
     w("}")

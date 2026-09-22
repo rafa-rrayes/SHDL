@@ -335,9 +335,9 @@ AMB-38).
 
 | ID | Obligation | Status |
 |----|------------|--------|
-| CCT-1 | Structural codegen unit tests (wire table ordering, array bounds, two-buffer swap, chunked tick) | ✅ |
+| CCT-1 | Structural codegen unit tests (word/lane placement, gather shifts and masks, port masks, two-buffer swap, chunked tick) | ✅ |
 | CCT-2 | CC discovery (CC env, PATH, precedence), per-platform flags/suffix | ✅ |
-| CCT-3 | Zero-warning generation under STRICT_CFLAGS for every test build, including >1024-gate chunked tick | ✅ (CLI builds via `--cc "cc -Wall -Wextra -Werror -pedantic"` — a strict build exiting 0 IS the proof, incl. the chunked tick) |
+| CCT-3 | Zero-warning generation under STRICT_CFLAGS for every test build, including the >64-word (>4096-gate) chunked tick | ✅ (CLI builds via `--cc "cc -Wall -Wextra -Werror -pedantic"` — a strict build exiting 0 IS the proof, incl. the chunked tick) |
 | CCT-4 | -O0 ≡ -O3 trace equality | ✅ |
 | CCT-5 | **Sanitizer builds**: run the differential suite against `-fsanitize=address,undefined` builds of generated C (UB in generated code is otherwise invisible) | ✅ (generated C + a driver main() built into a standalone ASAN+UBSAN executable, run as a subprocess and checked vs a BaseEval trace; self-gates on a probe) |
 | CCT-6 | **Platform matrix**: today macOS/clang only. CI must add Linux/gcc + Linux/clang; Windows/MSVC best-effort later (shdlc_goals §8) | 🟡 (ci.yml matrix {ubuntu/gcc, ubuntu/clang, macos/clang} + nightly.yml authored and YAML-validated, `$CC` honoring verified; the Linux/gcc + Linux/clang generated-C builds are UNPROVEN — need one real CI pass; Windows/MSVC still later) |
@@ -349,9 +349,9 @@ AMB-38).
 | CCT-12 | find_cc whitespace-only/empty value (explicit arg or `$CC` that shlex-splits to nothing) → CCError, no fallback | ✅ |
 | CCT-13 | Minimal-consumer guarantee end-to-end (base_shdl §2): a Base SHDL file with **no meta section** compiles to a working library; identity single-bit ports synthesized from the header; sim parity vs oracle | ✅ (a meta-less artifact built and run with synthesized identity ports, sim parity vs oracle) |
 | CCT-14 | C-compile failure surfacing: CCError carries the exact argv and the compiler's stderr verbatim; str() names the exit code; CLI prints a single clean diagnostic, rc 1 | ✅ |
-| CCT-15 | `in_wires_*` initializer wrapping past the 80-col limit: 8 names per line, comma discipline, closing brace — structurally pinned | ✅ (the wrapped text format structurally asserted: 8 names/line with comma discipline) |
+| CCT-15 | Input-port words: each `in_ports[]` row carries the port's lane mask (wire order, scrambled or not, lives in the layout, never in a C table); `poke`/`run_batch` mask the value to the port width — structurally pinned | ✅ (the `{ "P", 0x…07ULL }` row text and the `value & in_ports[i].mask` stores asserted) |
 | CCT-16 | Hot-path purity of generated C (shdlc_goals §3.2/§5.3): `step()` free of strcmp/fprintf/malloc/branches; `tick()` additionally loop-free; strcmp confined to the poke/peek scans | ✅ |
-| CCT-17 | The `n`-only `tick_chunk_k` signature variant (chunk with no `cur[]` reads) actually **compiles** under STRICT_CFLAGS and lockstep-matches BaseEval | ✅ (a circuit whose chunks read no gate outputs emits and builds the `n`-only signature, lockstep-matches BaseEval) |
+| CCT-17 | The by-need `tick_chunk_k` parameter list (a chunk that reads no committed state takes only `in`/`n`) actually **compiles** under STRICT_CFLAGS and lockstep-matches BaseEval | ✅ (a circuit whose chunks read no gate outputs emits and builds the `in`+`n` signature, lockstep-matches BaseEval) |
 | CCT-18 | Base-level naming-reservation asymmetry: shdlc accepts `__x` / `Sum_2_` gate names unchecked while fully re-validating §3.6 connection rules — pin the trust as the contract with an acceptance test, or add rejection (see AMB-36) | ✅ (acceptance test pins the trust; §3.6 wiring rules still re-validated — AMB-36) |
 | CCT-19 | Self-containedness (shdlc_goals §8): the built library's undefined-symbol set is a subset of libc — no other runtime dependencies (nm -u / platform equivalent) | ✅ (nm -u subset-of-libc; macOS-gated, ties CCT-6 for the Linux equivalent) |
 
@@ -386,7 +386,7 @@ AMB-38).
 
 | ID | Obligation | Status |
 |----|------------|--------|
-| SCL-1 | >1024-gate chunked tick correctness (differential, warning-free) | ✅ |
+| SCL-1 | >64-word chunked tick correctness (differential, warning-free) | ✅ |
 | SCL-2 | CPU-scale build (~4×10⁴ gates — 42,530 measured) exercised continuously via T4 | ✅ |
 | SCL-3 | 10⁵-gate synthetic: flatten + compile + 100-cycle differential smoke (known clang misched risk on giant tick — see perf memory; this is the regression guard) | ✅ (commit-time chunking-engages assert + env-gated STRICT build & 100-cycle differential) |
 | SCL-4 | Generator emitting 10⁴ instances; 100-specialization monomorphization (MON-7); 1 MB source file parse | ✅ |
@@ -580,10 +580,10 @@ Direct answer to: *does the new suite cover the old catalog, and does it cover m
 | Functional: primitive/derived truth tables, propagation timing, adders to 8-bit, multi-bit patterns, mux/decoder, reset, boundary values | compiler suite + equivalence + conformance: truth tables on compiled C *and* two oracles, per-cycle ripple traces, exhaustive add2 grid, masking/64-bit | **Covered+** (mux/decoder live in CPU parts tests — CPU-7; legacy 16-bit patterns subsumed by SR16 + WIDE64) |
 | Diagnostics: per-code coverage, line/col, integration multi-error files | 41 codes, 100% enum-enforced, per-raise-site matrix (107 sites, DIA-2), exact line:col (DIA-8), full five-field CLI format (DIA-3) | **Covered+** for codes and sites; the legacy multi-error/W-codes/"did you mean" features are now pinned as deliberate V1 non-goals (DIA-4/5/6) rather than gaps |
 | Debugger (.shdb, breakpoints, watchpoints, symbol table…) | Not built yet (Layer 1) | **Staged**, fully specified in FUT V.3 |
-| Legacy's own admitted gaps: sequential elements, >16-bit, error recovery | SR latch/D latch/MSFFE/ring oscillator/power-on metastability; 64-bit ports, 16-bit CPU, >1024-gate chunking | **New suite closes the legacy gaps**; parser error recovery is now a pinned non-goal (fail-fast, DIA-4) |
+| Legacy's own admitted gaps: sequential elements, >16-bit, error recovery | SR latch/D latch/MSFFE/ring oscillator/power-on metastability; 64-bit ports, 16-bit CPU, >64-word chunking | **New suite closes the legacy gaps**; parser error recovery is now a pinned non-goal (fail-fast, DIA-4) |
 | (no legacy equivalent) | Differential oracle lockstep, netlist fuzzing, frozen conformance corpus, determinism across hash seeds/opt levels, strict-CFLAGS proofs, ABI dirty-flag state machine, CPU golden-model lockstep | **Net-new, strictly more** |
 
-**Bottom line:** the new suite (1774 collected tests — 1644 toolchain + 130 PySHDL driver-level —
+**Bottom line:** the new suite (1912 collected tests — 1782 toolchain + 130 PySHDL driver-level —
 ~15k test lines — ~16k including the conformance runner — plus 38 conformance cases / 40 frozen
 traces) covers essentially everything
 the legacy suite covered for components that exist, and is categorically stronger on simulation

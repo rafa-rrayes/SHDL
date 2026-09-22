@@ -21,9 +21,10 @@ meta { "ports": { "inputs": { "P": ["w2", "w0", "w1"] }, "outputs": { "Q": ["y1"
 
 
 def test_scrambled_port_wire_order(builds):
-    # The emitted wire table must follow the meta.ports list order exactly.
+    # The port is one 3-bit word; the scrambled wire order lives in the
+    # layout (bit b of the word feeds the gates wired to meta.ports[b]).
     _, c_source = compile_text(SCRAMBLED_TEXT)
-    assert "static const uint16_t in_wires_P[] = { IN_w2, IN_w0, IN_w1 };" in c_source
+    assert '{ "P", 0x0000000000000007ULL }' in c_source
     # Behavioral: bit b of a poked value lands on wires[b], and the output
     # port gathers its own scrambled mapping — bit-for-bit with BaseEval.
     sim = builds.sim_from_text("scrambled", SCRAMBLED_TEXT)

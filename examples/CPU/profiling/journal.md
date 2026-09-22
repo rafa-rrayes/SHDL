@@ -276,6 +276,44 @@ N=1: 37.5/s   N=2: 74.8/s   N=4: 149.7/s   N=8: 285.4/s (7.6x)   N=10: 325.3/s
   or event-driven evaluation), not driver or asm work.
 
 ---
+## Exp 7 — Compiler: bit-packed word evaluation (2026-09-05, branch `claude-optimize`)
+
+**Method:** shdlc now plans every gate into a lane of a 64-bit state word (`shdlc/layout.py`) and
+emits one C statement per word (`shdlc/codegen.py`): operands are gathered by shifting whole source
+words, so one instruction evaluates up to 64 gates of the same type. Same unit-delay compute/commit
+model, same six-symbol ABI, no topological sorting, no settling. sr16 rebuilt with the new codegen
+(-O2, unchanged flags) and Exp 0 / Exp 1 rerun verbatim against it.
+
+| | Exp 0/1 (byte per gate) | Exp 7 (bit-packed) | |
+|---|---|---|---|
+| one tick | 23.2 µs | 1.31 µs | **17.7×** |
+| `step(n)` fit | 4.2 µs + n × 23.23 µs | 0.21 µs + n × 1.308 µs | |
+| poke / clean peek | 0.35 / 0.25 µs | 0.35 / 0.25 µs | unchanged (name scan + ctypes floor) |
+| poke + dirty peek (1 lazy tick) | 24.4 µs | 1.87 µs | |
+| mul.s stock run, in-process (reset + load + run) | 453 ms | 26.2 ms | **17.3×** |
+| run-phase ticks/s | 43.3k | 745k | |
+| generated C / build time | 6.6 MB / 12.8 s | 2.9 MB / 2.7 s | |
+
+Tick and call counts are identical to Exp 0 (19,500 ticks; 392 step / 328 poke / 198 peek) and the
+run halts with the same R3 = 132; the CPU golden-model lockstep suite (`tests/cpu`) passes on the
+new build.
+
+Other circuits (µs/tick, same machine): adder8 0.014 → 0.009; alu 0.040 → 0.014; 32×32 Game of
+Life (58k gates) 33.2 → 0.42 (**80×**); 10k-gate chain 0.26 → 0.041. The one regression is a
+uniformly random 20k-gate netlist, 13.3 → 18.2 (0.73×): with no structure to share, every operand
+becomes its own shift-and-mask term, so packing only adds work. Real designs are wide buses and
+replicated cells, which is exactly what the placer packs.
+
+**Findings:**
+- The Exp 6 ceiling (23.2 µs/tick × 69 ticks/clock × 2 clocks/instr ≈ 3.2 ms/instr) becomes
+  ≈ 0.18 ms/instr ≈ 5,500 instr/s/core with the tuned budget; the stock-budget mul.s multiply is
+  26 ms instead of 456 ms.
+- With a tick at 1.3 µs the ctypes floor (~0.25 µs/call) is no longer invisible: a `step(1)`-per-cycle
+  driver pays ~20% overhead, so batch ticks with `step(n)` where the protocol allows.
+- Remaining per-tick cost is dominated by operand gathers on the CPU's mixed-source words
+  (sr16 averages ~11 gather terms per word); further gains are in the placer, not the emitter.
+
+---
 
 ## Conclusions
 
@@ -305,6 +343,9 @@ worst-case carry chains — single-point passes can be parity luck.
 **Not changed:** `sr16tools/driver.py` budgets stay at the pinned contract values (200/16/4); all
 tuned numbers come from per-instance overrides in the experiment scripts. If the contract should move
 to 240→69-ish ticks/clock, it needs the deferred doubled-budget guard test plus margin (e.g. 40/16/4).
+
+**Update (Exp 7):** the compiler-side change the ceiling analysis pointed at (word-packed evaluation)
+landed: 1.31 µs/tick, mul.s stock run 26 ms. Exp 0–6 numbers above are the byte-per-gate baseline.
 
 **Artifacts:** `profiling/exp0_baseline.py`, `exp1_micro.py`, `exp3_op_census.py`, `exp4_settle.py`,
 `exp5_hostcost.py`, `exp5b_cflags.py`, `exp6_mulshootout.py` (this file's numbers are reproducible

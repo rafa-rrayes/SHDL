@@ -3,6 +3,8 @@
 String/structure assertions only: the generated C is never compiled here
 (integration tests elsewhere own that), and circuits are built by hand from
 the :mod:`shdlc.model` dataclasses — no conftest fixtures, no meta JSON.
+The pinned word statements double as the emission rules' documentation:
+shift / broadcast gathers, and masks only where junk could reach a used lane.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import re
 
 from shdlc.codegen import _TICK_CHUNK, generate_c
+from shdlc.layout import LANES
 from shdlc.model import Circuit, Gate, PortGroup, Ref
 
 
@@ -99,12 +102,30 @@ def passthrough_circuit() -> Circuit:
     )
 
 
+def fanout_circuit(gate_type: str) -> Circuit:
+    """Three gates ANDing/ORing one shared select bit with a 3-bit bus."""
+    return _circuit(
+        name="Fanout",
+        inputs=("s", "d0", "d1", "d2"),
+        gates=tuple(Gate(f"a{k}", gate_type, _in(0), _in(1 + k)) for k in range(3)),
+        outputs=("y0", "y1", "y2"),
+        in_ports=(PortGroup("S", (_in(0),)), PortGroup("D", (_in(1), _in(2), _in(3)))),
+        out_ports=(PortGroup("Y", (_g(0), _g(1), _g(2))),),
+    )
+
+
+def ring_circuit(n: int) -> Circuit:
+    """n NOT gates in a ring: gate i reads gate i-1, gate 0 reads gate n-1."""
+    gates = tuple(Gate(f"n{i}", "NOT", _g((i - 1) % n), None) for i in range(n))
+    return _circuit(name="Ring", gates=gates, outputs=("o",), out_ports=(PortGroup("o", (_g(0),)),))
+
+
 def empty_circuit() -> Circuit:
     return _circuit(name="Empty")
 
 
 def wide_circuit() -> Circuit:
-    """64-bit identity port pair: exercises the maximum shift (63)."""
+    """64-bit identity port pair: a full-width passthrough."""
     return _circuit(
         name="Wide",
         inputs=tuple(f"w{k}" for k in range(64)),
@@ -128,6 +149,11 @@ def _body(src: str, signature: str) -> str:
     raise AssertionError(f"unterminated function body after {signature!r}")
 
 
+def _word_stmts(body: str) -> list[str]:
+    """The word statements of a tick/chunk body (``nxt[w] = ...`` / ``n[w] = ...``)."""
+    return [ln.strip() for ln in body.splitlines() if re.match(r"\s*(nxt|n)\[\d+\] = ", ln)]
+
+
 # --- section order and overall shape ---------------------------------------
 
 
@@ -141,14 +167,14 @@ def test_section_order():
         "#define SHDLC_API",
         "IN_a = 0",
         "G_g1 = 0",
+        "NUM_WORDS = 1",
         "OUT_o = 0",
-        "NUM_IN_PORTS = 2",
-        "static uint8_t inputs[",
-        "static const uint16_t in_wires_a[",
+        "static uint64_t inputs[",
+        "static uint64_t buf_a[",
         "struct in_port",
         "static const struct in_port in_ports[",
         "static const char *const out_port_names[",
-        "static void recompute_outputs(void)",
+        "static uint64_t gather_out(int q)",
         "static void tick(void)",
         "SHDLC_API void reset(void)",
         "SHDLC_API void poke(const char *signal, uint64_t value)",
@@ -168,33 +194,43 @@ def test_section_order():
 def test_header_comment_has_name_and_counts_only():
     src = generate_c(and_circuit())
     first = src.splitlines()[0]
-    assert first == "/* AndGate: 1 gate, 2 input ports, 1 output port. */"
+    assert first == "/* AndGate: 1 gate in 1 word, 2 input ports, 1 output port. */"
 
 
 def test_counts_in_enums():
     src = generate_c(and_circuit())
-    assert "NUM_INPUTS = 2" in src
     assert "NUM_GATES = 1" in src
+    assert "NUM_WORDS = 1" in src
     assert "NUM_OUT_PORTS = 1" in src
     assert "NUM_IN_PORTS = 2" in src
 
 
-# --- per-gate statements ----------------------------------------------------
+def test_gate_enum_is_word_times_64_plus_lane():
+    src = generate_c(ring_circuit(70))
+    # 70 loose NOT gates fill word 0 and spill into word 1.
+    assert "G_n0 = 0, /* NOT */" in src
+    assert "G_n63 = 63, /* NOT */" in src
+    assert f"G_n64 = {LANES}, /* NOT */" in src
+    assert "NUM_WORDS = 2" in src
 
 
-def test_one_nxt_assignment_per_gate_with_name_comment():
-    circuit = feedback_circuit()
-    src = generate_c(circuit)
+# --- word statements ----------------------------------------------------------
+
+
+def test_one_statement_per_word_with_type_and_count_comment():
+    src = generate_c(feedback_circuit())
     tick = _body(src, "static void tick(void)")
-    assigns = [ln for ln in tick.splitlines() if ln.strip().startswith("nxt[")]
-    assert len(assigns) == len(circuit.gates)
-    assert "nxt[G_n1] = (uint8_t)(cur[G_n2] ^ 1u); /* n1: NOT */" in tick
-    assert "nxt[G_n2] = (uint8_t)(cur[G_n1] ^ 1u); /* n2: NOT */" in tick
+    stmts = _word_stmts(tick)
+    # Both inverters share one word: lane 0 reads lane 1 (shift +1), lane 1
+    # reads lane 0 (shift -1); NOT sets the unused lanes, so the word is masked.
+    assert stmts == [
+        "nxt[0] = ~((cur[0] >> 1) | (cur[0] << 1)) & 0x0000000000000003ULL; /* NOT n[2] */"
+    ]
 
 
-def test_and_reads_inputs_and_or_xor_operators():
+def test_binary_operators_and_aligned_gathers_need_no_mask():
     src = generate_c(and_circuit())
-    assert "nxt[G_g1] = (uint8_t)(inputs[IN_a] & inputs[IN_b]); /* g1: AND */" in src
+    assert "nxt[0] = inputs[0] & inputs[1]; /* AND g[1] */" in src
     fa = _circuit(
         name="OrXor",
         inputs=("a", "b"),
@@ -207,36 +243,47 @@ def test_and_reads_inputs_and_or_xor_operators():
         out_ports=(PortGroup("o", (_g(1),)),),
     )
     src = generate_c(fa)
-    assert "nxt[G_o1] = (uint8_t)(inputs[IN_a] | inputs[IN_b]); /* o1: OR */" in src
-    assert "nxt[G_x1] = (uint8_t)(cur[G_o1] ^ inputs[IN_b]); /* x1: XOR */" in src
+    assert "nxt[0] = inputs[0] | inputs[1]; /* OR o[1] */" in src
+    assert "nxt[1] = cur[0] ^ inputs[1]; /* XOR x[1] */" in src
 
 
-def test_not_is_xor_one_and_no_tilde_in_gate_lines():
+def test_not_is_complement_masked_to_used_lanes():
     src = generate_c(not_circuit())
-    tick = _body(src, "static void tick(void)")
-    assert "nxt[G_n1] = (uint8_t)(inputs[IN_x] ^ 1u); /* n1: NOT */" in tick
-    gate_lines = [ln for ln in src.splitlines() if "nxt[" in ln]
-    assert gate_lines, "no gate lines found"
-    assert all("~" not in ln for ln in gate_lines)
-    assert all("!" not in ln for ln in gate_lines)
+    assert "nxt[0] = ~inputs[0] & 0x0000000000000001ULL; /* NOT n[1] */" in src
+    # A NOT word using all 64 lanes needs no mask; the ring also shows the
+    # maximum shift (lane 0 reads lane 63).
+    src = generate_c(ring_circuit(64))
+    assert "nxt[0] = ~((cur[0] << 1) | (cur[0] >> 63)); /* NOT n[64] */" in src
 
 
-def test_vcc_gnd_emit_literals():
+def test_broadcast_is_unmasked_under_and_but_masked_under_or():
+    # The select bit fans out to every lane: one broadcast term. Its junk in
+    # the unused lanes is absorbed by the AND with the clean bus operand ...
+    src = generate_c(fanout_circuit("AND"))
+    assert "nxt[0] = (0u - (inputs[0] & 1u)) & inputs[1]; /* AND a[3] */" in src
+    # ... but would leak through an OR, so that word is masked.
+    src = generate_c(fanout_circuit("OR"))
+    assert (
+        "nxt[0] = ((0u - (inputs[0] & 1u)) | inputs[1]) & 0x0000000000000007ULL; /* OR a[3] */"
+        in src
+    )
+
+
+def test_vcc_gnd_emit_lane_masks():
     src = generate_c(power_circuit())
-    assert "nxt[G_p] = 1u; /* p: VCC */" in src
-    assert "nxt[G_z] = 0u; /* z: GND */" in src
+    assert "nxt[0] = 0x0000000000000001ULL; /* VCC p[1] */" in src
+    assert "nxt[1] = 0ULL; /* GND z[1] */" in src
 
 
-def test_tick_commit_is_pointer_swap_then_outputs_then_dirty():
+def test_tick_commit_is_pointer_swap_then_dirty():
     src = generate_c(and_circuit())
     tick = _body(src, "static void tick(void)")
     swap = tick.index("tmp = cur;")
     assert tick.index("cur = nxt;") > swap
     assert tick.index("nxt = tmp;") > tick.index("cur = nxt;")
-    assert tick.index("recompute_outputs();") > tick.index("nxt = tmp;")
-    assert tick.index("dirty = 0;") > tick.index("recompute_outputs();")
-    # All gate computes happen before the commit.
-    last_assign = max(tick.index(ln) for ln in tick.splitlines() if "nxt[G_" in ln)
+    assert tick.index("dirty = 0;") > tick.index("nxt = tmp;")
+    # All word computes happen before the commit.
+    last_assign = max(tick.index(ln) for ln in _word_stmts(tick))
     assert last_assign < swap
 
 
@@ -251,41 +298,31 @@ def test_reset_memsets_repins_and_seeds_cur_only():
     assert "memset(buf_b, 0, sizeof(buf_b));" in reset
     assert "cur = buf_a;" in reset
     assert "nxt = buf_b;" in reset
-    # Seeds are data (the init_seeds table), applied to cur[] by one loop.
-    assert "{ G_n1, 1u }," in src
-    assert "{ G_n2, 0u }," in src
-    assert "cur[init_seeds[i].wire] = init_seeds[i].value;" in reset
+    # Seeds are data (word, lane, value), applied to cur[] by one loop.
+    assert "{ 0u, 0u, 1u }, /* n1 */" in src
+    assert "{ 0u, 1u, 0u }, /* n2 */" in src
+    seed = "cur[init_seeds[i].word] |= (uint64_t)init_seeds[i].value << init_seeds[i].lane;"
+    assert seed in reset
     assert "nxt[init_seeds" not in reset
-    # Order: memsets -> re-pin -> seed loop -> dirty=0 -> recompute_outputs.
+    # Order: memsets -> re-pin -> seed loop -> dirty=0.
     assert (
         reset.index("memset(buf_b")
         < reset.index("cur = buf_a;")
-        < reset.index("cur[init_seeds[i].wire]")
+        < reset.index("cur[init_seeds[i].word]")
         < reset.index("dirty = 0;")
-        < reset.index("recompute_outputs();")
     )
     # The table preserves seed order and lives before reset().
-    assert src.index("{ G_n1, 1u },") < src.index("{ G_n2, 0u },")
+    assert src.index("/* n1 */") < src.index("/* n2 */")
     assert src.index("init_seeds[] = {") < src.index("SHDLC_API void reset(void)")
     # Seeds live only in reset, never in tick.
-    tick = _body(src, "static void tick(void)")
-    assert "init_seeds" not in tick
-    assert "cur[G_" not in tick.replace("(uint8_t)(cur[G_", "")
+    assert "init_seeds" not in _body(src, "static void tick(void)")
 
 
 def test_init_seeds_absent_without_init():
     src = generate_c(and_circuit())
     assert "init_seeds" not in src
     reset = _body(src, "SHDLC_API void reset(void)")
-    assert "/* init:" not in reset
-    assert "cur[G_" not in reset
-
-
-def test_recompute_outputs_called_in_tick_and_reset():
-    src = generate_c(feedback_circuit())
-    assert "recompute_outputs();" in _body(src, "static void tick(void)")
-    assert "recompute_outputs();" in _body(src, "SHDLC_API void reset(void)")
-    assert src.count("recompute_outputs();") == 2
+    assert "cur[" not in reset
 
 
 # --- dirty discipline ---------------------------------------------------------
@@ -293,7 +330,7 @@ def test_recompute_outputs_called_in_tick_and_reset():
 
 def test_dirty_handling():
     src = generate_c(and_circuit())
-    # Set on every input scatter: poke, and run_batch's per-port loop.
+    # Set on every input write: poke, and run_batch's per-port loop.
     assert src.count("dirty = 1;") == 2
     assert "dirty = 1;" in _body(src, "SHDLC_API void poke(")
     assert "dirty = 1;" in _body(src, "SHDLC_API void run_batch(")
@@ -321,17 +358,16 @@ def test_peek_scans_outputs_first_and_input_path_never_ticks():
     # The only tick() call sits in the output branch (before the input scan).
     assert peek.count("tick();") == 1
     assert peek.index("tick();") < in_scan
-    assert "return out_vals[i];" in peek
-    # Input gather: bit b comes from wires[b], shifted into place.
-    assert "v |= (uint64_t)inputs[in_ports[i].wires[b]] << b;" in peek
+    assert "return gather_out(i);" in peek
+    # An input port is one word: read back as poked.
+    assert "return inputs[i];" in peek
 
 
-def test_poke_per_bit_scatter_and_unknown_paths():
+def test_poke_masks_to_port_width_and_unknown_paths():
     src = generate_c(passthrough_circuit())
     poke = _body(src, "SHDLC_API void poke(")
     assert "strcmp(signal, in_ports[i].name)" in poke
-    assert "for (b = 0; b < in_ports[i].width; b++)" in poke
-    assert "inputs[in_ports[i].wires[b]] = (uint8_t)((value >> b) & 1u);" in poke
+    assert "inputs[i] = value & in_ports[i].mask;" in poke
     # Unknown-name diagnostics exist in poke and peek, after the scans.
     assert poke.count("fprintf(stderr") == 1
     peek = _body(src, "SHDLC_API uint64_t peek(")
@@ -339,63 +375,37 @@ def test_poke_per_bit_scatter_and_unknown_paths():
     assert peek.strip().endswith("return 0u;")
 
 
-def test_passthrough_output_reads_inputs_in_recompute():
+def test_outputs_are_gathered_on_demand():
     src = generate_c(passthrough_circuit())
-    rec = _body(src, "static void recompute_outputs(void)")
-    assert "out_vals[OUT_Echo] = ((uint64_t)inputs[IN_d1] << 0)" in rec
-    assert "| ((uint64_t)inputs[IN_d2] << 1)" in rec
-    assert "| ((uint64_t)inputs[IN_d3] << 2);" in rec
-    assert "out_vals[OUT_NotD1] = ((uint64_t)cur[G_inv] << 0);" in rec
+    gather = _body(src, "static uint64_t gather_out(int q)")
+    # Echo is the whole 3-bit input word; NotD1 is lane 0 of word 0 (no
+    # other lane is used, so neither needs a mask).
+    assert "case OUT_Echo:\n        return inputs[0];" in gather
+    assert "case OUT_NotD1:\n        return cur[0];" in gather
+    # Never recomputed per tick: the cycle loop only computes and swaps.
+    assert "gather_out" not in _body(src, "static void tick(void)")
+    assert "gather_out" not in _body(src, "static void step_impl(")
+    src = generate_c(fanout_circuit("AND"))
+    assert "case OUT_Y:\n        return cur[0];" in _body(src, "static uint64_t gather_out(int q)")
 
 
 # --- multi-bit ports -----------------------------------------------------------
 
 
-def test_multibit_port_wires_lsb_first():
+def test_multibit_port_mask():
     src = generate_c(passthrough_circuit())
-    assert "static const uint16_t in_wires_D[] = { IN_d1, IN_d2, IN_d3 };" in src
-    assert '{ "D", 3, in_wires_D }' in src
-
-
-def test_wide_in_wires_initializer_wraps_structurally():
-    # CCT-15: a 64-wide input port's initializer exceeds the 80-col limit, so
-    # it wraps. Pin the exact wrapped layout: opening line ends in '{', each
-    # body line carries up to 8 names with comma discipline (every line but
-    # the last ends in ','), the final body line has NO trailing comma, and a
-    # bare '};' closes it.
+    assert '{ "D", 0x0000000000000007ULL }' in src
     src = generate_c(wide_circuit())
-    open_line = "static const uint16_t in_wires_W[] = {"
-    assert open_line in src
-    block = src[src.index(open_line) :]
-    block = block[: block.index("};") + 2]
-    lines = block.splitlines()
-    assert lines[0] == open_line
-    assert lines[-1] == "};"
-    body = lines[1:-1]
-    assert len(body) == 8, "64 names / 8 per line == 8 body lines"
-    for i, line in enumerate(body):
-        names = [tok for tok in line.replace(",", " ").split() if tok]
-        assert len(names) == 8, f"line {i} should hold 8 names: {line!r}"
-        assert line.startswith("    IN_w"), f"4-space indent, IN_ names: {line!r}"
-        if i < len(body) - 1:
-            assert line.rstrip().endswith(","), f"non-final line needs comma: {line!r}"
-        else:
-            assert not line.rstrip().endswith(","), f"final line: no comma: {line!r}"
-    # LSB first, contiguous, no name dropped or duplicated.
-    all_names = [tok for line in body for tok in line.replace(",", " ").split()]
-    assert all_names == [f"IN_w{k}" for k in range(64)]
-    # The short (single-line) form is byte-identical to the unwrapped helper.
-    assert "static const uint16_t in_wires_D[] = { IN_d1, IN_d2, IN_d3 };" in (
-        generate_c(passthrough_circuit())
-    )
+    assert '{ "W", 0xFFFFFFFFFFFFFFFFULL }' in src
+    assert "case OUT_E:\n        return inputs[0];" in src
 
 
 def test_no_width_64_shift_anywhere():
-    for circuit in (and_circuit(), passthrough_circuit(), wide_circuit()):
+    for circuit in (and_circuit(), passthrough_circuit(), wide_circuit(), ring_circuit(64)):
         src = generate_c(circuit)
         assert "<< 64" not in src
-    src = generate_c(wide_circuit())
-    assert "<< 63)" in src  # MSB of a 64-bit output port
+        assert ">> 64" not in src
+    assert ">> 63)" in generate_c(ring_circuit(64))
 
 
 # --- degenerate circuits --------------------------------------------------------
@@ -403,20 +413,21 @@ def test_no_width_64_shift_anywhere():
 
 def test_degenerate_empty_circuit():
     src = generate_c(empty_circuit())
-    assert "[0]" not in src
-    assert "static uint8_t inputs[1];" in src
-    assert "static uint8_t buf_a[1];" in src
-    assert "static uint8_t buf_b[1];" in src
-    assert "static uint64_t out_vals[1];" in src
-    assert "NUM_INPUTS = 0" in src
+    assert not re.search(r"^static .*\[0\];", src, re.M), "zero-sized array"
+    assert "static uint64_t inputs[1];" in src
+    assert "static uint64_t buf_a[1];" in src
+    assert "static uint64_t buf_b[1];" in src
     assert "NUM_GATES = 0" in src
+    assert "NUM_WORDS = 0" in src
     assert "NUM_OUT_PORTS = 0" in src
     assert "NUM_IN_PORTS = 0" in src
     # Dummy 1-element tables guarded by the count constants.
     assert "static const struct in_port in_ports[1]" in src
-    assert '{ "", 0, 0 }' in src
+    assert '{ "", 0 }' in src
     assert "static const char *const out_port_names[1]" in src
-    assert "in_wires_" not in src.replace("in_ports[i].wires", "")
+    gather = _body(src, "static uint64_t gather_out(int q)")
+    assert "(void)q;" in gather
+    assert "case OUT_" not in gather
     # ABI functions still all present.
     for sig in (
         "SHDLC_API void reset(void)",
@@ -429,12 +440,12 @@ def test_degenerate_empty_circuit():
 
 def test_degenerate_no_inputs_but_gates():
     src = generate_c(power_circuit())
-    assert "[0]" not in src
-    assert "static uint8_t inputs[1];" in src
-    assert "static uint8_t buf_a[2];" in src
+    assert not re.search(r"^static .*\[0\];", src, re.M), "zero-sized array"
+    assert "static uint64_t inputs[1];" in src
+    assert "static uint64_t buf_a[2];" in src
     assert "NUM_IN_PORTS = 0" in src
-    assert '{ "", 0, 0 }' in src
-    assert "nxt[G_p] = 1u;" in src
+    assert '{ "", 0 }' in src
+    assert "nxt[0] = 0x0000000000000001ULL;" in src
 
 
 def test_degenerate_no_output_ports():
@@ -445,12 +456,25 @@ def test_degenerate_no_output_ports():
         in_ports=(PortGroup("a", (_in(0),)),),
     )
     src = generate_c(circuit)
-    assert "[0]" not in src
-    assert "static uint64_t out_vals[1];" in src
+    assert not re.search(r"^static .*\[0\];", src, re.M), "zero-sized array"
     assert "NUM_OUT_PORTS = 0" in src
     assert "static const char *const out_port_names[1]" in src
-    rec = _body(src, "static void recompute_outputs(void)")
-    assert "out_vals[OUT_" not in rec
+    gather = _body(src, "static uint64_t gather_out(int q)")
+    assert "case OUT_" not in gather
+
+
+def test_uncovered_input_wire_reads_zero():
+    # No port covers wire b: the operand has no source and is the constant 0.
+    circuit = _circuit(
+        name="Stuck",
+        inputs=("a", "b"),
+        gates=(Gate("g", "OR", _in(0), _in(1)),),
+        outputs=("o",),
+        in_ports=(PortGroup("a", (_in(0),)),),
+        out_ports=(PortGroup("o", (_g(0),)),),
+    )
+    src = generate_c(circuit)
+    assert "nxt[0] = inputs[0] | 0ULL; /* OR g[1] */" in src
 
 
 # --- visibility / ABI surface ----------------------------------------------------
@@ -557,11 +581,11 @@ def test_render_ends_with_newline_and_no_trailing_whitespace():
     assert not any(ln != ln.rstrip() for ln in src.splitlines())
 
 
-# --- chunked tick (circuits above _TICK_CHUNK gates) -------------------------
+# --- chunked tick (circuits above _TICK_CHUNK words) --------------------------
 
 
 def chain_circuit(n: int) -> Circuit:
-    """NOT-chain: gate 0 reads the input, gate i reads gate i-1."""
+    """NOT-chain: gate 0 reads the input, gate i reads gate i-1 (64 per word)."""
     gates = [Gate("g0", "NOT", _in(0), None)]
     gates.extend(Gate(f"g{i}", "NOT", _g(i - 1), None) for i in range(1, n))
     return _circuit(
@@ -586,62 +610,70 @@ def input_only_circuit(n: int) -> Circuit:
     )
 
 
-_CHUNK_SIG = "static void tick_chunk_{}(const uint8_t *restrict c, uint8_t *restrict n)"
+#: Gates that exactly fill _TICK_CHUNK words.
+_CHUNK_GATES = _TICK_CHUNK * LANES
+
+_CHUNK_SIG = "static void tick_chunk_{}({})"
+_C_IN_N = "const uint64_t *restrict c, const uint64_t *restrict in, uint64_t *restrict n"
+_C_N = "const uint64_t *restrict c, uint64_t *restrict n"
+_IN_N = "const uint64_t *restrict in, uint64_t *restrict n"
 
 
 def test_at_threshold_emits_inline_tick():
-    src = generate_c(chain_circuit(_TICK_CHUNK))
+    src = generate_c(chain_circuit(_CHUNK_GATES))
+    assert f"NUM_WORDS = {_TICK_CHUNK}" in src
     assert "tick_chunk_" not in src
     assert "SHDLC_NOINLINE" not in src
     assert "restrict" not in src
     tick = _body(src, "static void tick(void)")
-    assigns = [ln for ln in tick.splitlines() if ln.strip().startswith("nxt[")]
-    assert len(assigns) == _TICK_CHUNK
+    assert len(_word_stmts(tick)) == _TICK_CHUNK
 
 
 def test_above_threshold_emits_chunks_full_then_remainder():
-    n = _TICK_CHUNK + 1
-    src = generate_c(chain_circuit(n))
+    src = generate_c(chain_circuit(_CHUNK_GATES + 1))
+    assert f"NUM_WORDS = {_TICK_CHUNK + 1}" in src
     assert src.count("SHDLC_NOINLINE\nstatic void tick_chunk_") == 2
     assert "tick_chunk_2" not in src
-    stmts0 = [ln for ln in _body(src, _CHUNK_SIG.format(0)).splitlines() if "n[G_" in ln]
-    stmts1 = [ln for ln in _body(src, _CHUNK_SIG.format(1)).splitlines() if "n[G_" in ln]
+    # Chunk 0 holds the word that reads the input; chunk 1 reads only c[].
+    stmts0 = _word_stmts(_body(src, _CHUNK_SIG.format(0, _C_IN_N)))
+    stmts1 = _word_stmts(_body(src, _CHUNK_SIG.format(1, _C_N)))
     assert len(stmts0) == _TICK_CHUNK
     assert len(stmts1) == 1
-    # Every gate statement appears exactly once, in declaration order.
-    assert re.findall(r"n\[G_(g\d+)\] =", src) == [f"g{i}" for i in range(n)]
+    # Every word statement appears exactly once, in word order.
+    found = re.findall(r"(?<![A-Za-z_])n\[(\d+)\] =", src)
+    assert found == [str(w) for w in range(_TICK_CHUNK + 1)]
     tick = _body(src, "static void tick(void)")
     assert (
-        tick.index("tick_chunk_0(cur, nxt);")
+        tick.index("tick_chunk_0(cur, inputs, nxt);")
         < tick.index("tick_chunk_1(cur, nxt);")
         < tick.index("tmp = cur;")
     )
 
 
-def test_input_only_chunks_take_n_only_signature():
-    src = generate_c(input_only_circuit(_TICK_CHUNK + 1))
+def test_input_only_chunks_take_in_and_n_only():
+    src = generate_c(input_only_circuit(_CHUNK_GATES + 1))
     # No unused-parameter bait: c never appears in any chunk signature.
     assert "restrict c" not in src
-    assert "static void tick_chunk_0(uint8_t *restrict n)" in src
-    assert "static void tick_chunk_1(uint8_t *restrict n)" in src
+    assert _CHUNK_SIG.format(0, _IN_N) in src
+    assert _CHUNK_SIG.format(1, _IN_N) in src
     tick = _body(src, "static void tick(void)")
-    assert "tick_chunk_0(nxt);" in tick
-    assert "tick_chunk_1(nxt);" in tick
+    assert "tick_chunk_0(inputs, nxt);" in tick
+    assert "tick_chunk_1(inputs, nxt);" in tick
     assert "(cur" not in tick
 
 
 def test_chain_crossing_chunk_boundary_reads_previous_cycle_value():
-    src = generate_c(chain_circuit(_TICK_CHUNK + 1))
-    first = _body(src, _CHUNK_SIG.format(1)).strip().splitlines()[0]
+    src = generate_c(chain_circuit(_CHUNK_GATES + 1))
+    first = _word_stmts(_body(src, _CHUNK_SIG.format(1, _C_N)))[0]
     # The cross-chunk read targets c[] (the committed previous cycle), so the
     # chunk split cannot change semantics regardless of call order.
     assert first == (
-        f"n[G_g{_TICK_CHUNK}] = (uint8_t)(c[G_g{_TICK_CHUNK - 1}] ^ 1u); /* g{_TICK_CHUNK}: NOT */"
+        f"n[{_TICK_CHUNK}] = ~(c[{_TICK_CHUNK - 1}] >> 63) & 0x0000000000000001ULL; /* NOT g[1] */"
     )
 
 
 def test_noinline_macro_block_present_iff_chunked():
-    src = generate_c(chain_circuit(_TICK_CHUNK + 1))
+    src = generate_c(chain_circuit(_CHUNK_GATES + 1))
     for line in (
         "#if defined(__GNUC__)",
         "#define SHDLC_NOINLINE __attribute__((noinline))",
@@ -655,9 +687,11 @@ def test_noinline_macro_block_present_iff_chunked():
         < src.index("#define SHDLC_NOINLINE")
         < src.index("static void tick_chunk_0")
     )
-    for small in (chain_circuit(_TICK_CHUNK), and_circuit(), empty_circuit()):
+    for small in (chain_circuit(_CHUNK_GATES), and_circuit(), empty_circuit()):
         assert "SHDLC_NOINLINE" not in generate_c(small)
 
 
 def test_chunked_emission_is_deterministic():
-    assert generate_c(chain_circuit(_TICK_CHUNK + 1)) == generate_c(chain_circuit(_TICK_CHUNK + 1))
+    assert generate_c(chain_circuit(_CHUNK_GATES + 1)) == generate_c(
+        chain_circuit(_CHUNK_GATES + 1)
+    )
