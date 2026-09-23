@@ -7,38 +7,6 @@ cycle (the unit-delay model), and no tool in the chain is allowed to collapse
 or shortcut that structure. You describe hardware out of AND/OR/NOT/XOR; you
 watch signals ripple through it.
 
-## The two languages
-
-**SHDL** is the authoring language: reusable hierarchical components,
-multi-bit ports, compile-time parameters, generators and conditionals for
-repetitive structure, bit slices and concatenation, named constants, optional
-initial state, and imports. Specified in [docs/shdl.md](docs/shdl.md).
-
-**Base SHDL** is the intermediate representation every tool consumes: a flat
-netlist of single-bit wires over exactly six primitives — `AND`, `OR`, `NOT`,
-`XOR`, `__VCC__`, `__GND__` — plus a JSON metadata section (multi-bit port
-groups, hierarchy, source maps, timing, constants, init seeds). Specified in
-[docs/base_shdl.md](docs/base_shdl.md).
-
-## Pipeline
-
-```
- .shdl source
-      │
-      ▼
-  Flattener        six phases: strip, monomorphize, expand generators,
-      │            expand slices, materialize constants, flatten hierarchy
-      ▼
-  Base SHDL        single-bit primitive netlist + JSON metadata
-      │
-      ▼
-  SHDLC            generates C (two-buffer compute/commit cycle),
-      │            builds a shared library with a stable ABI
-      ▼
-  libcircuit       reset() / poke() / peek() / step()
-                   (+ step_settle() / run_batch() throughput paths)
-```
-
 ## Quickstart
 
 Requires Python ≥ 3.14 and a C compiler (clang or gcc).
@@ -47,19 +15,13 @@ Install the released package from PyPI to get the `SHDL` Python package and the
 `shdl` / `shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
 
 ```sh
-pip install PySHDL          # or: uv add PySHDL
+uv tool install --python 3.14 PySHDL
 ```
 
-Or work from a clone with [uv](https://docs.astral.sh/uv/):
+Or:
 
 ```sh
-uv sync
-
-# Flatten SHDL to Base SHDL (inspect the IR)
-uv run shdl-flatten examples/fullAdder.shdl
-
-# Compile straight from SHDL source to a shared library
-uv run shdlc examples/fullAdder.shdl -o fullAdder.dylib
+pip install PySHDL
 ```
 
 Drive a circuit from Python with **PySHDL** — one class, `Circuit`, runs the
