@@ -7,39 +7,6 @@ cycle (the unit-delay model), and no tool in the chain is allowed to collapse
 or shortcut that structure. You describe hardware out of AND/OR/NOT/XOR; you
 watch signals ripple through it.
 
-## The two languages
-
-**SHDL** is the authoring language: reusable hierarchical components,
-multi-bit ports, compile-time parameters, generators and conditionals for
-repetitive structure, bit slices and concatenation, named constants, optional
-initial state, and imports. Specified in [docs/shdl.md](docs/shdl.md).
-
-**Base SHDL** is the intermediate representation every tool consumes: a flat
-netlist of single-bit wires over exactly six primitives — `AND`, `OR`, `NOT`,
-`XOR`, `__VCC__`, `__GND__` — plus a JSON metadata section (multi-bit port
-groups, hierarchy, source maps, timing, constants, init seeds). Specified in
-[docs/base_shdl.md](docs/base_shdl.md).
-
-## Pipeline
-
-```
- .shdl source
-      │
-      ▼
-  Flattener        parse + imports, validate, monomorphize parameters,
-      │            expand generators/`when`, expand slices, materialize
-      │            constants, flatten hierarchy, compute timing + metadata
-      ▼
-  Base SHDL        single-bit primitive netlist + JSON metadata
-      │
-      ▼
-  SHDLC            generates C (two-buffer compute/commit cycle),
-      │            builds a shared library with a stable ABI
-      ▼
-  libcircuit       reset() / poke() / peek() / step()
-                   (+ step_settle() / run_batch() throughput paths)
-```
-
 ## Quickstart
 
 Requires Python ≥ 3.14 and a C compiler (clang or gcc).
@@ -48,19 +15,13 @@ Install the released package from PyPI to get the `SHDL` Python package and the
 `shdl` / `shdlc` / `shdl-flatten` / `shdl-conformance` CLIs:
 
 ```sh
-pip install PySHDL          # or: uv add PySHDL
+uv tool install --python 3.14 PySHDL
 ```
 
-Or work from a clone with [uv](https://docs.astral.sh/uv/):
+Or:
 
 ```sh
-uv sync
-
-# Flatten SHDL to Base SHDL (inspect the IR)
-uv run shdl-flatten examples/fullAdder.shdl
-
-# Compile straight from SHDL source to a shared library
-uv run shdlc examples/fullAdder.shdl -o fullAdder.dylib
+pip install PySHDL
 ```
 
 Drive a circuit from Python with **PySHDL** — one class, `Circuit`, runs the
@@ -71,7 +32,7 @@ poke/peek/step plus dict access and a context manager:
 from SHDL import Circuit
 
 with Circuit("examples/adder8.shdl") as c:
-    c["A"] = 100            # dict-style poke; the value's LSB lands on A[1]
+    c["A"] = 100            # dict-style poke; bit 0 is the LSB
     c["B"] = 55
     c.settle()             # advance every gate level (combinational depth)
     print(c["Sum"])         # 155
@@ -107,15 +68,13 @@ See [docs/shdl_cli.md](docs/shdl_cli.md).
 
 | Path | What it is |
 |---|---|
-| `flattener/` | SHDL → Base SHDL (lexer, parser, import loader, lowering phases, timing, metadata, `HighEval` reference interpreter) |
+| `flattener/` | SHDL → Base SHDL (lexer, parser, six lowering phases, metadata, `HighEval` reference interpreter) |
 | `shdlc/` | Base SHDL → C → shared library (model, codegen, cc driver, `BaseEval` reference interpreter, ctypes harness) |
 | `SHDL/` | The user-facing Python driver: `Circuit` runs the pipeline in-process and exposes poke/peek/step (`from SHDL import Circuit`) |
-| `shdl_cli/` | The `shdl` command: projects, test runner, REPL, Circuit Circus client, dependency resolver |
 | `conformance/` | Frozen corpus of cases with golden Base SHDL + cycle-by-cycle traces, and its runner |
-| `tests/` | `flattener/`, `compiler/`, and `cpu/` suites (~1900 tests) |
+| `tests/` | `flattener/`, `compiler/`, and `cpu/` suites (~1640 tests) |
 | `examples/` | Small circuits (adders, latches, mux, ALU) and a complete, verified 16-bit CPU (`examples/CPU/`) |
 | `docs/` | The normative specs and the verification map |
-| `website/` | The documentation site (Docusaurus), published to <https://rafa-rrayes.github.io/SHDL/> |
 | `scripts/` | Maintenance tooling (conformance corpus builder) |
 
 The flattener and shdlc are deliberately decoupled: Base SHDL text is the
@@ -136,17 +95,10 @@ level lockstep of the example CPU against a golden model.
 
 ## Documentation
 
-The documentation site — tutorials, language reference, tool references,
-worked examples and the specs below — is at
-**<https://rafa-rrayes.github.io/SHDL/>** (source in [website/](website/)).
-
 - [docs/SHDL_Project.md](docs/SHDL_Project.md) — project charter: architecture, ecosystem, build sequence.
 - [docs/shdl.md](docs/shdl.md) — the SHDL language specification.
 - [docs/base_shdl.md](docs/base_shdl.md) — the Base SHDL IR specification.
 - [docs/shdlc_goals.md](docs/shdlc_goals.md) — the compiler's obligations and ABI contract.
-- [docs/pyshdl.md](docs/pyshdl.md) — the PySHDL Python API (`from SHDL import Circuit`).
-- [docs/shdl_cli.md](docs/shdl_cli.md) — the `shdl` CLI: projects, testing, Circuit Circus packages.
-- [conformance/conformance.md](conformance/conformance.md) — the conformance suite and its case format.
 - [docs/golden_tests.md](docs/golden_tests.md) — the verification map tying every spec obligation to tests.
 
 ## Status
@@ -154,6 +106,5 @@ worked examples and the specs below — is at
 The flattener, the SHDLC compiler (release ABI), the conformance suite,
 **PySHDL** — the user-facing Python driver (`from SHDL import Circuit`) — and
 the **`shdl` CLI** (projects + the Circuit Circus package registry) are
-complete and green. The debug build (debug ABI + State Region) and the SHDB
-interactive debugger are planned but not yet implemented — see the build
-sequence in the charter.
+complete and green. Next up are the debug build and the SHDB debugger — see the
+build sequence in the charter.
