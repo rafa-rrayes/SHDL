@@ -13,6 +13,10 @@ on:
 jobs:
   build:
     name: Build distribution
+    # SHDL Studio's releases (tags studio-v*) carry the app's installers only:
+    # they are not a pyshdl release. (publish-to-pypi needs this job, so it
+    # is skipped with it.)
+    if: ${{ !startsWith(github.event.release.tag_name || '', 'studio-') }}
     runs-on: ubuntu-latest
 
     steps:
