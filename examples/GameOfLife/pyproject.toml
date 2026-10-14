@@ -7,4 +7,5 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-pyshdl = { workspace = true }
+# The toolchain in this repository (pyshdl/), not the PyPI release.
+pyshdl = { path = "../../pyshdl", editable = true }

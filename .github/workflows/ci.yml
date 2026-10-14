@@ -19,6 +19,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    # The toolchain (pyproject.toml, uv.lock, tests/) lives in pyshdl/.
+    working-directory: pyshdl
+
 jobs:
   test:
     name: T0-T4 (${{ matrix.os }}, cc=${{ matrix.cc }})

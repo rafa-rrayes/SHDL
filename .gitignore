@@ -30,6 +30,9 @@ htmlcov/
 .claude/*
 !.claude/workflows/
 
-# Docs site (website/): npm dependencies and Docusaurus caches (build/ is above)
-website/node_modules/
-website/.docusaurus/
+# Docs site (docs/website/): npm dependencies and Docusaurus caches (build/ is above)
+docs/website/node_modules/
+docs/website/.docusaurus/
+
+# Local planning notes
+tasks/

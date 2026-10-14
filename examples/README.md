@@ -4,12 +4,14 @@ A graded tour of the language, from a single gate to a parameterized ALU.
 Each file is a self-contained module; read them in order — every example
 introduces one new language feature and builds on the ones before it.
 
-Compile any example to Base SHDL from the repo root:
+Compile any example to Base SHDL from the repo root, with the toolchain in
+[`../pyshdl/`](../pyshdl/) (or drop the `uv run --project pyshdl` prefix if
+PySHDL is installed):
 
 ```sh
-uv run shdl-flatten examples/alu.shdl                    # uses the `top`-marked component
-uv run shdl-flatten examples/stdgates.shdl --top NAND    # pick a component explicitly
-uv run shdl-flatten examples/adderN.shdl -o adderN.bshdl # write to a file
+uv run --project pyshdl shdl-flatten examples/alu.shdl                    # uses the `top`-marked component
+uv run --project pyshdl shdl-flatten examples/stdgates.shdl --top NAND    # pick a component explicitly
+uv run --project pyshdl shdl-flatten examples/adderN.shdl -o adderN.bshdl # write to a file
 ```
 
 Or compile straight to a simulation library (a `.dylib`/`.so`/`.dll` exporting
@@ -17,12 +19,12 @@ Or compile straight to a simulation library (a `.dylib`/`.so`/`.dll` exporting
 in-process) or pre-flattened Base SHDL:
 
 ```sh
-uv run shdlc examples/fullAdder.shdl                     # -> fullAdder.dylib
-uv run shdlc adderN.bshdl --emit-c adderN.c              # also keep the generated C
+uv run --project pyshdl shdlc examples/fullAdder.shdl                     # -> fullAdder.dylib
+uv run --project pyshdl shdlc adderN.bshdl --emit-c adderN.c              # also keep the generated C
 ```
 
 Or drive them from Python with PySHDL — `examples/interacting.py` is a
-runnable walkthrough (`uv run python examples/interacting.py`):
+runnable walkthrough (`uv run --project pyshdl python examples/interacting.py`):
 
 ```python
 from SHDL import Circuit

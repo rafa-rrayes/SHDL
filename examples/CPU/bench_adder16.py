@@ -11,7 +11,7 @@ both directions), then times three drive strategies over the same inputs:
 Every result of every mode is checked against Python's (a + b) — an
 insufficient settle budget fails loudly instead of flattering the numbers.
 
-    uv run python examples/CPU/bench_adder16.py
+    uv run --project pyshdl python examples/CPU/bench_adder16.py
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "pyshdl"))
 
 from flattener.pipeline import flatten_program
 from shdlc.cc import lib_suffix

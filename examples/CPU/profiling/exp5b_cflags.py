@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "pyshdl"))
 
 from flattener.pipeline import flatten_program
 from shdlc.compile import build_library
