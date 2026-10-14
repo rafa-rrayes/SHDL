@@ -2,7 +2,7 @@
 
 Run it from anywhere:
 
-    uv run python examples/interacting.py
+    uv run --project pyshdl python examples/interacting.py
 
 Every circuit it loads lives next to this file in ``examples/``; the paths
 are resolved relative to ``__file__`` so the script works from any CWD.

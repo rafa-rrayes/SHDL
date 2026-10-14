@@ -1,0 +1,8 @@
+# The toolchain's lint settings (pyshdl/pyproject.toml), plus: standalone
+# benchmark/profiling scripts bootstrap sys.path before importing the toolchain
+# (so imports cannot come first, E402) and use throwaway timing / assembler
+# closures that capture loop variables for immediate use (B023).
+extend = "../pyshdl/pyproject.toml"
+
+[lint.per-file-ignores]
+"**" = ["E402", "B023"]

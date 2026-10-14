@@ -29,17 +29,17 @@ feedback loop must own every gate in it).
 
 ```sh
 # flatten + compile the circuit (once)
-uv run shdl-flatten examples/CPU/sr16.shdl -I examples -o /tmp/sr16.bshdl
-uv run shdlc /tmp/sr16.bshdl -o /tmp/sr16.dylib
+uv run --project pyshdl shdl-flatten examples/CPU/sr16.shdl -I examples -o /tmp/sr16.bshdl
+uv run --project pyshdl shdlc /tmp/sr16.bshdl -o /tmp/sr16.dylib
 
 # assemble + run
 cd examples/CPU
-uv run python -m sr16tools.driver /tmp/sr16.dylib program.s
+uv run --project ../../pyshdl python -m sr16tools.driver /tmp/sr16.dylib program.s
 ```
 
 ## Verification
 
-`tests/cpu/` proves the CPU against `sr16tools/golden.py` (itself checked
+`pyshdl/tests/cpu/` proves the CPU against `sr16tools/golden.py` (itself checked
 line-by-line against ISA.md — on any disagreement the document wins):
 
 - **component tests** — seq/parts/ALU/regfile/RAM driven at the pins;
@@ -54,5 +54,5 @@ line-by-line against ISA.md — on any disagreement the document wins):
   architectural trace bit-identical.
 
 ```sh
-uv run pytest tests/cpu        # full CPU suite (builds the circuit once)
+cd pyshdl && uv run pytest tests/cpu   # full CPU suite (builds the circuit once)
 ```

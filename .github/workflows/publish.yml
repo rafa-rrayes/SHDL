@@ -18,6 +18,9 @@ jobs:
     # is skipped with it.)
     if: ${{ !startsWith(github.event.release.tag_name || '', 'studio-') }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pyshdl
 
     steps:
       - name: Checkout code
@@ -39,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions
-          path: dist/
+          path: pyshdl/dist/
 
   publish-to-pypi:
     name: Publish to PyPI

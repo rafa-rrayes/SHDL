@@ -1,9 +1,9 @@
-# Docs — build the Docusaurus site (website/) and deploy it to GitHub Pages.
+# Docs — build the Docusaurus site (docs/website/) and deploy it to GitHub Pages.
 #
-# Every PR that touches the site or the specs it renders (docs/*.md, served
+# Every PR that touches the site or the specs it renders (docs/specs/*.md, served
 # under /specs) builds the site, so a broken link or anchor fails the check
 # (docusaurus.config.ts throws on both), and runs every code block on the site
-# against the real toolchain (website/scripts/check_snippets.py). Pushes to
+# against the real toolchain (docs/website/scripts/check_snippets.py). Pushes to
 # master also deploy the build to https://rafa-rrayes.github.io/SHDL/.
 # Repository setting required once: Settings > Pages > Source = GitHub Actions.
 name: Docs
@@ -12,13 +12,11 @@ on:
   push:
     branches: [master]
     paths:
-      - "website/**"
       - "docs/**"
       - "examples/**"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
-      - "website/**"
       - "docs/**"
       - "examples/**"
       - ".github/workflows/docs.yml"
@@ -48,17 +46,17 @@ jobs:
         run: uv python install 3.14
 
       - name: Sync the environment
-        run: uv sync --frozen
+        run: uv sync --frozen --project pyshdl
 
       - name: Run every snippet on the site
-        run: uv run website/scripts/check_snippets.py
+        run: uv run --project pyshdl docs/website/scripts/check_snippets.py
 
   build:
     name: Build site
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: website
+        working-directory: docs/website
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +64,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: docs/website/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -78,7 +76,7 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: website/build
+          path: docs/website/build
 
   deploy:
     name: Deploy to GitHub Pages

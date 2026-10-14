@@ -17,6 +17,11 @@ concurrency:
   group: nightly-${{ github.workflow }}
   cancel-in-progress: false
 
+defaults:
+  run:
+    # The toolchain (pyproject.toml, uv.lock, tests/) lives in pyshdl/.
+    working-directory: pyshdl
+
 jobs:
   soak:
     name: Soak campaign (${{ matrix.os }})
